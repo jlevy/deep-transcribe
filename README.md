@@ -1,6 +1,17 @@
 # deep-transcribe
 
+Take a video or audio URL (such as YouTube), download and cache it, and perform a "deep
+transcription" of it, including full transcription, identifying speakers, adding
+sections, timestamps, and annotations, and inserting frame captures.
+
+By default this needs API keys for Deepgram and Anthropic (Claude).
+
+This is built on [kash](https://www.github.com/jlevy/kash) and its
+[kash-media](https://www.github.com/jlevy/kash-media) kit of tools for handling videos.
+
 ## Usage
+
+See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
 
 ```
 uvx deep_transcribe --help
@@ -9,37 +20,9 @@ uvx deep_transcribe --help
 uvx deep_transcribe full https://www.youtube.com/watch?v=ihaB8AFOhZo
 ```
 
-* * *
+## Project Docs
 
-## Installing uv and Python
-
-This project is set up to use [**uv**](https://docs.astral.sh/uv/), the new package
-manager for Python. `uv` replaces traditional use of `pyenv`, `pipx`, `poetry`, `pip`,
-etc. This is a quick cheat sheet on that:
-
-On macOS or Linux, if you don't have `uv` installed, a quick way to install it:
-
-```shell
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-For macOS, you prefer [brew](https://brew.sh/) you can install or upgrade uv with:
-
-```shell
-brew update
-brew install uv
-```
-
-See [uv's docs](https://docs.astral.sh/uv/getting-started/installation/) for more
-installation methods and platforms.
-
-Now you can use uv to install a current Python environment:
-
-```shell
-uv python install 3.13 # Or pick another version.
-```
-
-## Development Workflows
+For how to install uv and Python, see [installation.md](installation.md).
 
 For development workflows, see [development.md](development.md).
 
