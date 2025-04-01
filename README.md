@@ -1,10 +1,13 @@
 # deep-transcribe
 
-👉\[\[\[**This is the initial readme for your
-[simple-modern-uv](https://github.com/jlevy/simple-modern-uv) template.** Fill it in and
-delete this message!
-Below are general setup instructions that you may remove or keep and adapt for your
-project.\]\]\]
+## Usage
+
+```
+uvx deep_transcribe --help
+
+# Pick a YouTube video, and do a basic or a full transcription:
+uvx deep_transcribe full https://www.youtube.com/watch?v=ihaB8AFOhZo
+```
 
 * * *
 

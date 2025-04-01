@@ -7,12 +7,12 @@ Repository = "https://github.com/jlevy/deep-transcribe"
 
 [project]
 name = "deep-transcribe"
-description = "High-quality transcription and in-depth analysis of videos and podcasts"
+description = "High-quality transcription, formatting, and analysis of videos and podcasts"
 authors = [
-    { name="jlevy", email="joshua@cal.berkeley.edu" },
+    { name="Joshua Levy", email="joshua@cal.berkeley.edu" },
 ]
 readme = "README.md"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.11,<4.0"
 dynamic = ["version"]
 
@@ -39,6 +39,11 @@ classifiers = [
 # ---- Main dependencies ----
 
 dependencies = [
+    "kash-media>=0.3.5",
+    "flowmark>=0.3.3",
+    "prettyfmt>=0.2.1",
+    "rich>=14.0.0",
+    "rich-argparse>=1.7.0",
 ]
 
 
@@ -54,9 +59,13 @@ dev = [
     "funlog>=0.2.0",
 ]
 
+[tool.uv.sources]
+# For local development:
+# kash-media = { path = "../kash-media", editable = true }
+
 [project.scripts]
 # Add script entry points here.
-deep-transcribe = "deep_transcribe:main"
+deep_transcribe = "deep_transcribe.deep_transcribe_cli:main"
 
 
 # ---- Build system ----
@@ -141,9 +150,9 @@ reportMissingTypeStubs = false
 reportUnusedCallResult = false
 # reportMissingImports = false
 # reportUnnecessaryIsInstance = false
-# reportUnreachable = false
-# reportAny = false
-# reportExplicitAny = false
+reportUnreachable = false
+reportAny = false
+reportExplicitAny = false
 # reportUnknownVariableType = false
 # reportUnknownArgumentType = false
 
