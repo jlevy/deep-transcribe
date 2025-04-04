@@ -3,15 +3,14 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
 
 from flowmark import first_sentence
 from kash.kits.media.actions.deep_transcribe import deep_transcribe
 from kash.kits.media.actions.transcribe_format import transcribe_and_format
 from kash.shell import shell_main
+from kash.shell.utils.argparse_utils import WrappedColorFormatter
 from prettyfmt import fmt_path
 from rich import print as rprint
-from rich_argparse.contrib import ParagraphRichHelpFormatter
 
 from deep_transcribe.transcription import run_transcription
 
@@ -26,12 +25,8 @@ def get_app_version() -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    class CustomFormatter(ParagraphRichHelpFormatter):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, width=88, **kwargs)
-
     parser = argparse.ArgumentParser(
-        formatter_class=CustomFormatter,
+        formatter_class=WrappedColorFormatter,
         description=f"{APP_NAME} {get_app_version()}",
     )
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {get_app_version()}")
@@ -60,14 +55,14 @@ def build_parser() -> argparse.ArgumentParser:
         "deep",
         help=first_sentence(deep_transcribe.__doc__ or ""),
         description=deep_transcribe.__doc__,
-        formatter_class=CustomFormatter,
+        formatter_class=WrappedColorFormatter,
     ).add_argument("url", type=str, help="URL of the video or audio to transcribe")
 
     subparsers.add_parser(
         "basic",
         help=first_sentence(transcribe_and_format.__doc__ or ""),
         description=transcribe_and_format.__doc__,
-        formatter_class=CustomFormatter,
+        formatter_class=WrappedColorFormatter,
     ).add_argument("url", type=str, help="URL of the video or audio to transcribe")
 
     subparsers.add_parser(
