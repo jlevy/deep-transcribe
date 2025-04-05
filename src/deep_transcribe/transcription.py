@@ -1,23 +1,39 @@
+from enum import Enum
 from pathlib import Path
-from typing import Literal, TypeAlias
 
 from kash.actions.core.webpage_config import webpage_config
 from kash.actions.core.webpage_generate import webpage_generate
 from kash.exec import prepare_action_input
-from kash.kits.media.actions.deep_transcribe import deep_transcribe
-from kash.kits.media.actions.transcribe_format import transcribe_and_format
+from kash.kits.media.actions.transcribe import transcribe
+from kash.kits.media.actions.transcribe_and_annotate import transcribe_and_annotate
+from kash.kits.media.actions.transcribe_and_format import transcribe_and_format
 from kash.model import ActionInput, Item
 from kash.workspaces import get_ws
 
-TranscriptionType: TypeAlias = Literal["deep", "basic"]
+
+class TranscriptionType(Enum):
+    raw = "raw"
+    """Raw transcription, with timestamps."""
+
+    basic = "basic"
+    """Formatting of the transcription as paragraphs."""
+
+    deep = "deep"
+    """Fully processed transcription with section headers and annotations, etc."""
 
 
 def run_transcription(
+    transcription_type: TranscriptionType,
     ws_path: Path,
     url: str,
     language: str,
-    transcription_type: TranscriptionType,
 ) -> tuple[Path, Path]:
+    """
+    Transcribe the audio or video at the given URL using kash, which uses yt_dlp and
+    Deepgram or Whisper APIs. URL must be to a supported platform, which include
+    YouTube or Apple Podcasts.
+    """
+
     # Get the workspace.
     ws = get_ws(ws_path)
 
@@ -30,12 +46,14 @@ def run_transcription(
         input = prepare_action_input(url)
 
         # Run the action.
-        if transcription_type == "deep":
-            result_item = deep_transcribe(input.items[0], language=language)
-        elif transcription_type == "basic":
+        if transcription_type == TranscriptionType.raw:
+            result_item = transcribe(input.items[0], language=language)
+        elif transcription_type == TranscriptionType.basic:
             result_item = transcribe_and_format(input.items[0], language=language)
+        elif transcription_type == TranscriptionType.deep:
+            result_item = transcribe_and_annotate(input.items[0], language=language)
         else:
-            raise ValueError(f"Unknown action: {transcription_type}")
+            raise ValueError(f"Unknown transcription type: {transcription_type}")
 
         return format_results(result_item, ws.base_dir)
 
