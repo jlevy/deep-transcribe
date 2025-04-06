@@ -38,7 +38,7 @@ classifiers = [
 # ---- Main dependencies ----
 
 dependencies = [
-    "kash-media>=0.3.6",
+    "kash-media>=0.3.8",
     "flowmark>=0.3.3",
     "prettyfmt>=0.2.1",
     "rich>=14.0.0",
@@ -152,7 +152,7 @@ reportUnusedCallResult = false
 reportUnreachable = false
 reportAny = false
 reportExplicitAny = false
-# reportUnknownVariableType = false
+reportUnknownVariableType = false
 # reportUnknownArgumentType = false
 
 [tool.codespell]

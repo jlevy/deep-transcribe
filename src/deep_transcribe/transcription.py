@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 from pathlib import Path
 
@@ -5,20 +6,23 @@ from kash.actions.core.webpage_config import webpage_config
 from kash.actions.core.webpage_generate import webpage_generate
 from kash.exec import prepare_action_input
 from kash.kits.media.actions.transcribe import transcribe
-from kash.kits.media.actions.transcribe_and_annotate import transcribe_and_annotate
-from kash.kits.media.actions.transcribe_and_format import transcribe_and_format
+from kash.kits.media.actions.transcribe_annotate import transcribe_annotate
+from kash.kits.media.actions.transcribe_format import transcribe_format
 from kash.model import ActionInput, Item
 from kash.workspaces import get_ws
+from kash.workspaces.workspaces import switch_to_ws
+
+log = logging.getLogger(__name__)
 
 
 class TranscriptionType(Enum):
-    raw = "raw"
+    transcribe = "transcribe"
     """Raw transcription, with timestamps."""
 
-    basic = "basic"
+    transcribe_format = "transcribe_format"
     """Formatting of the transcription as paragraphs."""
 
-    deep = "deep"
+    transcribe_annotate = "transcribe_annotate"
     """Fully processed transcription with section headers and annotations, etc."""
 
 
@@ -36,6 +40,8 @@ def run_transcription(
 
     # Get the workspace.
     ws = get_ws(ws_path)
+    log.warning("Switching to workspace: %s", ws.base_dir)
+    switch_to_ws(ws.base_dir)
 
     # Show the user the workspace info.
     ws.log_workspace_info()
@@ -46,12 +52,12 @@ def run_transcription(
         input = prepare_action_input(url)
 
         # Run the action.
-        if transcription_type == TranscriptionType.raw:
+        if transcription_type == TranscriptionType.transcribe:
             result_item = transcribe(input.items[0], language=language)
-        elif transcription_type == TranscriptionType.basic:
-            result_item = transcribe_and_format(input.items[0], language=language)
-        elif transcription_type == TranscriptionType.deep:
-            result_item = transcribe_and_annotate(input.items[0], language=language)
+        elif transcription_type == TranscriptionType.transcribe_format:
+            result_item = transcribe_format(input.items[0], language=language)
+        elif transcription_type == TranscriptionType.transcribe_annotate:
+            result_item = transcribe_annotate(input.items[0], language=language)
         else:
             raise ValueError(f"Unknown transcription type: {transcription_type}")
 

@@ -13,11 +13,44 @@ This is built on [kash](https://www.github.com/jlevy/kash) and its
 
 See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
 
-```
-uvx deep_transcribe --help
+```shell
+uv tool install --upgrade deep_transcribe
 
-# Pick a YouTube video, and do a basic or a full transcription:
-uvx deep_transcribe full https://www.youtube.com/watch?v=ihaB8AFOhZo
+# Pick a YouTube video, and do a basic, formatted, or fully annotated transcription:
+deep_transcribe transcribe https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep_transcribe transcribe_format https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep_transcribe transcribe_annotate https://www.youtube.com/watch?v=ihaB8AFOhZo
+```
+
+Results will be in the `./transcriptions` directory.
+
+To run as an MCP server:
+
+```shell
+# In stdio mode:
+deep_transcribe mcp
+
+# In SSE mode at 127.0.0.1:4440:
+deep_transcribe mcp --sse
+```
+
+Or for Claude Desktop, a config like this should work:
+
+```json
+{
+  "mcpServers": {
+    "deep_transcribe": {
+      "command": "/Users/levy/.local/bin/deep_transcribe",
+      "args": ["mcp"]
+    }
+  },
+}
+```
+
+To debug MCP logs:
+
+```shell
+deep_transcribe mcp --logs
 ```
 
 ## Project Docs
@@ -32,3 +65,5 @@ For instructions on publishing to PyPI, see [publishing.md](publishing.md).
 
 *This project was built from
 [simple-modern-uv](https://github.com/jlevy/simple-modern-uv).*
+```
+```
