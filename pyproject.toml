@@ -156,6 +156,7 @@ reportAny = false
 reportExplicitAny = false
 reportUnknownVariableType = false
 # reportUnknownArgumentType = false
+reportPrivateImportUsage = false
 
 [tool.codespell]
 # ignore-words-list = "foo,bar"

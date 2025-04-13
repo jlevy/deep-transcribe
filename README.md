@@ -34,13 +34,13 @@ deep_transcribe mcp
 deep_transcribe mcp --sse
 ```
 
-Or for Claude Desktop, a config like this should work:
+Or for Claude Desktop, a config like this should work (adjusted to use your appropriate home folder):
 
 ```json
 {
   "mcpServers": {
     "deep_transcribe": {
-      "command": "/Users/levy/.local/bin/deep_transcribe",
+      "command": "/Users/levy/.local/bin/deep-transcribe",
       "args": ["mcp"]
     }
   },
