@@ -59,12 +59,14 @@ dev = [
 ]
 
 [tool.uv.sources]
+# For bleeding edge:
+kash-media = { git = "https://github.com/jlevy/kash-media.git" }
 # For local development:
 # kash-media = { path = "../kash-media", editable = true }
 
 [project.scripts]
 # Add script entry points here.
-deep_transcribe = "deep_transcribe.deep_transcribe_cli:main"
+deep-transcribe = "deep_transcribe.deep_transcribe_cli:main"
 
 
 # ---- Build system ----
