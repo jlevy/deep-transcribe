@@ -1,3 +1,11 @@
+"""
+Take a video or audio URL (such as YouTube), download and cache it, and perform a "deep
+transcription" of it, including full transcription, identifying speakers, adding
+sections, timestamps, and annotations, and inserting frame captures.
+
+More information: https://github.com/jlevy/deep-transcribe
+"""
+
 import argparse
 import sys
 from importlib.metadata import version
@@ -20,6 +28,8 @@ from deep_transcribe.transcription import TranscriptionType, run_transcription
 
 APP_NAME = "deep-transcribe"
 
+DESCRIPTION = """High-quality transcription, formatting, and analysis of videos and podcasts"""
+
 DEFAULT_WS = "./transcriptions"
 
 TRANSCRIBE_ACTIONS = [
@@ -39,7 +49,8 @@ def get_app_version() -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         formatter_class=WrappedColorFormatter,
-        description=f"{APP_NAME} {get_app_version()}",
+        epilog=dedent((__doc__ or "") + "\n\n" + f"{APP_NAME} {get_app_version()}"),
+        description=DESCRIPTION,
     )
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {get_app_version()}")
 
