@@ -14,12 +14,12 @@ This is built on [kash](https://www.github.com/jlevy/kash) and its
 See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
 
 ```shell
-uv tool install --upgrade deep_transcribe
+uv tool install --upgrade deep-transcribe
 
 # Pick a YouTube video, and do a basic, formatted, or fully annotated transcription:
-deep_transcribe transcribe https://www.youtube.com/watch?v=ihaB8AFOhZo
-deep_transcribe transcribe_format https://www.youtube.com/watch?v=ihaB8AFOhZo
-deep_transcribe transcribe_annotate https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep-transcribe transcribe https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep-transcribe transcribe_format https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep-transcribe transcribe_annotate https://www.youtube.com/watch?v=ihaB8AFOhZo
 ```
 
 Results will be in the `./transcriptions` directory.
@@ -28,13 +28,14 @@ To run as an MCP server:
 
 ```shell
 # In stdio mode:
-deep_transcribe mcp
+deep-transcribe mcp
 
 # In SSE mode at 127.0.0.1:4440:
-deep_transcribe mcp --sse
+deep-transcribe mcp --sse
 ```
 
-Or for Claude Desktop, a config like this should work (adjusted to use your appropriate home folder):
+Or for Claude Desktop, a config like this should work (adjusted to use your appropriate
+home folder):
 
 ```json
 {
