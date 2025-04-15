@@ -18,7 +18,7 @@ from rich import print as rprint
 
 from deep_transcribe.transcription import TranscriptionType, run_transcription
 
-APP_NAME = "deep_transcribe"
+APP_NAME = "deep-transcribe"
 
 DEFAULT_WS = "./transcriptions"
 
