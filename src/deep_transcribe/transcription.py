@@ -5,9 +5,9 @@ from pathlib import Path
 from kash.actions.core.webpage_config import webpage_config
 from kash.actions.core.webpage_generate import webpage_generate
 from kash.exec import prepare_action_input
-from kash.kits.media.actions.transcribe import transcribe
-from kash.kits.media.actions.transcribe_annotate import transcribe_annotate
-from kash.kits.media.actions.transcribe_format import transcribe_format
+from kash.kits.media.actions.transcribe.transcribe import transcribe
+from kash.kits.media.actions.transcribe.transcribe_annotate import transcribe_annotate
+from kash.kits.media.actions.transcribe.transcribe_format import transcribe_format
 from kash.model import ActionInput, Item
 from kash.workspaces import get_ws
 from kash.workspaces.workspaces import switch_to_ws

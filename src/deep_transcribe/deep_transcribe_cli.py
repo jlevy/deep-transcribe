@@ -14,9 +14,9 @@ from textwrap import dedent
 
 from flowmark import first_sentence
 from kash.config.settings import DEFAULT_MCP_SERVER_PORT
-from kash.kits.media.actions.transcribe import transcribe
-from kash.kits.media.actions.transcribe_annotate import transcribe_annotate
-from kash.kits.media.actions.transcribe_format import transcribe_format
+from kash.kits.media.actions.transcribe.transcribe import transcribe
+from kash.kits.media.actions.transcribe.transcribe_annotate import transcribe_annotate
+from kash.kits.media.actions.transcribe.transcribe_format import transcribe_format
 from kash.mcp.mcp_main import McpMode, run_mcp_server
 from kash.mcp.mcp_server_commands import mcp_logs
 from kash.shell import shell_main
