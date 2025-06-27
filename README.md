@@ -17,9 +17,9 @@ See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
 uv tool install --upgrade deep-transcribe
 
 # Pick a YouTube video, and do a basic, formatted, or fully annotated transcription:
-deep-transcribe transcribe https://www.youtube.com/watch?v=ihaB8AFOhZo
-deep-transcribe transcribe_format https://www.youtube.com/watch?v=ihaB8AFOhZo
-deep-transcribe transcribe_annotate https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep-transcribe basic https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep-transcribe formatted https://www.youtube.com/watch?v=ihaB8AFOhZo
+deep-transcribe annotated https://www.youtube.com/watch?v=ihaB8AFOhZo
 ```
 
 Results will be in the `./transcriptions` directory.

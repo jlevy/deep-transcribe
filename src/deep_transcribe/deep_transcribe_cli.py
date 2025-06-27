@@ -6,37 +6,30 @@ sections, timestamps, and annotations, and inserting frame captures.
 More information: https://github.com/jlevy/deep-transcribe
 """
 
+from __future__ import annotations
+
 import argparse
+import logging
 import sys
 from importlib.metadata import version
 from pathlib import Path
 from textwrap import dedent
 
+from clideps.utils.readable_argparse import ReadableColorFormatter
 from flowmark import first_sentence
 from kash.config.settings import DEFAULT_MCP_SERVER_PORT
-from kash.kits.media.actions.transcribe.transcribe import transcribe
-from kash.kits.media.actions.transcribe.transcribe_annotate import transcribe_annotate
-from kash.kits.media.actions.transcribe.transcribe_format import transcribe_format
-from kash.mcp.mcp_main import McpMode, run_mcp_server
-from kash.mcp.mcp_server_commands import mcp_logs
-from kash.shell import shell_main
-from kash.shell.utils.argparse_utils import WrappedColorFormatter
 from prettyfmt import fmt_path
 from rich import print as rprint
 
-from deep_transcribe.transcription import TranscriptionType, run_transcription
+from deep_transcribe.cli_commands import TRANSCRIBE_COMMANDS, run_transcription
+
+log = logging.getLogger(__name__)
 
 APP_NAME = "deep-transcribe"
 
 DESCRIPTION = """High-quality transcription, formatting, and analysis of videos and podcasts"""
 
 DEFAULT_WS = "./transcriptions"
-
-TRANSCRIBE_ACTIONS = [
-    transcribe,
-    transcribe_format,
-    transcribe_annotate,
-]
 
 
 def get_app_version() -> str:
@@ -48,7 +41,7 @@ def get_app_version() -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        formatter_class=WrappedColorFormatter,
+        formatter_class=ReadableColorFormatter,
         epilog=dedent((__doc__ or "") + "\n\n" + f"{APP_NAME} {get_app_version()}"),
         description=DESCRIPTION,
     )
@@ -74,19 +67,20 @@ def build_parser() -> argparse.ArgumentParser:
     # Parsers for each action.
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
-    for func in TRANSCRIBE_ACTIONS:
+    # Get actions for help text
+    for name, func in TRANSCRIBE_COMMANDS.items():
         subparser = subparsers.add_parser(
-            func.__name__,
+            name,
             help=first_sentence(func.__doc__ or ""),
             description=func.__doc__,
-            formatter_class=WrappedColorFormatter,
+            formatter_class=ReadableColorFormatter,
         )
         subparser.add_argument("url", type=str, help="URL of the video or audio to transcribe")
-
-    subparser = subparsers.add_parser(
-        "kash",
-        help="Launch the kash shell (a full command line environment with all transcription tools loaded).",
-    )
+        subparser.add_argument(
+            "--no_minify",
+            action="store_true",
+            help="Skip HTML/CSS/JS/Tailwind minification step.",
+        )
 
     subparser = subparsers.add_parser(name="mcp", help="Run as an MCP server.")
     subparser.add_argument(
@@ -103,7 +97,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def display_results(base_dir: Path, md_path: Path, html_path: Path):
+def display_results(base_dir: Path, md_path: Path, html_path: Path) -> None:
+    """Display the results of transcription to the user."""
     rprint(
         dedent(f"""
             [green]All done![/green]
@@ -129,41 +124,50 @@ def display_results(base_dir: Path, md_path: Path, html_path: Path):
 
 
 def main() -> None:
+    # Set up kash logging
+    from kash.config.settings import LogLevel
+    from kash.config.setup import kash_setup
+
+    kash_setup(rich_logging=True, console_log_level=LogLevel.warning)
+
     parser = build_parser()
     args = parser.parse_args()
 
     # Run as an MCP server.
     if args.subcommand == "mcp":
-        # Important we set up logging to do stderr not stdout for stdout server.
+        from kash.mcp.mcp_main import McpMode, run_mcp_server
+        from kash.mcp.mcp_server_commands import mcp_logs
+
         if args.logs:
             mcp_logs(follow=True, all=True)
         else:
             mcp_mode = McpMode.standalone_sse if args.sse else McpMode.standalone_stdio
-            action_names = [func.__name__ for func in TRANSCRIBE_ACTIONS]
+            action_names = list(TRANSCRIBE_COMMANDS.keys())
             run_mcp_server(mcp_mode, proxy_to=None, tool_names=action_names)
         sys.exit(0)
 
-    # Option to run the kash shell with media tools loaded.
-    if args.subcommand == "kash":
-        rprint("[bright_black]Running kash shell with media tools loaded...[/bright_black]")
-        sys.exit(shell_main.run_shell())
-
     # Handle regular transcription.
-
     try:
-        try:
-            transcription_type = TranscriptionType(args.subcommand)
-        except ValueError:
-            raise ValueError(f"Unknown command: {args.subcommand}") from None
+        # Validate command
+        if args.subcommand not in TRANSCRIBE_COMMANDS:
+            raise ValueError(f"Unknown command: {args.subcommand}")
+
         md_path, html_path = run_transcription(
-            transcription_type,
+            args.subcommand,
             Path(args.workspace).resolve(),
             args.url,
             args.language,
+            args.no_minify,
         )
         display_results(Path(args.workspace), md_path, html_path)
     except Exception as e:
+        log.error("Error running deep transcription", exc_info=e)
         rprint(f"[red]Error: {e}[/red]")
+
+        from kash.config.logger import get_log_settings
+
+        log_file = get_log_settings().log_file_path
+        rprint(f"[bright_black]See logs for more details: {fmt_path(log_file)}[/bright_black]")
         sys.exit(1)
 
 
