@@ -29,7 +29,7 @@ APP_NAME = "deep-transcribe"
 
 DESCRIPTION = """High-quality transcription, formatting, and analysis of videos and podcasts"""
 
-DEFAULT_WORK_ROOT = Path("./deep-transcribe")
+DEFAULT_WS = "./transcriptions"
 
 
 def get_app_version() -> str:
@@ -49,10 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Common arguments for all actions.
     parser.add_argument(
-        "--work_root",
+        "--workspace",
         type=str,
-        default=DEFAULT_WORK_ROOT,
-        help=f"work directory root to use for workspace, logs, and cache directories (default: {DEFAULT_WORK_ROOT})",
+        default=DEFAULT_WS,
+        help="the workspace directory to use for files, metadata, and cache",
     )
     parser.add_argument(
         "--language",
@@ -128,12 +128,10 @@ def main() -> None:
     from kash.config.settings import LogLevel
     from kash.config.setup import kash_setup
 
+    kash_setup(rich_logging=True, console_log_level=LogLevel.warning)
+
     parser = build_parser()
     args = parser.parse_args()
-
-    # Set up workspace root following textpress pattern
-    ws_root = Path(args.work_root).resolve()
-    kash_setup(rich_logging=True, kash_ws_root=ws_root, console_log_level=LogLevel.warning)
 
     # Run as an MCP server.
     if args.subcommand == "mcp":
@@ -156,12 +154,12 @@ def main() -> None:
 
         md_path, html_path = run_transcription(
             args.subcommand,
-            ws_root,
+            Path(args.workspace).resolve(),
             args.url,
             args.language,
             args.no_minify,
         )
-        display_results(ws_root, md_path, html_path)
+        display_results(Path(args.workspace), md_path, html_path)
     except Exception as e:
         log.error("Error running deep transcription", exc_info=e)
         rprint(f"[red]Error: {e}[/red]")

@@ -1,4 +1,4 @@
-from deep_transcribe import deep_transcribe_cli
+from deep_transcribe import cli_main
 
 if __name__ == "__main__":
-    deep_transcribe_cli.main()
+    cli_main.main()

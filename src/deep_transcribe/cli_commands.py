@@ -56,7 +56,7 @@ TRANSCRIBE_COMMANDS = {
 
 
 def run_transcription(
-    command_name: str, ws_path: Path, url: str, language: str, no_minify: bool = False
+    command_name: str, ws_root: Path, url: str, language: str, no_minify: bool = False
 ) -> tuple[Path, Path]:
     """
     Transcribe the audio or video at the given URL using kash, which uses yt_dlp and
@@ -67,7 +67,8 @@ def run_transcription(
     from kash.exec import kash_runtime
 
     # Set up kash workspace.
-    kash_setup(kash_ws_root=ws_path.parent, rich_logging=True)
+    kash_setup(kash_ws_root=ws_root, rich_logging=True)
+    ws_path = ws_root / "workspace"
 
     # Run all actions in the context of this workspace.
     with kash_runtime(ws_path) as runtime:

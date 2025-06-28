@@ -66,7 +66,7 @@ kash-media = { git = "https://github.com/jlevy/kash-media.git" }
 
 [project.scripts]
 # Add script entry points here.
-deep-transcribe = "deep_transcribe.deep_transcribe_cli:main"
+deep-transcribe = "deep_transcribe.cli_main:main"
 
 
 # ---- Build system ----
