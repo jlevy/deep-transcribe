@@ -61,6 +61,8 @@ dev = [
 [tool.uv.sources]
 # For bleeding edge:
 kash-media = { git = "https://github.com/jlevy/kash-media.git" }
+kash-docs = { git = "https://github.com/jlevy/kash-docs.git" }
+kash-shell = { git = "https://github.com/jlevy/kash-shell.git" }
 # For local development:
 # kash-media = { path = "../kash-media", editable = true }
 

@@ -1,8 +1,13 @@
 # deep-transcribe
 
-Take a video or audio URL (such as YouTube), download and cache it, and perform a "deep
-transcription" of it, including full transcription, identifying speakers, adding
-sections, timestamps, and annotations, and inserting frame captures.
+High-quality transcription, formatting, and analysis of videos and podcasts.
+
+Take a video or audio URL (such as YouTube), download it, and perform a “deep
+transcription” of it, including full transcription, identifying speakers, adding
+sections, timestamps, inserting frame captures, and researching or footnoting key
+topics.
+
+What kind of detail and annotations it includes depends on the options you specify.
 
 By default this needs API keys for Deepgram and Anthropic (Claude).
 
@@ -11,30 +16,107 @@ This is built on [kash](https://www.github.com/jlevy/kash) and its
 
 ## Usage
 
+### Key Setup
+
 See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
 
-```shell
-uv tool install --upgrade deep-transcribe
+### Basic Usage
 
-# Pick a YouTube video, and do a basic, formatted, or fully annotated transcription:
-deep-transcribe basic https://www.youtube.com/watch?v=ihaB8AFOhZo
-deep-transcribe formatted https://www.youtube.com/watch?v=ihaB8AFOhZo
-deep-transcribe annotated https://www.youtube.com/watch?v=ihaB8AFOhZo
+```bash
+# Default transcription (annotated preset - recommended)
+deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID
+
+# Basic transcription (just text)
+deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --basic
+
+# Formatted transcription (with speakers, paragraphs, timestamps)
+deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --formatted
+
+# Annotated transcription (sections, summaries, descriptions, frame captures)
+deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --annotated
+
+# Deep processing (everything including research annotations)
+deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --deep
+
+# Custom combination of options
+deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --with format,insert_section_headings,research_paras
 ```
 
-Results will be in the `./transcriptions` directory.
+### Available Options
 
-To run as an MCP server:
+Use `--help` to see all current options.
 
-```shell
-# In stdio mode:
-deep-transcribe mcp
+The `--with` flag accepts these processing options:
 
-# In SSE mode at 127.0.0.1:4440:
-deep-transcribe mcp --sse
+- `format`: Apply formatting pipeline (speakers, paragraphs, timestamps)
+
+- `identify_speakers`: Identify different speakers in the audio
+
+- `insert_section_headings`: Add section headings to break up content
+
+- `add_summary_bullets`: Add a bulleted summary
+
+- `add_description`: Add a description at the top
+
+- `insert_frame_captures`: Insert frame captures from video
+
+- `research_paras`: Add research annotations to paragraphs
+
+### Presets
+
+- `--basic`: Just transcription (equivalent to no additional options)
+
+- `--formatted`: Transcription + formatting (equivalent to `--with
+  identify_speakers,format`)
+
+- `--annotated`: Full processing except research (equivalent to `--with
+  identify_speakers,format,insert_section_headings,add_summary_bullets,add_description,insert_frame_captures`)
+  \- **default when no preset specified**
+
+- `--deep`: Complete processing including research (equivalent to `--with
+  identify_speakers,format,insert_section_headings,research_paras,add_summary_bullets,add_description,insert_frame_captures`)
+
+## Output
+
+The tool generates:
+- **Markdown file**: Clean, formatted transcript with HTML tags for citations
+
+- **HTML file**: Browser-ready version with rich formatting and navigation
+
+- **Cached files**: Original video/audio files and intermediate processing results
+
+All files are stored in the workspace directory (default: `./transcriptions/`).
+
+## MCP Server
+
+Run as an MCP server for integration with other tools.
+The MCP server exposes four transcription actions:
+
+- `transcribe_annotated`: Annotated transcription (recommended default)
+
+- `transcribe_formatted`: Formatted transcription
+
+- `transcribe_basic`: Basic transcription only
+
+- `transcribe_deep`: Complete processing including research
+
+```bash
+# Run as stdio MCP server
+deep-transcribe --mcp
+
+# Run as SSE MCP server at 127.0.0.1:4440
+deep-transcribe --sse
+
+# View MCP server logs
+deep-transcribe --logs
 ```
 
-Or for Claude Desktop, a config like this should work (adjusted to use your appropriate
+Note: Both `--sse` and `--logs` automatically enable MCP mode, so you don’t need to
+specify `--mcp` explicitly.
+
+### Claude Desktop Configuration
+
+For Claude Desktop, a config like this should work (adjusted to use your appropriate
 home folder):
 
 ```json
@@ -42,16 +124,10 @@ home folder):
   "mcpServers": {
     "deep_transcribe": {
       "command": "/Users/levy/.local/bin/deep-transcribe",
-      "args": ["mcp"]
+      "args": ["--mcp"]
     }
-  },
+  }
 }
-```
-
-To debug MCP logs:
-
-```shell
-deep_transcribe mcp --logs
 ```
 
 ## Project Docs
@@ -66,5 +142,3 @@ For instructions on publishing to PyPI, see [publishing.md](publishing.md).
 
 *This project was built from
 [simple-modern-uv](https://github.com/jlevy/simple-modern-uv).*
-```
-```

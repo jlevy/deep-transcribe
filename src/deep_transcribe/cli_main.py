@@ -16,12 +16,12 @@ from pathlib import Path
 from textwrap import dedent
 
 from clideps.utils.readable_argparse import ReadableColorFormatter
-from flowmark import first_sentence
 from kash.config.settings import DEFAULT_MCP_SERVER_PORT
 from prettyfmt import fmt_path
 from rich import print as rprint
 
-from deep_transcribe.cli_commands import TRANSCRIBE_COMMANDS, run_transcription
+from deep_transcribe.cli_commands import run_transcription
+from deep_transcribe.transcribe_options import TranscribeOptions
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +39,32 @@ def get_app_version() -> str:
         return "unknown"
 
 
+def get_enabled_options(options: TranscribeOptions) -> list[str]:
+    """Get list of enabled option names from a TranscribeOptions instance."""
+    enabled: list[str] = []
+    for field_name in options.__dataclass_fields__:
+        if getattr(options, field_name):
+            enabled.append(field_name)
+    return enabled
+
+
+def format_preset_help(preset_name: str, options: TranscribeOptions) -> str:
+    """Generate help text for a preset showing equivalent --with options."""
+    enabled = get_enabled_options(options)
+    if not enabled:
+        return f"Use {preset_name} preset (just transcription)"
+
+    enabled_str = ",".join(enabled)
+    return f"Use {preset_name} preset (equivalent to --with {enabled_str})"
+
+
+def get_all_available_options() -> str:
+    """Get all available option names from TranscribeOptions."""
+    options = TranscribeOptions()
+    all_options = list(options.__dataclass_fields__.keys())
+    return ", ".join(all_options)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         formatter_class=ReadableColorFormatter,
@@ -47,7 +73,51 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {get_app_version()}")
 
-    # Common arguments for all actions.
+    # URL argument (required unless --mcp is used)
+    parser.add_argument("url", type=str, nargs="?", help="URL of the video or audio to transcribe")
+
+    # Preset flags (listed first for visibility)
+    parser.add_argument(
+        "--basic",
+        action="store_true",
+        help=format_preset_help("basic", TranscribeOptions.basic()),
+    )
+    parser.add_argument(
+        "--formatted",
+        action="store_true",
+        help=format_preset_help("formatted", TranscribeOptions.formatted()),
+    )
+    parser.add_argument(
+        "--annotated",
+        action="store_true",
+        help=format_preset_help("annotated", TranscribeOptions.annotated())
+        + " (recommended default)",
+    )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help=format_preset_help("deep", TranscribeOptions.deep()),
+    )
+
+    # Option flags (right after presets)
+    parser.add_argument(
+        "--with",
+        dest="with_flags",
+        type=str,
+        help=(
+            f"Comma-separated list of processing options. Available options: "
+            f"{get_all_available_options()}"
+        ),
+    )
+
+    # Transcription options
+    parser.add_argument(
+        "--no_minify",
+        action="store_true",
+        help="Skip HTML/CSS/JS/Tailwind minification step",
+    )
+
+    # Common arguments
     parser.add_argument(
         "--workspace",
         type=str,
@@ -64,34 +134,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--rerun", action="store_true", help="rerun actions even if the outputs already exist"
     )
 
-    # Parsers for each action.
-    subparsers = parser.add_subparsers(dest="subcommand", required=True)
-
-    # Get actions for help text
-    for name, func in TRANSCRIBE_COMMANDS.items():
-        subparser = subparsers.add_parser(
-            name,
-            help=first_sentence(func.__doc__ or ""),
-            description=func.__doc__,
-            formatter_class=ReadableColorFormatter,
-        )
-        subparser.add_argument("url", type=str, help="URL of the video or audio to transcribe")
-        subparser.add_argument(
-            "--no_minify",
-            action="store_true",
-            help="Skip HTML/CSS/JS/Tailwind minification step.",
-        )
-
-    subparser = subparsers.add_parser(name="mcp", help="Run as an MCP server.")
-    subparser.add_argument(
+    # MCP mode
+    parser.add_argument(
+        "--mcp",
+        action="store_true",
+        help="Run as an MCP server instead of transcribing",
+    )
+    parser.add_argument(
         "--sse",
         action="store_true",
-        help=f"Run as an SSE MCP server at: http://127.0.0.1:{DEFAULT_MCP_SERVER_PORT}",
+        help=f"Run as an SSE MCP server at: http://127.0.0.1:{DEFAULT_MCP_SERVER_PORT} (implies --mcp)",
     )
-    subparser.add_argument(
+    parser.add_argument(
         "--logs",
         action="store_true",
-        help="Just tail the logs from the MCP server in the terminal (good for debugging).",
+        help="Just tail the logs from the MCP server in the terminal (implies --mcp)",
     )
 
     return parser
@@ -133,8 +190,12 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    # Run as an MCP server.
-    if args.subcommand == "mcp":
+    # Auto-enable MCP mode if --sse or --logs is used
+    if args.sse or args.logs:
+        args.mcp = True
+
+    # Run as an MCP server
+    if args.mcp:
         from kash.mcp.mcp_main import McpMode, run_mcp_server
         from kash.mcp.mcp_server_commands import mcp_logs
 
@@ -142,20 +203,48 @@ def main() -> None:
             mcp_logs(follow=True, all=True)
         else:
             mcp_mode = McpMode.standalone_sse if args.sse else McpMode.standalone_stdio
-            action_names = list(TRANSCRIBE_COMMANDS.keys())
+            # For MCP, expose transcribe actions (annotated is the default/recommended)
+            action_names = [
+                "transcribe_annotated",
+                "transcribe_formatted",
+                "transcribe_basic",
+                "transcribe_deep",
+            ]
             run_mcp_server(mcp_mode, proxy_to=None, tool_names=action_names)
         sys.exit(0)
 
-    # Handle regular transcription.
+    # Validate that URL is provided for transcription
+    if not args.url:
+        parser.error("URL is required unless --mcp is specified")
+
+    # Handle transcription
     try:
-        # Validate command
-        if args.subcommand not in TRANSCRIBE_COMMANDS:
-            raise ValueError(f"Unknown command: {args.subcommand}")
+        # Build options from command line arguments
+        # Default to annotated preset if no preset is specified
+        if not any([args.basic, args.formatted, args.annotated, args.deep]):
+            options = TranscribeOptions.annotated()
+        else:
+            options = TranscribeOptions.basic()  # Start with basic for explicit presets
+
+        # Apply presets
+        if args.basic:
+            options = options.merge_with(TranscribeOptions.basic())
+        if args.formatted:
+            options = options.merge_with(TranscribeOptions.formatted())
+        if args.annotated:
+            options = options.merge_with(TranscribeOptions.annotated())
+        if args.deep:
+            options = options.merge_with(TranscribeOptions.deep())
+
+        # Apply --with flags
+        if args.with_flags:
+            with_options = TranscribeOptions.from_with_flags(args.with_flags)
+            options = options.merge_with(with_options)
 
         md_path, html_path = run_transcription(
-            args.subcommand,
             Path(args.workspace).resolve(),
             args.url,
+            options,
             args.language,
             args.no_minify,
         )
