@@ -4,6 +4,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+# Keep kash imports minimal initially.
+from kash.exec import kash_action
+from kash.exec.preconditions import is_audio_resource, is_url_resource, is_video_resource
+from kash.model import Item
+from kash.model.params_model import common_params
+
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 if TYPE_CHECKING:
@@ -62,13 +68,6 @@ def transcribe_with_options(item: Item, options: TranscribeOptions, language: st
         result = insert_frame_captures(result)
 
     return result
-
-
-# Import kash decorator dependencies when needed
-from kash.exec import kash_action
-from kash.exec.preconditions import is_audio_resource, is_url_resource, is_video_resource
-from kash.model import Item
-from kash.model.params_model import common_params
 
 
 @kash_action(
@@ -197,22 +196,50 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
     """
     # Import dynamically for faster startup.
     from kash.actions.core.minify_html import minify_html
-    from kash.actions.core.tabbed_webpage_config import tabbed_webpage_config
-    from kash.actions.core.tabbed_webpage_generate import tabbed_webpage_generate
-    from kash.model import ActionInput
+    from kash.model import Format, ItemType
+    from kash.web_gen.template_render import render_web_template
 
-    # These are regular actions that require ActionInput/ActionResult.
-    config = tabbed_webpage_config(ActionInput(items=[result_item]))
-    html_result = tabbed_webpage_generate(ActionInput(items=config.items))
+    # Generate HTML using simple webpage template
+    html_content = render_web_template(
+        "simple_webpage.html.jinja",
+        data={
+            "title": result_item.title,
+            "add_title_h1": True,
+            "content_html": result_item.body_as_html(),
+            "thumbnail_url": result_item.thumbnail_url,
+            "enable_themes": True,
+            "show_theme_toggle": False,
+        },
+    )
+
+    # Create initial HTML item from template
+    raw_html_item = result_item.derived_copy(
+        type=ItemType.export,
+        format=Format.html,
+        body=html_content,
+    )
+
+    # Minify HTML if requested
     if not no_minify:
-        minified_result = minify_html(html_result.items[0])
+        minified_item = minify_html(raw_html_item)
+        html_content = minified_item.body
     else:
-        minified_result = html_result.items[0]
+        html_content = raw_html_item.body
 
+    # Create final HTML item with the processed content
+    html_item = raw_html_item.derived_copy(
+        type=ItemType.export,
+        format=Format.html,
+        body=html_content,
+    )
+
+    # Get file paths from the items
     assert result_item.store_path
-    assert minified_result.store_path
+    assert html_item.store_path
+    assert html_content
 
     md_path = base_dir / Path(result_item.store_path)
-    html_path = base_dir / Path(minified_result.store_path)
+    html_path = base_dir / Path(html_item.store_path)
+    html_path.write_text(html_content)
 
     return md_path, html_path

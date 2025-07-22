@@ -39,7 +39,7 @@ classifiers = [
 
 dependencies = [
     "kash-media>=0.3.11",
-    "flowmark>=0.3.3",
+    "flowmark>=0.5.2",
     "prettyfmt>=0.2.1",
     "rich>=14.0.0",
     "rich-argparse>=1.7.0",

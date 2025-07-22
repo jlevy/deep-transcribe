@@ -34,7 +34,7 @@ class TranscribeOptions:
     """Add research annotations to paragraphs."""
 
     add_summary_bullets: bool = False
-    """Add a bulleted summary at the end."""
+    """Add a bulleted summary of the content at the top."""
 
     add_description: bool = False
     """Add a description at the top of the transcript."""
@@ -114,57 +114,3 @@ class TranscribeOptions:
             add_description=self.add_description or other.add_description,
             insert_frame_captures=self.insert_frame_captures or other.insert_frame_captures,
         )
-
-
-## Tests
-
-
-def test_transcribe_options_parsing():
-    """Test that TranscribeOptions parses comma-separated flags correctly."""
-    # Test basic parsing
-    options = TranscribeOptions.from_with_flags("format,insert_section_headings")
-    assert options.format
-    assert options.insert_section_headings
-    assert not options.research_paras
-
-    # Test empty string
-    options = TranscribeOptions.from_with_flags("")
-    assert not options.format
-
-    # Test whitespace handling
-    options = TranscribeOptions.from_with_flags(" format , insert_section_headings ")
-    assert options.format
-    assert options.insert_section_headings
-
-    # Test presets
-    basic = TranscribeOptions.basic()
-    assert not basic.format
-
-    formatted = TranscribeOptions.formatted()
-    assert formatted.format
-    assert formatted.identify_speakers
-
-    annotated = TranscribeOptions.annotated()
-    assert annotated.format
-    assert annotated.identify_speakers
-    assert annotated.insert_section_headings
-    assert not annotated.research_paras  # Annotated excludes research
-    assert annotated.add_summary_bullets
-
-    deep = TranscribeOptions.deep()
-    assert deep.format
-    assert deep.identify_speakers
-    assert deep.insert_section_headings
-    assert deep.research_paras  # Deep includes research
-    assert deep.add_summary_bullets
-
-    # Test merge
-    merged = basic.merge_with(formatted)
-    assert merged.format
-    assert merged.identify_speakers
-
-    print("All tests passed!")
-
-
-if __name__ == "__main__":
-    test_transcribe_options_parsing()

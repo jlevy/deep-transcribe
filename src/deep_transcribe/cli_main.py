@@ -20,7 +20,7 @@ from kash.config.settings import DEFAULT_MCP_SERVER_PORT
 from prettyfmt import fmt_path
 from rich import print as rprint
 
-from deep_transcribe.cli_commands import run_transcription
+from deep_transcribe.transcribe_commands import run_transcription
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 log = logging.getLogger(__name__)

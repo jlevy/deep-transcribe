@@ -2,6 +2,10 @@
 
 High-quality transcription, formatting, and analysis of videos and podcasts.
 
+It currently uses [Deepgram](https://deepgram.com/) for transcription and diarization
+and [Claude Sonnet 4](https://docs.anthropic.com/en/docs/about-claude/models/overview)
+or [OpenAI o3](https://platform.openai.com/docs/models) for analysis and summarization.
+
 Take a video or audio URL (such as YouTube), download it, and perform a “deep
 transcription” of it, including full transcription, identifying speakers, adding
 sections, timestamps, inserting frame captures, and researching or footnoting key
