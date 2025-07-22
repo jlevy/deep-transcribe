@@ -27,7 +27,8 @@ See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
 ### Basic Usage
 
 ```bash
-# Default transcription (annotated preset - recommended)
+# Annotated transcription (sections, summaries, descriptions, frame captures)
+# (This is the default behavior and the same as --annotated)
 deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID
 
 # Basic transcription (just text)
@@ -36,13 +37,10 @@ deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --basic
 # Formatted transcription (with speakers, paragraphs, timestamps)
 deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --formatted
 
-# Annotated transcription (sections, summaries, descriptions, frame captures)
-deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --annotated
-
 # Deep processing (everything including research annotations)
 deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --deep
 
-# Custom combination of options
+# Custom transcription options
 deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --with format,insert_section_headings,research_paras
 ```
 

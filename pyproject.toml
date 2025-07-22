@@ -38,7 +38,7 @@ classifiers = [
 # ---- Main dependencies ----
 
 dependencies = [
-    "kash-media>=0.3.11",
+    "kash-media>=0.3.14",
     "flowmark>=0.5.2",
     "prettyfmt>=0.2.1",
     "rich>=14.0.0",
@@ -60,9 +60,9 @@ dev = [
 
 [tool.uv.sources]
 # For bleeding edge:
-kash-media = { git = "https://github.com/jlevy/kash-media.git" }
-kash-docs = { git = "https://github.com/jlevy/kash-docs.git" }
-kash-shell = { git = "https://github.com/jlevy/kash-shell.git" }
+# kash-media = { git = "https://github.com/jlevy/kash-media.git" }
+# kash-docs = { git = "https://github.com/jlevy/kash-docs.git" }
+# kash-shell = { git = "https://github.com/jlevy/kash-shell.git" }
 # For local development:
 # kash-media = { path = "../kash-media", editable = true }
 

@@ -164,6 +164,7 @@ def run_transcription(
     """
     # Import dynamically for faster startup.
     from kash.config.setup import kash_setup
+    from kash.config.unified_live import get_unified_live
     from kash.exec import kash_runtime, prepare_action_input
 
     # Set up kash workspace.
@@ -175,11 +176,12 @@ def run_transcription(
         # Show the user the workspace info.
         runtime.workspace.log_workspace_info()
 
-        # Prepare the URL input and run transcription.
-        input = prepare_action_input(url)
-        result_item = transcribe_with_options(input.items[0], options, language=language)
+        with get_unified_live().status("Processing…"):
+            # Prepare the URL input and run transcription.
+            input = prepare_action_input(url)
+            result_item = transcribe_with_options(input.items[0], options, language=language)
 
-        return format_results(result_item, runtime.workspace.base_dir, no_minify=no_minify)
+            return format_results(result_item, runtime.workspace.base_dir, no_minify=no_minify)
 
 
 def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -> tuple[Path, Path]:
@@ -198,6 +200,7 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
     from kash.actions.core.minify_html import minify_html
     from kash.model import Format, ItemType
     from kash.web_gen.template_render import render_web_template
+    from kash.workspaces.workspaces import current_ws
 
     # Generate HTML using simple webpage template
     html_content = render_web_template(
@@ -218,6 +221,7 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
         format=Format.html,
         body=html_content,
     )
+    current_ws().save(raw_html_item)
 
     # Minify HTML if requested
     if not no_minify:
@@ -232,6 +236,7 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
         format=Format.html,
         body=html_content,
     )
+    current_ws().save(html_item)
 
     # Get file paths from the items
     assert result_item.store_path

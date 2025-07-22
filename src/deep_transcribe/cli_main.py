@@ -39,23 +39,14 @@ def get_app_version() -> str:
         return "unknown"
 
 
-def get_enabled_options(options: TranscribeOptions) -> list[str]:
-    """Get list of enabled option names from a TranscribeOptions instance."""
-    enabled: list[str] = []
-    for field_name in options.__dataclass_fields__:
-        if getattr(options, field_name):
-            enabled.append(field_name)
-    return enabled
-
-
 def format_preset_help(preset_name: str, options: TranscribeOptions) -> str:
     """Generate help text for a preset showing equivalent --with options."""
-    enabled = get_enabled_options(options)
+    enabled = options.get_enabled_options()
     if not enabled:
-        return f"Use {preset_name} preset (just transcription)"
+        return f"Transcribe with {preset_name!r} options"
 
     enabled_str = ",".join(enabled)
-    return f"Use {preset_name} preset (equivalent to --with {enabled_str})"
+    return f"Transcribe with {preset_name!r} options, which is equivalent to the options: {enabled_str}"
 
 
 def get_all_available_options() -> str:
@@ -90,8 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--annotated",
         action="store_true",
-        help=format_preset_help("annotated", TranscribeOptions.annotated())
-        + " (recommended default)",
+        help=format_preset_help("annotated", TranscribeOptions.annotated()) + " (default)",
     )
     parser.add_argument(
         "--deep",
@@ -106,7 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         help=(
             f"Comma-separated list of processing options. Available options: "
-            f"{get_all_available_options()}"
+            f"{get_all_available_options()}. Default preset is --annotated."
         ),
     )
 

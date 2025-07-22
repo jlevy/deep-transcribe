@@ -114,3 +114,13 @@ class TranscribeOptions:
             add_description=self.add_description or other.add_description,
             insert_frame_captures=self.insert_frame_captures or other.insert_frame_captures,
         )
+
+    def get_enabled_options(self) -> list[str]:
+        """
+        Get list of enabled option names from this TranscribeOptions instance.
+        """
+        enabled: list[str] = []
+        for field_name in self.__dataclass_fields__:
+            if getattr(self, field_name):
+                enabled.append(field_name)
+        return enabled
