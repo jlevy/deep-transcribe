@@ -40,7 +40,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           # Update this as needed:
-          version: "0.6.14"
+          version: "0.8.0"
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
@@ -54,11 +54,7 @@ jobs:
       #     python-version: ${{ matrix.python-version }}
 
       - name: Install all dependencies
-        run: uv sync --all-extras --dev
-        env:
-          # TODO: Unclear why this should be needed since we already have a newer CMake,
-          # but it seems to be needed when building cydifflib.
-          CMAKE_ARGS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        run: uv sync --all-extras
 
       - name: Run linting
         run: uv run python devtools/lint.py
