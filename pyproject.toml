@@ -29,6 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
     # Include this to avoid accidentally publishing to PyPI:
     # "Private :: Do Not Upload",
@@ -50,12 +51,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.5",
-    "pytest-sugar>=1.0.0",
-    "ruff>=0.11.9",
+    "pytest>=9.0.2",
+    "pytest-sugar>=1.1.1",
+    "ruff>=0.14.11",
     "codespell>=2.4.1",
-    "rich>=14.0.0",
-    "basedpyright>=1.29.1",
+    "rich>=14.2.0",
+    "basedpyright>=1.37.1",
     "funlog>=0.2.1",
 ]
 
@@ -90,7 +91,7 @@ source = "uv-dynamic-versioning"
 [tool.uv-dynamic-versioning]
 vcs = "git"
 style = "pep440"
-bump = "true"
+bump = true
 
 [tool.hatch.build.targets.wheel]
 # The source location for the package.
