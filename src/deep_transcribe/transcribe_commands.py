@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 # Keep kash imports minimal initially.
 from kash.exec import kash_action
@@ -11,13 +10,6 @@ from kash.model import Item
 from kash.model.params_model import common_params
 
 from deep_transcribe.transcribe_options import TranscribeOptions
-
-if TYPE_CHECKING:
-    from kash.exec import kash_action
-    from kash.exec.preconditions import is_audio_resource, is_url_resource, is_video_resource
-    from kash.model import Item
-    from kash.model.params_model import common_params
-
 
 log = logging.getLogger(__name__)
 
@@ -239,9 +231,12 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
     current_ws().save(html_item)
 
     # Get file paths from the items
-    assert result_item.store_path
-    assert html_item.store_path
-    assert html_content
+    if not result_item.store_path:
+        raise ValueError("Transcription result has no store path")
+    if not html_item.store_path:
+        raise ValueError("HTML result has no store path")
+    if not html_content:
+        raise ValueError("HTML content is empty")
 
     md_path = base_dir / Path(result_item.store_path)
     html_path = base_dir / Path(html_item.store_path)

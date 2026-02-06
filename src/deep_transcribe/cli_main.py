@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from textwrap import dedent
 
@@ -35,7 +35,7 @@ DEFAULT_WS = "./transcriptions"
 def get_app_version() -> str:
     try:
         return "v" + version(APP_NAME)
-    except Exception:
+    except PackageNotFoundError:
         return "unknown"
 
 
@@ -209,22 +209,22 @@ def main() -> None:
 
     # Handle transcription
     try:
-        # Build options from command line arguments
-        # Default to annotated preset if no preset is specified
-        if not any([args.basic, args.formatted, args.annotated, args.deep]):
+        # Build options from command line arguments.
+        # Default to annotated preset if no preset is specified.
+        presets = {
+            "basic": TranscribeOptions.basic,
+            "formatted": TranscribeOptions.formatted,
+            "annotated": TranscribeOptions.annotated,
+            "deep": TranscribeOptions.deep,
+        }
+        selected = [name for name in presets if getattr(args, name, False)]
+
+        if not selected:
             options = TranscribeOptions.annotated()
         else:
-            options = TranscribeOptions.basic()  # Start with basic for explicit presets
-
-        # Apply presets
-        if args.basic:
-            options = options.merge_with(TranscribeOptions.basic())
-        if args.formatted:
-            options = options.merge_with(TranscribeOptions.formatted())
-        if args.annotated:
-            options = options.merge_with(TranscribeOptions.annotated())
-        if args.deep:
-            options = options.merge_with(TranscribeOptions.deep())
+            options = TranscribeOptions.basic()
+            for name in selected:
+                options = options.merge_with(presets[name]())
 
         # Apply --with flags
         if args.with_flags:
