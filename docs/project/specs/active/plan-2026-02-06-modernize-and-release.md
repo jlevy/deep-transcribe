@@ -158,7 +158,22 @@ kash-docs, or kash-media. After upgrading, we need to:
   - Test URL validation (required unless --mcp)
 - [ ] Run full test suite and confirm CI-compatible
 
-### Phase 4: CI/CD and Release Prep
+### Phase 4: Manual E2E Testing and Documentation
+
+- [ ] Create a concise `tests/manual-e2e-test.md` documenting how to run deep-transcribe
+  end-to-end against a real short (2-3 minute) YouTube video. Include:
+  - A specific test video URL (short, public domain or Creative Commons)
+  - Commands to run for each preset (`--basic`, `--formatted`, `--annotated`, `--deep`)
+  - Expected outputs and what to validate (markdown file, HTML file, frame captures)
+  - How to verify the output is clean and complete
+- [ ] Update `development.md` to be comprehensive for agent-based development:
+  - Reference the manual E2E test and when to run it
+  - Document the full release process (tag, publish, verify)
+  - Document how to run copier update
+  - Ensure all workflows are clear enough for an AI agent to follow
+- [ ] Run the manual E2E test to validate everything works with updated deps
+
+### Phase 5: CI/CD and Release Prep
 
 - [ ] Update uv version in CI workflows (currently pinned at 0.8.0)
 - [ ] Verify CI passes on all Python versions (3.11, 3.12, 3.13)
@@ -168,13 +183,15 @@ kash-docs, or kash-media. After upgrading, we need to:
 
 ## Testing Strategy
 
-- **Unit tests**: TranscribeOptions logic (presets, merging, flag parsing) — these are
-  pure Python with no external deps
-- **CLI tests**: argparse configuration and argument handling — use parser directly,
+- **Unit tests** (CI): TranscribeOptions logic (presets, merging, flag parsing) — pure
+  Python with no external deps
+- **CLI tests** (CI): argparse configuration and argument handling — use parser directly,
   no API calls needed
-- **Lint/type checks**: ruff + basedpyright as existing CI already runs
-- **Integration**: Manual verification with a real URL after dependency upgrades
-  (requires API keys, not suitable for CI)
+- **Lint/type checks** (CI): ruff + basedpyright as existing CI already runs
+- **Manual E2E test** (documented): Run deep-transcribe against a real short YouTube
+  video using each preset, validating markdown and HTML output. Requires API keys
+  (Deepgram, Anthropic) so not suitable for CI but documented in
+  `tests/manual-e2e-test.md` for developers/agents to run before releases.
 
 ## Open Questions
 
