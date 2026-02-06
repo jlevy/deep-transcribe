@@ -14,7 +14,7 @@ Then
 ## Basic Developer Workflows
 
 The `Makefile` simply offers shortcuts to `uv` commands for developer convenience.
-(For clarity, GitHub Actions don’t use the Makefile and just call `uv` directly.)
+(For clarity, GitHub Actions don't use the Makefile and just call `uv` directly.)
 
 ```shell
 # First, install all dependencies and set up your virtual environment.
@@ -42,7 +42,8 @@ make upgrade
 
 # To run tests by hand:
 uv run pytest   # all tests
-uv run pytest -s src/module/some_file.py  # one test, showing outputs
+uv run pytest -v tests/test_cli.py  # one test file, verbose
+uv run pytest -s tests/test_transcribe_options.py::test_merge_with_or_logic  # single test
 
 # Build and install current dev executables, to let you use your dev copies
 # as local tools:
@@ -66,6 +67,42 @@ source .venv/bin/activate
 ```
 
 See [uv docs](https://docs.astral.sh/uv/) for details.
+
+## Testing
+
+### Automated Tests (CI)
+
+Unit tests for TranscribeOptions and CLI argument parsing run in CI:
+
+```shell
+uv run pytest -v
+```
+
+### Manual E2E Testing
+
+Before releases, run the full end-to-end tests documented in
+[tests/manual-e2e-test.md](../tests/manual-e2e-test.md). This requires API keys
+for Deepgram and Anthropic.
+
+## Updating the Project Template
+
+This project is built from
+[simple-modern-uv](https://github.com/jlevy/simple-modern-uv) using
+[Copier](https://copier.readthedocs.io/). To pull in template updates:
+
+```shell
+# Install copier if needed:
+pip install copier
+
+# Update to latest template version:
+copier update --defaults --trust
+
+# Review changes, resolve any conflicts, then commit:
+git diff
+git add -A && git commit -m "chore: copier update"
+```
+
+The current template version is tracked in `.copier-answers.yml`.
 
 ## IDE setup
 
