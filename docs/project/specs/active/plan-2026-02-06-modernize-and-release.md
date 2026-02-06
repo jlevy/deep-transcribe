@@ -26,6 +26,8 @@ add real tests, and prepare the CLI for a clean new release.
 - Ensure CLI works end-to-end with updated dependencies
 - Update CI/CD configuration (uv version pinning, Python version matrix)
 - Clean up and modernize README and docs
+- Add Claude Code skill integration (following repren's pattern) so users can invoke
+  deep-transcribe naturally from Claude
 - Prepare for a new PyPI release
 
 ## Non-Goals
@@ -102,7 +104,9 @@ kash-docs, or kash-media. After upgrading, we need to:
 - `tests/test_placeholder.py` → `tests/test_transcribe_options.py` + more test files
 - `.github/workflows/ci.yml` — update uv version
 - `.github/workflows/publish.yml` — update uv version
-- `README.md` — refresh as needed
+- `src/deep_transcribe/skills/SKILL.md` — new: Claude Code skill definition
+- `src/deep_transcribe/claude_skill.py` — new: skill install/load module
+- `README.md` — refresh as needed, add Agent Use section
 
 ## Implementation Plan
 
@@ -173,7 +177,32 @@ kash-docs, or kash-media. After upgrading, we need to:
   - Ensure all workflows are clear enough for an AI agent to follow
 - [ ] Run the manual E2E test to validate everything works with updated deps
 
-### Phase 5: CI/CD and Release Prep
+### Phase 5: Claude Code Skill Integration
+
+Modeled after [repren](https://github.com/jlevy/repren)'s skill pattern, make
+deep-transcribe installable as a Claude Code skill so users can mention a YouTube
+video and ask for a transcription directly from Claude.
+
+- [ ] Create `src/deep_transcribe/skills/SKILL.md` with:
+  - YAML frontmatter: `name: deep-transcribe`, description, `allowed-tools` (Bash
+    for deep-transcribe and uvx invocations, Read, Write)
+  - "When to Use" / "Don't Use" sections
+  - Quick start examples for each preset (basic, formatted, annotated, deep)
+  - Key flags reference table
+  - Notes on required API keys (Deepgram, Anthropic)
+- [ ] Create `src/deep_transcribe/claude_skill.py` with:
+  - `get_skill_content()` — reads SKILL.md from package data via `importlib.resources`
+  - `install_skill(agent_base=None)` — installs to ~/.claude (global) or project-local
+  - Proper error handling for package data access
+- [ ] Add CLI flags to `cli_main.py`:
+  - `--install-skill` — install Claude Code skill (global by default)
+  - `--agent-base DIR` — specify agent config directory for skill install
+  - `--skill` — print SKILL.md content to stdout
+- [ ] Add "Agent Use" section to README.md documenting skill installation
+- [ ] Test skill install flow: `deep-transcribe --install-skill` and verify SKILL.md
+  lands in `~/.claude/skills/deep-transcribe/SKILL.md`
+
+### Phase 6: CI/CD and Release Prep
 
 - [ ] Update uv version in CI workflows (currently pinned at 0.8.0)
 - [ ] Verify CI passes on all Python versions (3.11, 3.12, 3.13)
