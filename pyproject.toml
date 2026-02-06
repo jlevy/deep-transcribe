@@ -13,7 +13,7 @@ authors = [
 ]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.13,<3.14"
 dynamic = ["version"]
 
 # https://pypi.org/classifiers/
@@ -26,10 +26,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
     # Include this to avoid accidentally publishing to PyPI:
     # "Private :: Do Not Upload",
@@ -39,7 +36,7 @@ classifiers = [
 # ---- Main dependencies ----
 
 dependencies = [
-    "kash-media>=0.3.17",
+    "kash-media>=0.3.19",
     "flowmark>=0.6.2",
     "prettyfmt>=0.4.1",
     "rich>=14.0.0",
