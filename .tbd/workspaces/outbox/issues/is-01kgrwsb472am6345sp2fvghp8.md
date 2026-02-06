@@ -1,0 +1,18 @@
+---
+created_at: 2026-02-06T07:13:43.046Z
+dependencies:
+  - target: is-01kgrwsf1seq1sg228y2zrx1nv
+    type: blocks
+  - target: is-01kgrwvpp4pwx1bhdebw7xe8hp
+    type: blocks
+id: is-01kgrwsb472am6345sp2fvghp8
+kind: task
+labels: []
+priority: 2
+spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
+status: open
+title: Add real test coverage (TranscribeOptions unit tests, CLI tests)
+type: is
+updated_at: 2026-02-06T07:15:07.788Z
+version: 3
+---
