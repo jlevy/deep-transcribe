@@ -124,6 +124,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--rerun", action="store_true", help="rerun actions even if the outputs already exist"
     )
 
+    # Agent/skill integration
+    parser.add_argument(
+        "--install-skill",
+        dest="install_skill",
+        action="store_true",
+        help="Install Claude Code skill for deep-transcribe",
+    )
+    parser.add_argument(
+        "--agent-base",
+        dest="agent_base",
+        metavar="DIR",
+        help="Agent config directory for skill install (defaults to ~/.claude)",
+    )
+    parser.add_argument(
+        "--skill",
+        dest="show_skill",
+        action="store_true",
+        help="Print coding agent skill instructions (SKILL.md content)",
+    )
+
     # MCP mode
     parser.add_argument(
         "--mcp",
@@ -171,14 +191,27 @@ def display_results(base_dir: Path, md_path: Path, html_path: Path) -> None:
 
 
 def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    # Handle skill commands early (no kash setup needed).
+    if args.install_skill:
+        from deep_transcribe.claude_skill import install_skill
+
+        install_skill(agent_base=args.agent_base)
+        sys.exit(0)
+
+    if args.show_skill:
+        from deep_transcribe.claude_skill import get_skill_content
+
+        print(get_skill_content())
+        sys.exit(0)
+
     # Set up kash logging
     from kash.config.settings import LogLevel
     from kash.config.setup import kash_setup
 
     kash_setup(rich_logging=True, console_log_level=LogLevel.warning)
-
-    parser = build_parser()
-    args = parser.parse_args()
 
     # Auto-enable MCP mode if --sse or --logs is used
     if args.sse or args.logs:

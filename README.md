@@ -132,6 +132,23 @@ home folder):
 }
 ```
 
+## Agent Use
+
+deep-transcribe works well with AI coding agents (Claude Code, Codex, etc.) and can be
+installed as a Claude Code skill for natural-language transcription requests.
+
+```bash
+# Install globally (available in all projects):
+uvx deep-transcribe@latest --install-skill
+
+# Or install for current project only (shareable via git):
+uvx deep-transcribe@latest --install-skill --agent-base=./.claude
+```
+
+**Manual install:** Run `uvx deep-transcribe@latest --skill` and save to
+`~/.claude/skills/deep-transcribe/SKILL.md` (global) or
+`.claude/skills/deep-transcribe/SKILL.md` (project).
+
 ## Project Docs
 
 For how to install uv and Python, see [installation.md](docs/installation.md).
