@@ -13,6 +13,6 @@ spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
 status: closed
 title: Upgrade all dependencies to latest versions (kash-media, flowmark, prettyfmt, dev tools)
 type: is
-updated_at: 2026-02-06T07:47:41.451Z
-version: 5
+updated_at: 2026-02-06T18:01:20.811Z
+version: 6
 ---

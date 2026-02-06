@@ -11,6 +11,6 @@ spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
 status: closed
 title: Update CI/CD and prepare for release
 type: is
-updated_at: 2026-02-06T07:47:41.473Z
-version: 4
+updated_at: 2026-02-06T18:01:20.836Z
+version: 5
 ---
