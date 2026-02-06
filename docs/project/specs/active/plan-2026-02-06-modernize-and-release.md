@@ -4,7 +4,7 @@
 
 **Author:** Claude (with direction from Joshua Levy)
 
-**Status:** Draft
+**Status:** Implemented
 
 ## Overview
 
@@ -112,70 +112,70 @@ kash-docs, or kash-media. After upgrading, we need to:
 
 ### Phase 1: Template Update and Dependency Upgrades
 
-- [ ] Run `copier update --defaults` to pull in simple-modern-uv template changes
+- [x] Run `copier update --defaults` to pull in simple-modern-uv template changes
   (v0.2.15 → v0.2.21). Resolve any merge conflicts in pyproject.toml, CI workflows,
   Makefile, etc. Review diff carefully since we have project-specific customizations.
-- [ ] Bump minimum versions in `pyproject.toml` for all dependencies:
-  - `kash-media>=0.3.19` (from >=0.3.14)
+- [x] Bump minimum versions in `pyproject.toml` for all dependencies:
+  - `kash-media>=0.3.17` (from >=0.3.14; 0.3.18+ requires Python >=3.13)
   - `flowmark>=0.6.2` (from >=0.5.2)
   - `prettyfmt>=0.4.1` (from >=0.2.1)
   - `rich>=14.0.0` (already fine, minor bumps only)
   - `rich-argparse>=1.7.0` (already fine, minor bumps only)
-- [ ] Bump dev dependency minimums:
+- [x] Bump dev dependency minimums:
   - `pytest>=8.3.5` (keep compatible with 9.x but don't require it yet)
   - `ruff>=0.15.0` (from >=0.11.9)
   - `basedpyright>=1.37.4` (from >=1.29.1)
-- [ ] Run `uv lock --upgrade` to regenerate the lock file
-- [ ] Run `uv sync --all-extras` to install updated deps
-- [ ] Run linting (`uv run python devtools/lint.py`) and fix any new lint/type errors
+- [x] Run `uv lock --upgrade` to regenerate the lock file
+- [x] Run `uv sync --all-extras` to install updated deps
+- [x] Run linting (`uv run python devtools/lint.py`) and fix any new lint/type errors
   from updated ruff/basedpyright
-- [ ] Verify all kash imports still work — check for any moved or renamed modules
-- [ ] Fix any API breakage from kash updates
+- [x] Verify all kash imports still work — check for any moved or renamed modules
+- [x] Fix any API breakage from kash updates
 
 ### Phase 2: Code Quality Fixes
 
-- [ ] Remove redundant TYPE_CHECKING block in `transcribe_commands.py` (lines 15-19
+- [x] Remove redundant TYPE_CHECKING block in `transcribe_commands.py` (lines 15-19
   duplicate runtime imports on lines 8-11)
-- [ ] Replace assertions with proper validation in `format_results()`:
+- [x] Replace assertions with proper validation in `format_results()`:
   ```python
   # Instead of: assert result_item.store_path
   # Use: if not result_item.store_path: raise ValueError("...")
   ```
-- [ ] Narrow exception handling in `get_app_version()` to catch
+- [x] Narrow exception handling in `get_app_version()` to catch
   `PackageNotFoundError` specifically
-- [ ] Clean up preset selection logic in `cli_main.py` (simplify the if/elif chain)
-- [ ] Run full lint + type check to confirm everything passes
+- [x] Clean up preset selection logic in `cli_main.py` (simplify the if/elif chain)
+- [x] Run full lint + type check to confirm everything passes
 
 ### Phase 3: Add Tests
 
-- [ ] Replace `test_placeholder.py` with real tests
-- [ ] Add `tests/test_transcribe_options.py`:
+- [x] Replace `test_placeholder.py` with real tests
+- [x] Add `tests/test_transcribe_options.py`:
   - Test each preset factory method returns correct flags
   - Test `merge_with()` OR logic
   - Test `from_with_flags()` parsing (valid flags, invalid flags, empty string)
   - Test `get_enabled_options()` returns correct list
-- [ ] Add `tests/test_cli.py`:
+- [x] Add `tests/test_cli.py`:
   - Test `build_parser()` produces valid parser
   - Test argument parsing for each preset
   - Test `--with` flag parsing
   - Test that `--mcp`, `--sse`, `--logs` flags work
   - Test URL validation (required unless --mcp)
-- [ ] Run full test suite and confirm CI-compatible
+- [x] Run full test suite and confirm CI-compatible
 
 ### Phase 4: Manual E2E Testing and Documentation
 
-- [ ] Create a concise `tests/manual-e2e-test.md` documenting how to run deep-transcribe
+- [x] Create a concise `tests/manual-e2e-test.md` documenting how to run deep-transcribe
   end-to-end against a real short (2-3 minute) YouTube video. Include:
   - A specific test video URL (short, public domain or Creative Commons)
   - Commands to run for each preset (`--basic`, `--formatted`, `--annotated`, `--deep`)
   - Expected outputs and what to validate (markdown file, HTML file, frame captures)
   - How to verify the output is clean and complete
-- [ ] Update `development.md` to be comprehensive for agent-based development:
+- [x] Update `development.md` to be comprehensive for agent-based development:
   - Reference the manual E2E test and when to run it
   - Document the full release process (tag, publish, verify)
   - Document how to run copier update
   - Ensure all workflows are clear enough for an AI agent to follow
-- [ ] Run the manual E2E test to validate everything works with updated deps
+- [x] Run the manual E2E test to validate everything works with updated deps
 
 ### Phase 5: Claude Code Skill Integration
 
@@ -183,32 +183,32 @@ Modeled after [repren](https://github.com/jlevy/repren)'s skill pattern, make
 deep-transcribe installable as a Claude Code skill so users can mention a YouTube
 video and ask for a transcription directly from Claude.
 
-- [ ] Create `src/deep_transcribe/skills/SKILL.md` with:
+- [x] Create `src/deep_transcribe/skills/SKILL.md` with:
   - YAML frontmatter: `name: deep-transcribe`, description, `allowed-tools` (Bash
     for deep-transcribe and uvx invocations, Read, Write)
   - "When to Use" / "Don't Use" sections
   - Quick start examples for each preset (basic, formatted, annotated, deep)
   - Key flags reference table
   - Notes on required API keys (Deepgram, Anthropic)
-- [ ] Create `src/deep_transcribe/claude_skill.py` with:
+- [x] Create `src/deep_transcribe/claude_skill.py` with:
   - `get_skill_content()` — reads SKILL.md from package data via `importlib.resources`
   - `install_skill(agent_base=None)` — installs to ~/.claude (global) or project-local
   - Proper error handling for package data access
-- [ ] Add CLI flags to `cli_main.py`:
+- [x] Add CLI flags to `cli_main.py`:
   - `--install-skill` — install Claude Code skill (global by default)
   - `--agent-base DIR` — specify agent config directory for skill install
   - `--skill` — print SKILL.md content to stdout
-- [ ] Add "Agent Use" section to README.md documenting skill installation
-- [ ] Test skill install flow: `deep-transcribe --install-skill` and verify SKILL.md
+- [x] Add "Agent Use" section to README.md documenting skill installation
+- [x] Test skill install flow: `deep-transcribe --install-skill` and verify SKILL.md
   lands in `~/.claude/skills/deep-transcribe/SKILL.md`
 
 ### Phase 6: CI/CD and Release Prep
 
-- [ ] Update uv version in CI workflows (currently pinned at 0.8.0)
-- [ ] Verify CI passes on all Python versions (3.11, 3.12, 3.13)
-- [ ] Review and refresh README if needed
-- [ ] Confirm `uv build` produces a clean wheel
-- [ ] Tag and prepare for release
+- [x] Update uv version in CI workflows (currently pinned at 0.8.0)
+- [x] Verify CI passes on all Python versions (3.11, 3.12, 3.13)
+- [x] Review and refresh README if needed
+- [x] Confirm `uv build` produces a clean wheel
+- [x] Tag and prepare for release
 
 ## Testing Strategy
 
