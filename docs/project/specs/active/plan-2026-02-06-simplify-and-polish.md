@@ -288,10 +288,26 @@ cli_main.py imports kash at module scope.
 
 ### Phase 4: Comment and Docstring Cleanup
 
+**Key insight:** `@kash_action` docstrings are **machine-read** in 3 places:
+1. MCP tool descriptions (sent to Claude Code and other MCP clients)
+2. kash help system (`help transcribe_basic` in kash shell)
+3. LLM context/preamble (loaded for assistant reasoning)
+
+The first paragraph is the most important — used in tool listings and LLM context.
+The Args/Returns sections are redundant with `params=common_params("language")` and
+type hints. The module docstring in `cli_main.py` is also machine-read — it's the
+argparse epilog shown in `--help` output.
+
+**Strategy:** Keep first-line docstrings on `@kash_action` functions (they serve as
+MCP tool descriptions). Keep module docstring (CLI help). Keep `TranscribeOptions`
+class and field docstrings (documents pipeline and options). Trim everything else.
+
 - [ ] Remove all "what" comments that restate the code in `cli_main.py` (items 5
   above: ~10 obvious comments)
-- [ ] Trim docstrings to first sentence where Args/Returns are obvious from types:
-  - `transcribe_basic/formatted/annotated/deep` — keep first line only
+- [ ] `@kash_action` functions (`transcribe_basic/formatted/annotated/deep`):
+  keep first line only (it becomes the MCP tool description); remove Args/Returns
+  sections since params are declared via `params=common_params("language")`
+- [ ] Internal functions — trim to one line or remove docstring entirely:
   - `run_transcription()` — remove Args section
   - `format_results()` — remove Args section
   - `get_skill_content()` — remove Returns/Raises
@@ -299,6 +315,8 @@ cli_main.py imports kash at module scope.
   - `display_results()` — trim or remove
   - `format_preset_help()` — trim or remove
   - `get_all_available_options()` — trim or remove
+- [ ] Keep `TranscribeOptions` class docstring (documents pipeline order)
+- [ ] Keep `TranscribeOptions` field docstrings (documents each option)
 - [ ] Remove `if __name__ == "__main__"` from `cli_main.py` (keep `__main__.py`)
 
 ### Phase 5: Test Cleanup
