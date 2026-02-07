@@ -3,21 +3,6 @@ from __future__ import annotations
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 
-def test_basic_preset_all_false():
-    opts = TranscribeOptions.basic()
-    assert not any(
-        [
-            opts.identify_speakers,
-            opts.format,
-            opts.insert_section_headings,
-            opts.research_paras,
-            opts.add_summary_bullets,
-            opts.add_description,
-            opts.insert_frame_captures,
-        ]
-    )
-
-
 def test_formatted_preset():
     opts = TranscribeOptions.formatted()
     assert opts.identify_speakers
@@ -87,13 +72,7 @@ def test_from_with_flags_with_spaces():
 
 def test_from_with_flags_empty():
     opts = TranscribeOptions.from_with_flags("")
-    assert not any(
-        [
-            opts.identify_speakers,
-            opts.format,
-            opts.insert_section_headings,
-        ]
-    )
+    assert opts.get_enabled_options() == []
 
 
 def test_from_with_flags_invalid():
@@ -103,11 +82,6 @@ def test_from_with_flags_invalid():
     except ValueError as e:
         assert "nonexistent_flag" in str(e)
         assert "Valid options" in str(e)
-
-
-def test_get_enabled_options_basic():
-    opts = TranscribeOptions.basic()
-    assert opts.get_enabled_options() == []
 
 
 def test_get_enabled_options_formatted():

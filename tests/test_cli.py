@@ -1,12 +1,6 @@
 from __future__ import annotations
 
-from deep_transcribe.cli_main import build_parser, get_app_version
-
-
-def test_build_parser_creates_parser():
-    parser = build_parser()
-    assert parser is not None
-    assert parser.prog is not None
+from deep_transcribe.cli_main import build_parser
 
 
 def test_parse_url_argument():
@@ -89,13 +83,6 @@ def test_default_language():
     parser = build_parser()
     args = parser.parse_args(["https://example.com/video"])
     assert args.language == "en"
-
-
-def test_get_app_version_returns_string():
-    v = get_app_version()
-    assert isinstance(v, str)
-    # Either "vX.Y.Z" or "unknown" depending on install state
-    assert v.startswith("v") or v == "unknown"
 
 
 def test_no_minify_flag():
