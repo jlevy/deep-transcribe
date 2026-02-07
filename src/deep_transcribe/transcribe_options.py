@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 
 @dataclass
@@ -56,7 +56,7 @@ class TranscribeOptions:
             format=True,
             identify_speakers=True,
             insert_section_headings=True,
-            research_paras=False,  # Exclude research for annotated
+            research_paras=False,
             add_summary_bullets=True,
             add_description=True,
             insert_frame_captures=True,
@@ -76,51 +76,29 @@ class TranscribeOptions:
 
     @classmethod
     def from_with_flags(cls, with_flags: str) -> TranscribeOptions:
-        """
-        Parse comma-separated option names and return a TranscribeOptions instance.
-        """
+        """Parse comma-separated option names and return a TranscribeOptions instance."""
         options = cls()
         if not with_flags.strip():
             return options
 
-        # Split on comma and strip whitespace
-        flag_names = [flag.strip() for flag in with_flags.split(",")]
+        valid_fields = {f.name for f in fields(options) if f.type == "bool"}
+        flag_names = [flag.strip() for flag in with_flags.split(",") if flag.strip()]
 
         for flag_name in flag_names:
-            if not flag_name:
-                continue
-            if hasattr(options, flag_name):
-                setattr(options, flag_name, True)
-            else:
-                valid_options = [
-                    field for field in options.__dataclass_fields__ if not field.startswith("_")
-                ]
+            if flag_name not in valid_fields:
                 raise ValueError(
-                    f"Unknown option '{flag_name}'. Valid options: {', '.join(valid_options)}"
+                    f"Unknown option '{flag_name}'. Valid options: {', '.join(sorted(valid_fields))}"
                 )
+            setattr(options, flag_name, True)
 
         return options
 
     def merge_with(self, other: TranscribeOptions) -> TranscribeOptions:
-        """
-        Merge this options instance with another, using OR logic for boolean flags.
-        """
+        """Merge with another instance, using OR logic for boolean flags."""
         return TranscribeOptions(
-            identify_speakers=self.identify_speakers or other.identify_speakers,
-            format=self.format or other.format,
-            insert_section_headings=self.insert_section_headings or other.insert_section_headings,
-            research_paras=self.research_paras or other.research_paras,
-            add_summary_bullets=self.add_summary_bullets or other.add_summary_bullets,
-            add_description=self.add_description or other.add_description,
-            insert_frame_captures=self.insert_frame_captures or other.insert_frame_captures,
+            **{f.name: getattr(self, f.name) or getattr(other, f.name) for f in fields(self)}
         )
 
     def get_enabled_options(self) -> list[str]:
-        """
-        Get list of enabled option names from this TranscribeOptions instance.
-        """
-        enabled: list[str] = []
-        for field_name in self.__dataclass_fields__:
-            if getattr(self, field_name):
-                enabled.append(field_name)
-        return enabled
+        """Get list of enabled option names."""
+        return [f.name for f in fields(self) if getattr(self, f.name)]

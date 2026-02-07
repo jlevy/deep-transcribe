@@ -45,9 +45,9 @@ def format_preset_help(preset_name: str, options: TranscribeOptions) -> str:
 
 def get_all_available_options() -> str:
     """Get all available option names from TranscribeOptions."""
-    options = TranscribeOptions()
-    all_options = list(options.__dataclass_fields__.keys())
-    return ", ".join(all_options)
+    from dataclasses import fields
+
+    return ", ".join(f.name for f in fields(TranscribeOptions))
 
 
 DEFAULT_MCP_SERVER_PORT = 4440
