@@ -69,7 +69,7 @@ Available options: `identify_speakers`, `format`, `insert_section_headings`,
 | `--with OPTIONS` | Comma-separated custom options |
 | `--workspace DIR` | Output directory (default: `./transcriptions`) |
 | `--language CODE` | Language code (default: `en`) |
-| `--no_minify` | Skip HTML minification |
+| `--no-minify` | Skip HTML minification |
 | `--mcp` | Run as MCP server (stdio) |
 | `--sse` | Run as SSE MCP server |
 

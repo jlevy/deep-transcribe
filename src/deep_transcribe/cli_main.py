@@ -97,7 +97,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--no_minify",
+        "--no-minify",
+        dest="no_minify",
         action="store_true",
         help="Skip HTML/CSS/JS/Tailwind minification step",
     )

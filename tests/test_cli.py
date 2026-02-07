@@ -87,7 +87,7 @@ def test_default_language():
 
 def test_no_minify_flag():
     parser = build_parser()
-    args = parser.parse_args(["--no_minify", "https://example.com/video"])
+    args = parser.parse_args(["--no-minify", "https://example.com/video"])
     assert args.no_minify
 
 
