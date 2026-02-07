@@ -209,11 +209,14 @@ def main() -> None:
         print(get_skill_content())
         sys.exit(0)
 
-    # Set up kash logging
     from kash.config.settings import LogLevel
     from kash.config.setup import kash_setup
 
-    kash_setup(rich_logging=True, console_log_level=LogLevel.warning)
+    kash_setup(
+        kash_ws_root=Path(args.workspace).resolve(),
+        rich_logging=True,
+        console_log_level=LogLevel.warning,
+    )
 
     # Auto-enable MCP mode if --sse or --logs is used
     if args.sse or args.logs:
