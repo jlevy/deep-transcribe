@@ -13,6 +13,6 @@ spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
 status: closed
 title: Run copier update from simple-modern-uv template (v0.2.15 → v0.2.21)
 type: is
-updated_at: 2026-02-06T18:01:20.799Z
-version: 6
+updated_at: 2026-02-07T18:29:07.911Z
+version: 7
 ---
