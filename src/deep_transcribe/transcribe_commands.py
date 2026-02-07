@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-# Keep kash imports minimal initially.
 from kash.exec import kash_action
 from kash.exec.preconditions import is_audio_resource, is_url_resource, is_video_resource
 from kash.model import Item
@@ -15,10 +14,7 @@ log = logging.getLogger(__name__)
 
 
 def transcribe_with_options(item: Item, options: TranscribeOptions, language: str = "en") -> Item:
-    """
-    Apply transcription processing steps to an item based on provided options.
-    """
-    # Import dynamically for faster startup.
+    """Apply transcription processing steps based on the provided options."""
     from kash.actions.core.strip_html import strip_html
     from kash.kits.docs.actions.text.add_description import add_description
     from kash.kits.docs.actions.text.add_summary_bullets import add_summary_bullets
@@ -30,12 +26,9 @@ def transcribe_with_options(item: Item, options: TranscribeOptions, language: st
     from kash.kits.media.actions.transcribe.insert_frame_captures import insert_frame_captures
     from kash.kits.media.actions.transcribe.transcribe import transcribe
 
-    # Start with basic transcription
     result = transcribe(item, language=language)
 
-    # Apply formatting pipeline if requested
     if options.format:
-        # Speaker identification (if requested)
         if options.identify_speakers:
             result = identify_speakers(result)
 
@@ -43,7 +36,6 @@ def transcribe_with_options(item: Item, options: TranscribeOptions, language: st
         result = break_into_paragraphs(result)
         result = backfill_timestamps(result)
 
-    # Apply annotation pipeline if requested
     if options.insert_section_headings:
         result = insert_section_headings(result)
 
@@ -68,16 +60,7 @@ def transcribe_with_options(item: Item, options: TranscribeOptions, language: st
     mcp_tool=True,
 )
 def transcribe_basic(item: Item, language: str = "en") -> Item:
-    """
-    Basic transcription (just transcription, no formatting or annotations).
-
-    Args:
-        item: Input item (URL, audio, or video resource)
-        language: Language code for transcription (default: "en")
-
-    Returns:
-        Item: The basic transcription result
-    """
+    """Basic transcription (just transcription, no formatting or annotations)."""
     return transcribe_with_options(item, TranscribeOptions.basic(), language=language)
 
 
@@ -87,16 +70,7 @@ def transcribe_basic(item: Item, language: str = "en") -> Item:
     mcp_tool=True,
 )
 def transcribe_formatted(item: Item, language: str = "en") -> Item:
-    """
-    Formatted transcription (transcription + formatting, recommended).
-
-    Args:
-        item: Input item (URL, audio, or video resource)
-        language: Language code for transcription (default: "en")
-
-    Returns:
-        Item: The formatted transcription result
-    """
+    """Formatted transcription with speaker identification, paragraphs, and timestamps."""
     return transcribe_with_options(item, TranscribeOptions.formatted(), language=language)
 
 
@@ -106,16 +80,7 @@ def transcribe_formatted(item: Item, language: str = "en") -> Item:
     mcp_tool=True,
 )
 def transcribe_annotated(item: Item, language: str = "en") -> Item:
-    """
-    Annotated transcription (full processing except research).
-
-    Args:
-        item: Input item (URL, audio, or video resource)
-        language: Language code for transcription (default: "en")
-
-    Returns:
-        Item: The annotated transcription result
-    """
+    """Annotated transcription with sections, summaries, descriptions, and frame captures."""
     return transcribe_with_options(item, TranscribeOptions.annotated(), language=language)
 
 
@@ -125,16 +90,7 @@ def transcribe_annotated(item: Item, language: str = "en") -> Item:
     mcp_tool=True,
 )
 def transcribe_deep(item: Item, language: str = "en") -> Item:
-    """
-    Deep transcription (complete processing including research).
-
-    Args:
-        item: Input item (URL, audio, or video resource)
-        language: Language code for transcription (default: "en")
-
-    Returns:
-        Item: The deep transcription result with all features
-    """
+    """Deep transcription with all processing steps including research annotations."""
     return transcribe_with_options(item, TranscribeOptions.deep(), language=language)
 
 

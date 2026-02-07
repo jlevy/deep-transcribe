@@ -1,9 +1,4 @@
-"""
-Claude Code skill installation for deep-transcribe.
-
-Provides functionality to install the deep-transcribe skill for Claude Code,
-making it available either globally across all projects or within a specific project.
-"""
+"""Claude Code skill installation for deep-transcribe."""
 
 from __future__ import annotations
 
@@ -12,15 +7,7 @@ from pathlib import Path
 
 
 def get_skill_content() -> str:
-    """Read SKILL.md from package data.
-
-    Returns:
-        The content of the SKILL.md file as a string.
-
-    Raises:
-        ImportError: If package resources cannot be accessed.
-        FileNotFoundError: If SKILL.md cannot be found in package data.
-    """
+    """Read SKILL.md from package data."""
     from importlib.resources import files
 
     skill_file = files("deep_transcribe").joinpath("skills/SKILL.md")
@@ -28,14 +15,7 @@ def get_skill_content() -> str:
 
 
 def install_skill(agent_base: str | None = None) -> None:
-    """Install deep-transcribe skill for Claude Code.
-
-    Args:
-        agent_base: The agent's configuration directory where skills are stored.
-            - None (default): Install globally to ~/.claude/skills/deep-transcribe
-            - './.claude': Install to current project's .claude/skills/deep-transcribe
-            - Any path: Install to that agent base directory
-    """
+    """Install deep-transcribe skill for Claude Code."""
     if agent_base is None:
         base_dir = Path.home() / ".claude"
         location_desc = "globally"

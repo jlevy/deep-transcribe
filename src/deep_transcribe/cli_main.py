@@ -63,10 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {get_app_version()}")
 
-    # URL argument (required unless --mcp is used)
     parser.add_argument("url", type=str, nargs="?", help="URL of the video or audio to transcribe")
 
-    # Preset flags (listed first for visibility)
     parser.add_argument(
         "--basic",
         action="store_true",
@@ -88,7 +86,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=format_preset_help("deep", TranscribeOptions.deep()),
     )
 
-    # Option flags (right after presets)
     parser.add_argument(
         "--with",
         dest="with_flags",
@@ -99,14 +96,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    # Transcription options
     parser.add_argument(
         "--no_minify",
         action="store_true",
         help="Skip HTML/CSS/JS/Tailwind minification step",
     )
 
-    # Common arguments
     parser.add_argument(
         "--workspace",
         type=str,
@@ -123,7 +118,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--rerun", action="store_true", help="rerun actions even if the outputs already exist"
     )
 
-    # Agent/skill integration
     parser.add_argument(
         "--install-skill",
         dest="install_skill",
@@ -143,7 +137,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print coding agent skill instructions (SKILL.md content)",
     )
 
-    # MCP mode
     parser.add_argument(
         "--mcp",
         action="store_true",
@@ -196,7 +189,6 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    # Handle skill commands early (no kash setup needed).
     if args.install_skill:
         from deep_transcribe.claude_skill import install_skill
 
@@ -218,11 +210,9 @@ def main() -> None:
         console_log_level=LogLevel.warning,
     )
 
-    # Auto-enable MCP mode if --sse or --logs is used
     if args.sse or args.logs:
         args.mcp = True
 
-    # Run as an MCP server
     if args.mcp:
         from kash.mcp.mcp_main import McpMode, run_mcp_server
         from kash.mcp.mcp_server_commands import mcp_logs
@@ -231,7 +221,6 @@ def main() -> None:
             mcp_logs(follow=True, all=True)
         else:
             mcp_mode = McpMode.standalone_sse if args.sse else McpMode.standalone_stdio
-            # For MCP, expose transcribe actions (annotated is the default/recommended)
             action_names = [
                 "transcribe_annotated",
                 "transcribe_formatted",
@@ -241,14 +230,10 @@ def main() -> None:
             run_mcp_server(mcp_mode, proxy_to=None, tool_names=action_names)
         sys.exit(0)
 
-    # Validate that URL is provided for transcription
     if not args.url:
         parser.error("URL is required unless --mcp is specified")
 
-    # Handle transcription
     try:
-        # Build options from command line arguments.
-        # Default to annotated preset if no preset is specified.
         presets = {
             "basic": TranscribeOptions.basic,
             "formatted": TranscribeOptions.formatted,
@@ -264,7 +249,6 @@ def main() -> None:
             for name in selected:
                 options = options.merge_with(presets[name]())
 
-        # Apply --with flags
         if args.with_flags:
             with_options = TranscribeOptions.from_with_flags(args.with_flags)
             options = options.merge_with(with_options)
@@ -291,7 +275,3 @@ def main() -> None:
         log_file = get_log_settings().log_file_path
         rprint(f"[bright_black]See logs for more details: {fmt_path(log_file)}[/bright_black]")
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
