@@ -12,6 +12,6 @@ priority: 2
 status: closed
 title: "DRY TranscribeOptions: fields()-based merge_with, safer from_with_flags"
 type: is
-updated_at: 2026-02-07T18:29:07.989Z
-version: 5
+updated_at: 2026-02-07T20:08:11.169Z
+version: 6
 ---

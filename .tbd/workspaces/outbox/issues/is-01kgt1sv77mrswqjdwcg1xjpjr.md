@@ -10,6 +10,6 @@ priority: 2
 status: closed
 title: "Test cleanup: remove trivial tests, consolidate test organization"
 type: is
-updated_at: 2026-02-07T18:29:08.003Z
-version: 4
+updated_at: 2026-02-07T20:08:11.183Z
+version: 5
 ---

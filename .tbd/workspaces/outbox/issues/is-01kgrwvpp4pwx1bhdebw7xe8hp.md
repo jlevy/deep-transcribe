@@ -15,6 +15,6 @@ spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
 status: closed
 title: Create manual E2E test doc and update development.md for agent workflows
 type: is
-updated_at: 2026-02-07T18:29:07.960Z
-version: 8
+updated_at: 2026-02-07T20:08:11.139Z
+version: 9
 ---

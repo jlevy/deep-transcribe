@@ -12,6 +12,6 @@ priority: 1
 status: closed
 title: "Simplify transcribe_commands.py: format_results, single kash_setup, fix shadowed builtin"
 type: is
-updated_at: 2026-02-07T18:29:07.982Z
-version: 5
+updated_at: 2026-02-07T20:08:11.161Z
+version: 6
 ---

@@ -13,6 +13,6 @@ spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
 status: closed
 title: Add Claude Code skill integration (SKILL.md, claude_skill.py, CLI flags)
 type: is
-updated_at: 2026-02-07T18:29:07.967Z
-version: 7
+updated_at: 2026-02-07T20:08:11.146Z
+version: 8
 ---

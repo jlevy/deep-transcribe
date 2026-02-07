@@ -16,6 +16,6 @@ priority: 1
 status: closed
 title: Defer kash imports for fast CLI startup (--help, --version, --skill)
 type: is
-updated_at: 2026-02-07T18:29:07.974Z
-version: 7
+updated_at: 2026-02-07T20:08:11.153Z
+version: 8
 ---

@@ -13,6 +13,6 @@ spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
 status: closed
 title: Fix code quality issues (TYPE_CHECKING, assertions, exception handling, preset logic)
 type: is
-updated_at: 2026-02-07T18:29:07.936Z
-version: 7
+updated_at: 2026-02-07T20:08:11.115Z
+version: 8
 ---

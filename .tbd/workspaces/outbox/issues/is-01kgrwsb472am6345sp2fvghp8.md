@@ -15,6 +15,6 @@ spec_path: docs/project/specs/active/plan-2026-02-06-modernize-and-release.md
 status: closed
 title: Add real test coverage (TranscribeOptions unit tests, CLI tests)
 type: is
-updated_at: 2026-02-07T18:29:07.944Z
-version: 8
+updated_at: 2026-02-07T20:08:11.123Z
+version: 9
 ---
