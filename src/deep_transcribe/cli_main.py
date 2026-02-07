@@ -15,12 +15,6 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from textwrap import dedent
 
-from clideps.utils.readable_argparse import ReadableColorFormatter
-from kash.config.settings import DEFAULT_MCP_SERVER_PORT
-from prettyfmt import fmt_path
-from rich import print as rprint
-
-from deep_transcribe.transcribe_commands import run_transcription
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 log = logging.getLogger(__name__)
@@ -56,7 +50,12 @@ def get_all_available_options() -> str:
     return ", ".join(all_options)
 
 
+DEFAULT_MCP_SERVER_PORT = 4440
+
+
 def build_parser() -> argparse.ArgumentParser:
+    from clideps.utils.readable_argparse import ReadableColorFormatter
+
     parser = argparse.ArgumentParser(
         formatter_class=ReadableColorFormatter,
         epilog=dedent((__doc__ or "") + "\n\n" + f"{APP_NAME} {get_app_version()}"),
@@ -166,6 +165,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def display_results(base_dir: Path, md_path: Path, html_path: Path) -> None:
     """Display the results of transcription to the user."""
+    from prettyfmt import fmt_path
+    from rich import print as rprint
+
     rprint(
         dedent(f"""
             [green]All done![/green]
@@ -264,6 +266,8 @@ def main() -> None:
             with_options = TranscribeOptions.from_with_flags(args.with_flags)
             options = options.merge_with(with_options)
 
+        from deep_transcribe.transcribe_commands import run_transcription
+
         md_path, html_path = run_transcription(
             Path(args.workspace).resolve(),
             args.url,
@@ -273,6 +277,9 @@ def main() -> None:
         )
         display_results(Path(args.workspace), md_path, html_path)
     except Exception as e:
+        from prettyfmt import fmt_path
+        from rich import print as rprint
+
         log.error("Error running deep transcription", exc_info=e)
         rprint(f"[red]Error: {e}[/red]")
 
