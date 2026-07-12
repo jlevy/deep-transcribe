@@ -17,7 +17,9 @@ from textwrap import dedent
 
 from clideps.utils.readable_argparse import ReadableColorFormatter
 from kash.config.settings import DEFAULT_MCP_SERVER_PORT
-from prettyfmt import fmt_path
+
+# fmt_path is missing from prettyfmt's __all__ (upstream oversight); it is public API.
+from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
 from rich import print as rprint
 
 from deep_transcribe.transcribe_commands import run_transcription
@@ -162,9 +164,9 @@ def display_results(base_dir: Path, md_path: Path, html_path: Path) -> None:
 
                 [yellow]{fmt_path(html_path)}[/yellow]
 
-            If you like, you can run the kash shell with all deep transcription tools loaded,
-            and use this to see other outputs or perform other tasks:
-                [blue]deep_transcribe kash[/blue]
+            If you like, you can run the kash shell to see other outputs or perform
+            other tasks:
+                [blue]kash[/blue]
             Then cd into the workspace and use `files`, `show`, `help`, etc.
             """)
     )
@@ -236,7 +238,8 @@ def main() -> None:
             args.url,
             options,
             args.language,
-            args.no_minify,
+            no_minify=args.no_minify,
+            rerun=args.rerun,
         )
         display_results(Path(args.workspace), md_path, html_path)
     except Exception as e:

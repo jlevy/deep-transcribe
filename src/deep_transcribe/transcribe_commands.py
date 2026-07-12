@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 # Keep kash imports minimal initially.
 from kash.exec import kash_action
@@ -11,13 +10,6 @@ from kash.model import Item
 from kash.model.params_model import common_params
 
 from deep_transcribe.transcribe_options import TranscribeOptions
-
-if TYPE_CHECKING:
-    from kash.exec import kash_action
-    from kash.exec.preconditions import is_audio_resource, is_url_resource, is_video_resource
-    from kash.model import Item
-    from kash.model.params_model import common_params
-
 
 log = logging.getLogger(__name__)
 
@@ -147,7 +139,13 @@ def transcribe_deep(item: Item, language: str = "en") -> Item:
 
 
 def run_transcription(
-    ws_root: Path, url: str, options: TranscribeOptions, language: str, no_minify: bool = False
+    ws_root: Path,
+    url: str,
+    options: TranscribeOptions,
+    language: str,
+    *,
+    no_minify: bool = False,
+    rerun: bool = False,
 ) -> tuple[Path, Path]:
     """
     Transcribe the audio or video at the given URL using kash with the specified options.
@@ -158,6 +156,7 @@ def run_transcription(
         options: TranscribeOptions instance specifying processing steps
         language: Language code for transcription
         no_minify: If True, skip HTML minification
+        rerun: If True, rerun actions even if cached outputs already exist
 
     Returns:
         Tuple of (markdown_path, html_path) for the generated files
@@ -172,7 +171,7 @@ def run_transcription(
     ws_path = ws_root / "workspace"
 
     # Run all actions in the context of this workspace.
-    with kash_runtime(ws_path) as runtime:
+    with kash_runtime(ws_path, rerun=rerun) as runtime:
         # Show the user the workspace info.
         runtime.workspace.log_workspace_info()
 
