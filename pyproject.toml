@@ -13,7 +13,8 @@ authors = [
 ]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-requires-python = ">=3.11,<4.0"
+# kash-media currently requires Python 3.13 exactly (>=3.13,<3.14).
+requires-python = ">=3.13,<3.14"
 dynamic = ["version"]
 
 # https://pypi.org/classifiers/
@@ -26,8 +27,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
     # Include this to avoid accidentally publishing to PyPI:
@@ -38,11 +37,12 @@ classifiers = [
 # ---- Main dependencies ----
 
 dependencies = [
-    "kash-media>=0.3.14",
-    "flowmark>=0.5.2",
-    "prettyfmt>=0.2.1",
+    # kash-media pins the matching kash-docs and kash-shell releases.
+    "kash-media>=0.3.19",
+    # Direct imports of these (clideps for argparse helpers, prettyfmt for paths):
+    "clideps>=0.1.8",
+    "prettyfmt>=0.4.1",
     "rich>=14.0.0",
-    "rich-argparse>=1.7.0",
 ]
 
 
@@ -50,14 +50,21 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.5",
-    "pytest-sugar>=1.0.0",
-    "ruff>=0.11.9",
-    "codespell>=2.4.1",
+    "pytest>=9.1.0",
+    "pytest-sugar>=1.1.1",
+    "ruff>=0.15.20",
+    "codespell>=2.4.2",
     "rich>=14.0.0",
-    "basedpyright>=1.29.1",
+    "basedpyright>=1.39.9",
     "funlog>=0.2.1",
 ]
+
+[tool.uv]
+# Supply-chain cool-off: never resolve releases newer than this date, so freshly
+# published (possibly compromised) versions get time to be vetted or yanked.
+# Bump this date (~2 weeks back from today) whenever upgrading dependencies.
+# See: https://github.com/jlevy/supply-chain-hardening
+exclude-newer = "2026-06-28T00:00:00Z"
 
 [tool.uv.sources]
 # For bleeding edge:
@@ -90,7 +97,7 @@ source = "uv-dynamic-versioning"
 [tool.uv-dynamic-versioning]
 vcs = "git"
 style = "pep440"
-bump = "true"
+bump = true
 
 [tool.hatch.build.targets.wheel]
 # The source location for the package.
