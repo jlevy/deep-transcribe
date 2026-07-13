@@ -134,13 +134,17 @@ home folder):
 
 ## Project Docs
 
-For how to install uv and Python, see [installation.md](installation.md).
+For how to install uv and Python, see [installation.md](docs/installation.md).
 
-For development workflows, see [development.md](development.md).
+For development workflows, see [development.md](docs/development.md).
 
-For instructions on publishing to PyPI, see [publishing.md](publishing.md).
+For instructions on publishing to PyPI, see [publishing.md](docs/publishing.md).
 
 * * *
 
 *This project was built from
 [simple-modern-uv](https://github.com/jlevy/simple-modern-uv).*
+
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
+-->

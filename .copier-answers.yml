@@ -1,10 +1,12 @@
 # Changes here will be overwritten by Copier. Do not edit manually.
-_commit: v0.2.15
+_commit: v0.4.0
 _src_path: gh:jlevy/simple-modern-uv
 package_author_email: joshua@cal.berkeley.edu
 package_author_name: Joshua Levy
 package_description: High-quality transcription, formatting, and analysis of videos
     and podcasts
 package_github_org: jlevy
+package_license: AGPL-3.0-or-later
 package_module: deep_transcribe
 package_name: deep-transcribe
+publish_to_pypi: true
