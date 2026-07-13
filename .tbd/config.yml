@@ -1,10 +1,12 @@
 tbd_format: f06
-tbd_version: 0.3.0
+tbd_version: 0.4.0
 # tbd_upgrades: tbd versions that have run `tbd setup` in this repo (oldest first);
 # tbd_version above is the most recent. Informational; updated automatically by setup.
 tbd_upgrades:
   - version: 0.3.0
     at: 2026-07-12T03:05:11.981Z
+  - version: 0.4.0
+    at: 2026-07-13T16:53:31.690Z
 display:
   id_prefix: dt
 sync:
@@ -26,9 +28,6 @@ settings:
 # Refresh the cache with `tbd docs sync`; it also auto-syncs when stale
 # (settings.doc_auto_sync_hours, default 24; 0 disables).
 docs_cache:
-  lookup_path:
-    - .tbd/docs/shortcuts/system
-    - .tbd/docs/shortcuts/standard
   files:
     references/tbd-docs.md: internal:tbd-docs.md
     references/tbd-design.md: internal:tbd-design.md
@@ -36,6 +35,7 @@ docs_cache:
     shortcuts/system/skill-baseline.md: internal:shortcuts/system/skill-baseline.md
     shortcuts/system/skill-brief.md: internal:shortcuts/system/skill-brief.md
     shortcuts/system/skill-minimal.md: internal:shortcuts/system/skill-minimal.md
+    shortcuts/standard/address-pr-review.md: internal:shortcuts/standard/address-pr-review.md
     shortcuts/standard/agent-handoff.md: internal:shortcuts/standard/agent-handoff.md
     shortcuts/standard/checkout-third-party-repo.md: internal:shortcuts/standard/checkout-third-party-repo.md
     shortcuts/standard/code-cleanup-all.md: internal:shortcuts/standard/code-cleanup-all.md
@@ -55,6 +55,7 @@ docs_cache:
     shortcuts/standard/new-shortcut.md: internal:shortcuts/standard/new-shortcut.md
     shortcuts/standard/new-validation-plan.md: internal:shortcuts/standard/new-validation-plan.md
     shortcuts/standard/plan-implementation-with-beads.md: internal:shortcuts/standard/plan-implementation-with-beads.md
+    shortcuts/standard/pr-review-workflows.md: internal:shortcuts/standard/pr-review-workflows.md
     shortcuts/standard/precommit-process.md: internal:shortcuts/standard/precommit-process.md
     shortcuts/standard/review-code-python.md: internal:shortcuts/standard/review-code-python.md
     shortcuts/standard/review-code-typescript.md: internal:shortcuts/standard/review-code-typescript.md
@@ -100,3 +101,6 @@ docs_cache:
     templates/research-brief.md: internal:templates/research-brief.md
     references/docmap-format.md: internal:references/docmap-format.md
     references/docref-format.md: internal:references/docref-format.md
+  lookup_path:
+    - .tbd/docs/shortcuts/system
+    - .tbd/docs/shortcuts/standard
