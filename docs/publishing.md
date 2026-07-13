@@ -198,7 +198,9 @@ template).
    ```
 
 4. **If `gh` is unavailable**: annotated tag + push, then trigger `publish.yml` on
-   the tag via `workflow_dispatch`; confirm with
+   the tag via `workflow_dispatch` — it publishes to PyPI and auto-creates the
+   matching GitHub Release from the annotated tag's message (backfill older
+   tags by dispatching `github-release.yml`). Confirm with
    `curl -s https://pypi.org/pypi/deep-transcribe/json` and smoke-test
    `uvx --from deep-transcribe==X.Y.Z deep-transcribe --version`.
 

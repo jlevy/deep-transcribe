@@ -69,6 +69,9 @@ jobs:
       #   with:
       #     python-version: ${{ matrix.python-version }}
 
+      - name: Check lockfile is up to date
+        run: uv lock --check
+
       - name: Install all dependencies
         # --frozen: install exactly from the committed uv.lock, never re-resolving
         # (UV_EXCLUDE_NEWER, set above, governs any resolution that does happen).
