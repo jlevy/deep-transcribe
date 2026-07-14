@@ -2,27 +2,43 @@
 
 High-quality transcription, formatting, and analysis of videos and podcasts.
 
-It currently uses [Deepgram](https://deepgram.com/) for transcription and diarization
-and [Claude Sonnet 4](https://docs.anthropic.com/en/docs/about-claude/models/overview)
-or [OpenAI o3](https://platform.openai.com/docs/models) for analysis and summarization.
+Take a video or audio URL (such as YouTube), download and cache it, and perform a “deep
+transcription” of it: full transcription, speaker identification, sections, timestamps,
+frame captures, and optional research annotations on key topics.
+The level of detail and annotation depends on the options you specify.
 
-Take a video or audio URL (such as YouTube), download it, and perform a “deep
-transcription” of it, including full transcription, identifying speakers, adding
-sections, timestamps, inserting frame captures, and researching or footnoting key
-topics.
+It uses [Deepgram](https://deepgram.com/) (the `nova-2` model) for transcription and
+diarization and LLMs for analysis and summarization.
+By default the LLM steps use
+[Claude Sonnet 4.5 and Claude Haiku 4.5](https://docs.claude.com/en/docs/about-claude/models)
+and speaker identification uses
+[OpenAI gpt-4o-mini](https://platform.openai.com/docs/models); models are configurable
+via [kash](https://github.com/jlevy/kash) settings.
 
-What kind of detail and annotations it includes depends on the options you specify.
-
-By default this needs API keys for Deepgram and Anthropic (Claude).
-
-This is built on [kash](https://www.github.com/jlevy/kash) and its
-[kash-media](https://www.github.com/jlevy/kash-media) kit of tools for handling videos.
+This tool is built on kash and its [kash-media](https://github.com/jlevy/kash-media) kit
+of tools for handling videos.
 
 ## Usage
 
+### Installation
+
+Install with [uv](https://docs.astral.sh/uv/) (Python 3.13 is required and uv will fetch
+it automatically):
+
+```bash
+uv tool install deep-transcribe
+```
+
+You will also need [ffmpeg](https://ffmpeg.org/) installed and on your path for media
+handling.
+
 ### Key Setup
 
-See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
+The default processing needs three API keys: `DEEPGRAM_API_KEY` (transcription),
+`ANTHROPIC_API_KEY` (analysis and summarization), and `OPENAI_API_KEY` (speaker
+identification). Copy `.env.template` to `~/.env` (or another parent directory of where
+you run the tool) and fill in the keys you use.
+Other providers listed in the template are optional.
 
 ### Basic Usage
 
@@ -50,7 +66,7 @@ Use `--help` to see all current options.
 
 The `--with` flag accepts these processing options:
 
-- `format`: Apply formatting pipeline (speakers, paragraphs, timestamps)
+- `format`: Apply the formatting pipeline (speakers, paragraphs, timestamps)
 
 - `identify_speakers`: Identify different speakers in the audio
 
@@ -68,26 +84,29 @@ The `--with` flag accepts these processing options:
 
 - `--basic`: Just transcription (equivalent to no additional options)
 
-- `--formatted`: Transcription + formatting (equivalent to `--with
-  identify_speakers,format`)
+- `--formatted`: Transcription plus formatting (equivalent to
+  `--with identify_speakers,format`)
 
-- `--annotated`: Full processing except research (equivalent to `--with
-  identify_speakers,format,insert_section_headings,add_summary_bullets,add_description,insert_frame_captures`)
-  \- **default when no preset specified**
+- `--annotated`: Full processing except research (equivalent to
+  `--with identify_speakers,format,insert_section_headings,add_summary_bullets,add_description,insert_frame_captures`).
+  This is the default when no preset is specified.
 
-- `--deep`: Complete processing including research (equivalent to `--with
-  identify_speakers,format,insert_section_headings,research_paras,add_summary_bullets,add_description,insert_frame_captures`)
+- `--deep`: Complete processing including research (equivalent to
+  `--with identify_speakers,format,insert_section_headings,research_paras,add_summary_bullets,add_description,insert_frame_captures`)
 
 ## Output
 
 The tool generates:
-- **Markdown file**: Clean, formatted transcript with HTML tags for citations
+
+- **Markdown file**: Clean, formatted transcript with a few HTML tags for citations
 
 - **HTML file**: Browser-ready version with rich formatting and navigation
 
-- **Cached files**: Original video/audio files and intermediate processing results
+- **Cached files**: Original video and audio files and intermediate processing results
 
-All files are stored in the workspace directory (default: `./transcriptions/`).
+All files are stored in the workspace directory (default: `./transcriptions/`). After a
+run you can also open the workspace with the `kash` shell to inspect outputs or run
+further actions.
 
 ## MCP Server
 
@@ -113,19 +132,19 @@ deep-transcribe --sse
 deep-transcribe --logs
 ```
 
-Note: Both `--sse` and `--logs` automatically enable MCP mode, so you don’t need to
-specify `--mcp` explicitly.
+Both `--sse` and `--logs` imply MCP mode, so you don’t need to specify `--mcp` with
+them.
 
 ### Claude Desktop Configuration
 
-For Claude Desktop, a config like this should work (adjusted to use your appropriate
-home folder):
+For Claude Desktop, a config like this works (with the path adjusted to where
+`uv tool install` placed the binary, typically `~/.local/bin`):
 
 ```json
 {
   "mcpServers": {
     "deep_transcribe": {
-      "command": "/Users/levy/.local/bin/deep-transcribe",
+      "command": "/Users/YOURNAME/.local/bin/deep-transcribe",
       "args": ["--mcp"]
     }
   }
