@@ -159,7 +159,7 @@ def run_transcription(
         rerun: If True, rerun actions even if cached outputs already exist
 
     Returns:
-        Tuple of (markdown_path, html_path) for the generated files
+        Tuple of (transcript_path, html_path) for the generated files
     """
     # Import dynamically for faster startup.
     from kash.config.setup import kash_setup
@@ -176,9 +176,22 @@ def run_transcription(
         runtime.workspace.log_workspace_info()
 
         with get_unified_live().status("Processing…"):
-            # Prepare the URL input and run transcription.
-            input = prepare_action_input(url)
-            result_item = transcribe_with_options(input.items[0], options, language=language)
+            action_input = prepare_action_input(url)
+            item = action_input.items[0]
+
+            # Generic web fetches may return the downloaded content rather than the URL
+            # resource required by the media transcription action.
+            if not is_url_resource(item) and item.url:
+                from kash.model import Format, ItemType
+
+                url_item = Item(type=ItemType.resource, format=Format.url, url=item.url)
+                if found_path := runtime.workspace.find_by_id(url_item):
+                    item = runtime.workspace.load(found_path)
+                else:
+                    runtime.workspace.save(url_item)
+                    item = url_item
+
+            result_item = transcribe_with_options(item, options, language=language)
 
             return format_results(result_item, runtime.workspace.base_dir, no_minify=no_minify)
 
@@ -193,7 +206,7 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
         no_minify: If True, skip HTML minification
 
     Returns:
-        Tuple of (markdown_path, html_path) for the generated files
+        Tuple of (transcript_path, html_path) for the generated files
     """
     # Import dynamically for faster startup.
     from kash.actions.core.minify_html import minify_html
@@ -242,8 +255,8 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
     assert html_item.store_path
     assert html_content
 
-    md_path = base_dir / Path(result_item.store_path)
+    transcript_path = base_dir / Path(result_item.store_path)
     html_path = base_dir / Path(html_item.store_path)
     html_path.write_text(html_content)
 
-    return md_path, html_path
+    return transcript_path, html_path

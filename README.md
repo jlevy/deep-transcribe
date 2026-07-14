@@ -7,13 +7,11 @@ transcription” of it: full transcription, speaker identification, sections, ti
 frame captures, and optional research annotations on key topics.
 The level of detail and annotation depends on the options you specify.
 
-It uses [Deepgram](https://deepgram.com/) (the `nova-2` model) for transcription and
-diarization and LLMs for analysis and summarization.
-By default the LLM steps use
-[Claude Sonnet 4.5 and Claude Haiku 4.5](https://docs.claude.com/en/docs/about-claude/models)
-and speaker identification uses
-[OpenAI gpt-4o-mini](https://platform.openai.com/docs/models); models are configurable
-via [kash](https://github.com/jlevy/kash) settings.
+It uses [Deepgram Nova-3](https://developers.deepgram.com/docs/models-languages-overview)
+with the newest generally available batch diarizer for transcription. LLM analysis and
+speaker identification use configurable [kash](https://github.com/jlevy/kash) model
+roles. The default profile uses current Anthropic models; a current OpenAI profile is
+also supported.
 
 This tool is built on kash and its [kash-media](https://github.com/jlevy/kash-media) kit
 of tools for handling videos.
@@ -34,11 +32,50 @@ handling.
 
 ### Key Setup
 
-The default processing needs three API keys: `DEEPGRAM_API_KEY` (transcription),
-`ANTHROPIC_API_KEY` (analysis and summarization), and `OPENAI_API_KEY` (speaker
-identification). Copy `.env.template` to `~/.env` (or another parent directory of where
-you run the tool) and fill in the keys you use.
-Other providers listed in the template are optional.
+Copy `.env.template` to `~/.env` or another parent directory of where you run the tool.
+Set `DEEPGRAM_API_KEY` for transcription and one LLM provider key:
+
+- `ANTHROPIC_API_KEY` for the default Anthropic profile
+
+- `OPENAI_API_KEY` for the OpenAI profile
+
+Other provider keys in the template are optional.
+
+### Model Configuration
+
+The model roles preserve the same quality and latency intent across providers:
+
+| Role | Default Anthropic profile | OpenAI profile |
+| --- | --- | --- |
+| Careful | `claude-fable-5` | `gpt-5.6-sol` |
+| Structured | `claude-sonnet-5` | `gpt-5.6-terra` |
+| Standard | `claude-sonnet-5` | `gpt-5.6-terra` |
+| Fast, including speaker identification | `claude-haiku-4-5-20251001` | `gpt-5.6-luna` |
+
+The Anthropic profile is the default. To select it explicitly for the default workspace:
+
+```bash
+KASH_WS_ROOT=./transcriptions kash set_params careful_llm=claude-fable-5 structured_llm=claude-sonnet-5 standard_llm=claude-sonnet-5 fast_llm=claude-haiku-4-5-20251001
+```
+
+To use OpenAI instead:
+
+```bash
+KASH_WS_ROOT=./transcriptions kash set_params careful_llm=gpt-5.6-sol structured_llm=gpt-5.6-terra standard_llm=gpt-5.6-terra fast_llm=gpt-5.6-luna
+```
+
+Use the same path as `--workspace` when configuring a different workspace.
+
+### Quick Demo
+
+Try a basic transcription of this short two-person interview:
+
+```bash
+deep-transcribe --basic "https://www.youtube.com/watch?v=naIkpQ_cIt0"
+```
+
+Output is saved to `./transcriptions/` as a transcript source file and browser-ready
+HTML.
 
 ### Basic Usage
 
@@ -63,6 +100,8 @@ deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --with format,insert_se
 ### Available Options
 
 Use `--help` to see all current options.
+Use `--language multi` for Nova-3 multilingual code-switching, or pass any supported
+[Nova-3 language code](https://developers.deepgram.com/docs/models-languages-overview#nova-3).
 
 The `--with` flag accepts these processing options:
 
@@ -156,6 +195,9 @@ For Claude Desktop, a config like this works (with the path adjusted to where
 For how to install uv and Python, see [installation.md](docs/installation.md).
 
 For development workflows, see [development.md](docs/development.md).
+
+For the manual, agent-reviewed release test, see
+[e2e-test.runbook.md](tests/e2e-test.runbook.md).
 
 For instructions on publishing to PyPI, see [publishing.md](docs/publishing.md).
 

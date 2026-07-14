@@ -11,18 +11,12 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from textwrap import dedent
 
-from clideps.utils.readable_argparse import ReadableColorFormatter
 from kash.config.settings import DEFAULT_MCP_SERVER_PORT
 
-# fmt_path is missing from prettyfmt's __all__ (upstream oversight); it is public API.
-from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
-from rich import print as rprint
-
-from deep_transcribe.transcribe_commands import run_transcription
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 log = logging.getLogger(__name__)
@@ -37,7 +31,7 @@ DEFAULT_WS = "./transcriptions"
 def get_app_version() -> str:
     try:
         return "v" + version(APP_NAME)
-    except Exception:
+    except PackageNotFoundError:
         return "unknown"
 
 
@@ -53,12 +47,14 @@ def format_preset_help(preset_name: str, options: TranscribeOptions) -> str:
 
 def get_all_available_options() -> str:
     """Get all available option names from TranscribeOptions."""
-    options = TranscribeOptions()
-    all_options = list(options.__dataclass_fields__.keys())
-    return ", ".join(all_options)
+    from dataclasses import fields
+
+    return ", ".join(field.name for field in fields(TranscribeOptions))
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from clideps.utils.readable_argparse import ReadableColorFormatter
+
     parser = argparse.ArgumentParser(
         formatter_class=ReadableColorFormatter,
         epilog=dedent((__doc__ or "") + "\n\n" + f"{APP_NAME} {get_app_version()}"),
@@ -104,7 +100,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Transcription options
     parser.add_argument(
+        "--no-minify",
         "--no_minify",
+        dest="no_minify",
         action="store_true",
         help="Skip HTML/CSS/JS/Tailwind minification step",
     )
@@ -146,8 +144,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def display_results(base_dir: Path, md_path: Path, html_path: Path) -> None:
+def display_results(base_dir: Path, transcript_path: Path, html_path: Path) -> None:
     """Display the results of transcription to the user."""
+    # fmt_path is missing from prettyfmt's __all__ (upstream oversight); it is public API.
+    from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
+    from rich import print as rprint
+
     rprint(
         dedent(f"""
             [green]All done![/green]
@@ -156,9 +158,9 @@ def display_results(base_dir: Path, md_path: Path, html_path: Path) -> None:
 
                 [yellow]{fmt_path(base_dir)}[/yellow]
 
-            Cleanly formatted Markdown (with a few HTML tags for citations) is at:
+            The transcript source is at:
 
-                [yellow]{fmt_path(md_path)}[/yellow]
+                [yellow]{fmt_path(transcript_path)}[/yellow]
 
             Browser-ready HTML is at:
 
@@ -173,14 +175,17 @@ def display_results(base_dir: Path, md_path: Path, html_path: Path) -> None:
 
 
 def main() -> None:
-    # Set up kash logging
+    parser = build_parser()
+    args = parser.parse_args()
+
     from kash.config.settings import LogLevel
     from kash.config.setup import kash_setup
 
-    kash_setup(rich_logging=True, console_log_level=LogLevel.warning)
-
-    parser = build_parser()
-    args = parser.parse_args()
+    kash_setup(
+        kash_ws_root=Path(args.workspace).resolve(),
+        rich_logging=True,
+        console_log_level=LogLevel.warning,
+    )
 
     # Auto-enable MCP mode if --sse or --logs is used
     if args.sse or args.logs:
@@ -233,7 +238,9 @@ def main() -> None:
             with_options = TranscribeOptions.from_with_flags(args.with_flags)
             options = options.merge_with(with_options)
 
-        md_path, html_path = run_transcription(
+        from deep_transcribe.transcribe_commands import run_transcription
+
+        transcript_path, html_path = run_transcription(
             Path(args.workspace).resolve(),
             args.url,
             options,
@@ -241,8 +248,12 @@ def main() -> None:
             no_minify=args.no_minify,
             rerun=args.rerun,
         )
-        display_results(Path(args.workspace), md_path, html_path)
+        display_results(Path(args.workspace), transcript_path, html_path)
     except Exception as e:
+        # fmt_path is missing from prettyfmt's __all__ (upstream oversight); it is public API.
+        from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
+        from rich import print as rprint
+
         log.error("Error running deep transcription", exc_info=e)
         rprint(f"[red]Error: {e}[/red]")
 

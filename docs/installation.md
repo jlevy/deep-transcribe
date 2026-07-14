@@ -26,6 +26,20 @@ Now you can use uv to install a current Python environment:
 uv python install 3.13 # Or pick another version.
 ```
 
+## Environment Setup
+
+Copy the API key template to a parent directory of the workspace, such as your home
+directory:
+
+```shell
+cp .env.template ~/.env
+```
+
+Set `DEEPGRAM_API_KEY` and one LLM provider key: `ANTHROPIC_API_KEY` for the default
+profile or `OPENAI_API_KEY` for the OpenAI profile. See the
+[model configuration](../README.md#model-configuration) for current model mappings and
+workspace setup commands.
+
 <!-- This document follows common-doc-guidelines.md.
 See github.com/jlevy/practical-prose and review guidelines before editing.
 -->
