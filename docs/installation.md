@@ -28,17 +28,12 @@ uv python install 3.13 # Or pick another version.
 
 ## Environment Setup
 
-Copy the API key template to a parent directory of the workspace, such as your home
-directory:
+Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment or a `.env`
+file in the current directory or one of its parents. Use `ANTHROPIC_API_KEY` for the
+default profile or `OPENAI_API_KEY` for the OpenAI profile. Do not commit the file.
 
-```shell
-cp .env.template ~/.env
-```
-
-Set `DEEPGRAM_API_KEY` and one LLM provider key: `ANTHROPIC_API_KEY` for the default
-profile or `OPENAI_API_KEY` for the OpenAI profile. See the
-[model configuration](../README.md#model-configuration) for current model mappings and
-workspace setup commands.
+Run `deep-transcribe models --help` for the current model mappings and workspace
+configuration command.
 
 <!-- This document follows common-doc-guidelines.md.
 See github.com/jlevy/practical-prose and review guidelines before editing.

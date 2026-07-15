@@ -48,6 +48,9 @@ Use local editable dependencies when testing unreleased `kash-shell`, `kash-docs
 uv lock --check
 uv sync --locked --all-groups
 uv run --locked deep-transcribe --version
+uv run --locked deep-transcribe --help
+uv run --locked deep-transcribe transcribe --help
+uv run --locked deep-transcribe models --help
 uv pip show deep-transcribe kash-media kash-docs kash-shell deepgram-sdk litellm
 make lint
 make test
@@ -85,7 +88,7 @@ echo "$DEEP_TRANSCRIBE_E2E_WS"
 Run a fresh basic transcription:
 
 ```shell
-uv run --locked deep-transcribe \
+uv run --locked deep-transcribe transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --language en \
@@ -96,7 +99,7 @@ Then exercise HTML stripping, paragraph formatting, timestamp backfilling, and H
 export independently of an LLM:
 
 ```shell
-uv run --locked deep-transcribe \
+uv run --locked deep-transcribe transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --with format \
@@ -141,13 +144,11 @@ PY
 Configure the workspace and run the default annotated pipeline:
 
 ```shell
-KASH_WS_ROOT="$DEEP_TRANSCRIBE_E2E_WS" uv run --locked kash set_params \
-    careful_llm=claude-fable-5 \
-    structured_llm=claude-sonnet-5 \
-    standard_llm=claude-sonnet-5 \
-    fast_llm=claude-haiku-4-5-20251001
+uv run --locked deep-transcribe models \
+    --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
+    --set anthropic
 
-uv run --locked deep-transcribe \
+uv run --locked deep-transcribe transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun \
@@ -166,13 +167,11 @@ The media cache prevents another paid transcription request while `--rerun` forc
 speaker identification, formatting, annotation, and export to execute again.
 
 ```shell
-KASH_WS_ROOT="$DEEP_TRANSCRIBE_E2E_WS" uv run --locked kash set_params \
-    careful_llm=gpt-5.6-sol \
-    structured_llm=gpt-5.6-terra \
-    standard_llm=gpt-5.6-terra \
-    fast_llm=gpt-5.6-luna
+uv run --locked deep-transcribe models \
+    --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
+    --set openai
 
-uv run --locked deep-transcribe \
+uv run --locked deep-transcribe transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun \

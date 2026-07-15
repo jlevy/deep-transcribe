@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deep Transcribe"
+  short_description: "Transcribe and analyze audio and video"
+  default_prompt: "Use $deep-transcribe to transcribe and review this audio, video, podcast, or YouTube URL."
