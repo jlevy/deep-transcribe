@@ -5,11 +5,12 @@ title: "Upgrade transitive model defaults for deep-transcribe PR #2"
 kind: task
 status: closed
 priority: 1
-version: 5
+version: 6
 labels: []
 dependencies: []
+parent_id: is-01kxj4xxyfwmxmk3z9mebcf92x
 created_at: 2026-07-14T23:07:42.181Z
-updated_at: 2026-07-15T00:42:42.954Z
+updated_at: 2026-07-15T05:46:07.008Z
 closed_at: 2026-07-15T00:42:42.954Z
 close_reason: Published the patch dependency chain and passed the full Deep Transcribe release E2E gate with both providers.
 ---

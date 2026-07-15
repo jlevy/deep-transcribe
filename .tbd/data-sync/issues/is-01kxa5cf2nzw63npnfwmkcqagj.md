@@ -5,11 +5,12 @@ title: "Upstream kash-shell: relax openai==1.99.9 pin and bump litellm to >=1.84
 kind: task
 status: closed
 priority: 2
-version: 3
+version: 4
 labels: []
 dependencies: []
+parent_id: is-01kxj4xxyfwmxmk3z9mebcf92x
 created_at: 2026-07-12T03:19:25.525Z
-updated_at: 2026-07-13T23:00:57.889Z
+updated_at: 2026-07-15T05:46:09.581Z
 closed_at: 2026-07-13T23:00:57.880Z
 close_reason: "Resolved: kash 0.4.1 released with litellm>=1.84 floor; whole chain now carries litellm 1.90/openai 2.44 as plain metadata"
 ---
