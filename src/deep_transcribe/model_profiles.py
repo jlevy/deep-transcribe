@@ -4,8 +4,6 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from kash.llm_utils import LLM
-
 
 class ModelProvider(StrEnum):
     """Supported LLM provider profiles."""
@@ -34,17 +32,19 @@ class ModelProfile:
 MODEL_PROFILES = {
     ModelProvider.anthropic: ModelProfile(
         provider=ModelProvider.anthropic,
-        careful_llm=str(LLM.claude_fable_5),
-        structured_llm=str(LLM.claude_sonnet_5),
-        standard_llm=str(LLM.claude_sonnet_5),
-        fast_llm=str(LLM.claude_haiku_4_5),
+        # Importing kash's model enum here makes every CLI help invocation load the
+        # complete LLM stack. These persisted values are intentionally lightweight.
+        careful_llm="claude-fable-5",
+        structured_llm="claude-sonnet-5",
+        standard_llm="claude-sonnet-5",
+        fast_llm="claude-haiku-4-5-20251001",
     ),
     ModelProvider.openai: ModelProfile(
         provider=ModelProvider.openai,
-        careful_llm=str(LLM.gpt_5_6_sol),
-        structured_llm=str(LLM.gpt_5_6_terra),
-        standard_llm=str(LLM.gpt_5_6_terra),
-        fast_llm=str(LLM.gpt_5_6_luna),
+        careful_llm="gpt-5.6-sol",
+        structured_llm="gpt-5.6-terra",
+        standard_llm="gpt-5.6-terra",
+        fast_llm="gpt-5.6-luna",
     ),
 }
 

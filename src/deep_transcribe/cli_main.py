@@ -14,13 +14,10 @@ import json
 import logging
 import sys
 from collections.abc import Sequence
-from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Protocol
-
-from kash.config.settings import DEFAULT_MCP_SERVER_PORT
 
 from deep_transcribe.model_profiles import MODEL_PROFILES, ModelProvider, set_model_profile
 from deep_transcribe.transcribe_options import TranscribeOptions
@@ -33,6 +30,8 @@ DESCRIPTION = "High-quality transcription, formatting, and analysis of videos an
 
 DEFAULT_WS = "./transcriptions"
 
+DEFAULT_MCP_SERVER_PORT = 4440
+
 COMMANDS = {"transcribe", "models", "mcp", "logs"}
 
 
@@ -42,10 +41,6 @@ class _ArgumentContainer(Protocol):
 
 class _SubparserCollection(Protocol):
     def add_parser(self, name: str, **kwargs: Any) -> argparse.ArgumentParser: ...
-
-
-class _FormatterFactory(Protocol):
-    def __call__(self, *, prog: str) -> argparse.HelpFormatter: ...
 
 
 def get_app_version() -> str:
@@ -71,10 +66,8 @@ def get_all_available_options() -> str:
     return ", ".join(field.name for field in fields(TranscribeOptions))
 
 
-def _formatter_class() -> _FormatterFactory:
-    from clideps.utils.readable_argparse import ReadableColorFormatter
-
-    return partial(ReadableColorFormatter, format_markdown=True)
+def _formatter_class() -> type[argparse.HelpFormatter]:
+    return argparse.RawDescriptionHelpFormatter
 
 
 def _add_version_argument(parser: argparse.ArgumentParser) -> None:

@@ -19,7 +19,7 @@ deep-transcribe --help
 If it is unavailable, use the pinned zero-install runner:
 
 ```shell
-uvx --from deep-transcribe==0.1.6 deep-transcribe --help
+uvx --from deep-transcribe==0.1.7 deep-transcribe --help
 ```
 
 Use the same executable prefix for later commands. Do not install the package globally

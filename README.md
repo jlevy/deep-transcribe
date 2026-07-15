@@ -30,7 +30,7 @@ Do not commit API keys.
 Run the pinned release without installing it globally:
 
 ```shell
-uvx --from deep-transcribe==0.1.6 deep-transcribe --help
+uvx --from deep-transcribe==0.1.7 deep-transcribe --help
 ```
 
 For repeated human use, a persistent tool install is also available:

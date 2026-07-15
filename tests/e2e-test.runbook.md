@@ -10,6 +10,8 @@ The release passes only when:
 
 - the source checkout is clean except for the intended release changes;
 - `make lint` and `make test` pass;
+- warmed `--help` startup remains below 250 ms and does not import the runtime stack;
+- the environment excludes optional document/AWS runtimes and Torch;
 - a fresh workspace completes the basic and annotated runs below;
 - the log proves Deepgram used `nova-3` with `diarize_model=latest`;
 - the careful-role smoke checks and both provider profiles exercise all six configured
@@ -54,6 +56,26 @@ uv run --locked deep-transcribe models --help
 uv pip show deep-transcribe kash-media kash-docs kash-shell deepgram-sdk litellm
 make lint
 make test
+```
+
+Check the warmed CLI path three times. Each `real` result should remain below 0.25
+seconds on a typical development machine:
+
+```shell
+for run in 1 2 3; do
+    /usr/bin/time -p uv run --locked deep-transcribe --help >/dev/null
+done
+```
+
+Deep Transcribe retains OpenCV and scikit-image for frame capture and visual
+deduplication. It must not install unrelated document conversion, AWS, or Torch
+runtimes:
+
+```shell
+if uv pip list | rg '^(boto3|magika|markitdown|onnxruntime|torch|weasyprint)\b'; then
+    echo "Unexpected optional runtime in Deep Transcribe environment"
+    exit 1
+fi
 ```
 
 Set `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY` in a `.env` file that
