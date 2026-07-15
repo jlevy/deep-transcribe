@@ -39,7 +39,7 @@ classifiers = [
 dependencies = [
     # The media chain no longer pulls PDF/browser ML deps (torch, docling,
     # playwright, marker); keep it that way — deep-transcribe needs none of them.
-    "kash-media>=0.4.3,<0.5",
+    "kash-media>=0.4.4,<0.5",
     # Direct metadata parsing and sidematter persistence imports:
     "frontmatter-format>=0.3.0,<0.4",
     "sidematter-format>=0.1.0,<0.2",

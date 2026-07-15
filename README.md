@@ -30,7 +30,7 @@ Do not commit API keys.
 Run the pinned release without installing it globally:
 
 ```shell
-uvx --from deep-transcribe==0.1.8 deep-transcribe --help
+uvx --from deep-transcribe==0.1.9 deep-transcribe --help
 ```
 
 For repeated human use, a persistent tool install is also available:
@@ -121,7 +121,10 @@ other semantic context. Those corrections reuse the cached Deepgram transcript. 
 `key_terms` deliberately requests a new transcript because the terms affect speech
 recognition. Use `--rerun-processing` to force every downstream stage while preserving the
 raw transcript; `--rerun` intentionally requests fresh speech-to-text processing. Run
-`deep-transcribe transcribe --help` for the equivalent concise flags.
+`deep-transcribe transcribe --help` for the equivalent concise flags. If Deepgram merges
+distinct voices under one ID, replace direct ID hints with a complete `speaker_roster` list
+and describe role or dialogue transitions in `additional_context`; Deep Transcribe will
+correct turn-level boundaries with the selected careful model profile.
 
 ## Output
 
