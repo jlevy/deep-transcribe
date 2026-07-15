@@ -17,10 +17,13 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from deep_transcribe.model_profiles import MODEL_PROFILES, ModelProvider, set_model_profile
 from deep_transcribe.transcribe_options import TranscribeOptions
+
+if TYPE_CHECKING:
+    from deep_transcribe.transcription_metadata import TranscriptionMetadata
 
 log = logging.getLogger(__name__)
 
@@ -154,6 +157,47 @@ def _add_transcription_arguments(
         help="Skip HTML, CSS, JavaScript, and Tailwind minification",
     )
 
+    context = parser.add_argument_group("Source Metadata and Context")
+    context.add_argument(
+        "--metadata",
+        type=Path,
+        metavar="YAML_OR_JSON",
+        help=(
+            "Metadata file with title, description, additional_context, key_terms, "
+            "speaker_hints, or extra fields"
+        ),
+    )
+    context.add_argument(
+        "--context",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="Additional recording context; repeat to join multiple paragraphs",
+    )
+    context.add_argument(
+        "--context-file",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="PATH",
+        help="UTF-8 text to use as additional context; repeat to join files",
+    )
+    context.add_argument(
+        "--key-term",
+        action="append",
+        default=[],
+        metavar="TERM",
+        help="Term or name Deepgram should recognize accurately; repeat as needed",
+    )
+    context.add_argument(
+        "--speaker",
+        action="append",
+        default=[],
+        type=_speaker_hint,
+        metavar="ID=NAME",
+        help="Authoritative speaker label, such as 0='Alice Chen'; repeat as needed",
+    )
+
     execution = parser.add_argument_group("Execution and Output")
     _add_workspace_argument(execution)
     execution.add_argument(
@@ -163,9 +207,24 @@ def _add_transcription_arguments(
         help="Deepgram Nova-3 language code; use 'multi' for multilingual audio",
     )
     execution.add_argument(
+        "--transcription-model",
+        default="nova-3",
+        help="Deepgram speech-to-text model (default: %(default)s)",
+    )
+    execution.add_argument(
+        "--diarize-model",
+        default="latest",
+        help="Deepgram speaker diarization model (default: %(default)s)",
+    )
+    execution.add_argument(
         "--rerun",
         action="store_true",
-        help="Rerun processing stages even when cached outputs exist",
+        help="Rerun every stage, including paid speech-to-text transcription",
+    )
+    execution.add_argument(
+        "--rerun-processing",
+        action="store_true",
+        help="Rerun post-transcription stages while reusing the raw transcript cache",
     )
     execution.add_argument(
         "--json",
@@ -191,6 +250,8 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
         deep-transcribe transcribe --annotated https://youtu.be/VIDEO_ID
         deep-transcribe transcribe --deep --language multi URL
         deep-transcribe transcribe --basic --with format URL
+        deep-transcribe transcribe --annotated --metadata interview.yml ./interview.mp3
+        deep-transcribe transcribe --speaker 0="Alice Chen" --key-term SignalFlow URL
         ```
         """).strip()
     )
@@ -465,6 +526,41 @@ def _run_mcp_server(*, transport: str) -> None:
     run_mcp_server(mcp_mode, proxy_to=None, tool_names=action_names)
 
 
+def _speaker_hint(value: str) -> tuple[str, str]:
+    speaker_id, separator, name = value.partition("=")
+    if not separator or not speaker_id.strip() or not name.strip():
+        raise argparse.ArgumentTypeError("speaker hints must use ID=NAME")
+    return speaker_id.strip(), name.strip()
+
+
+def build_transcription_metadata(args: argparse.Namespace) -> TranscriptionMetadata:
+    from deep_transcribe.transcription_metadata import (
+        TranscriptionMetadata,
+        load_transcription_metadata,
+        transcription_metadata_from_mapping,
+    )
+
+    metadata = (
+        load_transcription_metadata(args.metadata) if args.metadata else TranscriptionMetadata()
+    )
+    context_parts = [path.read_text(encoding="utf-8").strip() for path in args.context_file] + [
+        value.strip() for value in args.context
+    ]
+    context_parts = [value for value in context_parts if value]
+
+    inline_data: dict[str, object] = {}
+    if context_parts:
+        inline_data["additional_context"] = "\n\n".join(context_parts)
+    if args.key_term:
+        inline_data["key_terms"] = list(dict.fromkeys([*metadata.key_terms, *args.key_term]))
+    if args.speaker:
+        inline_data["speaker_hints"] = dict(args.speaker)
+
+    if inline_data:
+        metadata = metadata.merged_with(transcription_metadata_from_mapping(inline_data))
+    return metadata
+
+
 def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
     if not any([args.basic, args.formatted, args.annotated, args.deep]):
         options = TranscribeOptions.annotated()
@@ -544,8 +640,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             args.source,
             _build_transcribe_options(args),
             args.language,
+            transcription_model=args.transcription_model,
+            diarize_model=args.diarize_model,
+            metadata=build_transcription_metadata(args),
             no_minify=args.no_minify,
             rerun=args.rerun,
+            rerun_processing=args.rerun_processing,
         )
         display_results(
             workspace,
