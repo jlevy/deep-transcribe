@@ -83,45 +83,99 @@ deep-transcribe models --set openai
 The selection is saved in the chosen workspace. Pass `--workspace` to `models` and
 `transcribe` when using a location other than `./transcriptions`.
 
-### Quick Demo
+### End-to-End Example: A Reservation Glitch and a Free Jacuzzi
 
-This short two-person hotel dialogue exercises transcription and diarization:
+The release test uses a short, two-person
+[hotel check-in video](https://www.youtube.com/watch?v=wyqfYJX23lg). Guest Tom Sanders
+arrives at the Transnational Hotel, where his reservation briefly goes missing. The
+receptionist eventually finds it and offers him a free business-suite upgrade with a
+Jacuzzi. It is about 2 minutes 40 seconds long, has two clearly alternating speakers,
+and includes enough names, numbers, and plot details to expose weak transcription or
+summarization.
+
+Create a metadata file with information that is known before transcription:
 
 ```shell
-deep-transcribe transcribe --basic \
+mkdir hotel-transcript
+cd hotel-transcript
+
+cat >hotel.yml <<'YAML'
+title: Hotel check-in dialogue
+description: A receptionist checks guest Tom Sanders into the Transnational Hotel.
+additional_context: |
+  This is a two-person hotel check-in conversation. Speaker 0 is the Hotel Receptionist.
+  Speaker 1 is guest Tom Sanders, who has a three-night reservation and is assigned
+  Room 653.
+key_terms:
+  - Tom Sanders
+  - Transnational Hotel
+  - Room 653
+speaker_hints:
+  "0": Hotel Receptionist
+  "1": Tom Sanders
+YAML
+```
+
+Run the annotated workflow:
+
+```shell
+deep-transcribe transcribe \
+    --workspace ./output \
+    --annotated \
+    --language en \
+    --metadata ./hotel.yml \
     "https://www.youtube.com/watch?v=wyqfYJX23lg"
 ```
 
-Use `deep-transcribe transcribe --help` to choose formatted, annotated, deep, or custom
-processing.
+This one command:
 
-### Source Context and Corrections
+1. downloads and caches the video;
+2. transcribes it with Deepgram Nova-3 and the current diarizer, using the key terms;
+3. saves the descriptive context and speaker hints with the source item;
+4. identifies speakers, formats paragraphs and timestamps, and adds headings, a summary,
+   and a description using that context; and
+5. captures distinct video frames and exports browser-ready HTML.
 
-Add context directly or use one reusable YAML file for URLs and raw media files:
+The command prints the final Markdown and HTML paths. In the `v0.1.8` release test, the
+transcript contained 550 words in 29 speaker turns and the HTML included 19 distinct
+frame captures. Manual review confirmed the two speaker names, Transnational Hotel,
+Room 653, the missing reservation, the free suite upgrade, and the check-in instructions.
 
-```yaml
-title: Acme product interview
-description: Alice Chen interviews Bob Diaz about SignalFlow.
-additional_context: Alice is the host and Bob is the product lead.
-key_terms:
-  - Alice Chen
-  - Bob Diaz
-  - SignalFlow
-speaker_hints:
-  "0": Alice Chen
-  "1": Bob Diaz
-```
+#### Correct Context Without Paying for Transcription Again
+
+If a speaker name or descriptive detail is wrong, edit `hotel.yml` and rerun only the
+semantic processing stages:
 
 ```shell
-deep-transcribe transcribe --annotated --metadata interview.yml ./interview.mp3
+deep-transcribe transcribe \
+    --workspace ./output \
+    --annotated \
+    --rerun-processing \
+    --metadata ./hotel.yml \
+    "https://www.youtube.com/watch?v=wyqfYJX23lg"
 ```
 
-Update the metadata and rerun the same command to correct speaker names, descriptions, or
-other semantic context. Those corrections reuse the cached Deepgram transcript. Changing
-`key_terms` deliberately requests a new transcript because the terms affect speech
-recognition. Use `--rerun-processing` to force every downstream stage while preserving the
-raw transcript; `--rerun` intentionally requests fresh speech-to-text processing. Run
-`deep-transcribe transcribe --help` for the equivalent concise flags.
+Changes to `additional_context`, `description`, or `speaker_hints` reuse the cached raw
+Deepgram transcript. A `key_terms` change intentionally creates a new transcript because
+it can affect speech recognition. Full `--rerun` also requests fresh speech-to-text.
+
+To compare providers on the same transcript, select the OpenAI profile and rerun the
+processing stages:
+
+```shell
+deep-transcribe models --workspace ./output --set openai
+deep-transcribe transcribe \
+    --workspace ./output \
+    --annotated \
+    --rerun-processing \
+    --metadata ./hotel.yml \
+    "https://www.youtube.com/watch?v=wyqfYJX23lg"
+```
+
+Use `--set anthropic` to switch back. The same workflow works for a raw `.mp3` or `.mp4`:
+replace the URL with the local path, where the metadata is especially useful because a raw
+file may have no title, description, speaker names, or other source context. Run
+`deep-transcribe transcribe --help` for individual flags and custom processing stages.
 
 ## Output
 
