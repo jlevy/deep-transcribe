@@ -37,6 +37,9 @@ DEFAULT_MCP_SERVER_PORT = 4440
 
 COMMANDS = {"transcribe", "models", "mcp", "logs"}
 
+# Conventional shell status for a process interrupted by SIGINT.
+INTERRUPTED_EXIT_CODE = 130
+
 
 class _ArgumentContainer(Protocol):
     def add_argument(self, *args: str, **kwargs: Any) -> argparse.Action: ...
@@ -596,7 +599,7 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
     return options
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def _run_cli(argv: Sequence[str] | None = None) -> None:
     cli_argv = list(argv) if argv is not None else sys.argv[1:]
     parser, args = _parse_args(cli_argv)
 
@@ -688,5 +691,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(1) from error
 
 
+def main(argv: Sequence[str] | None = None) -> int | None:
+    try:
+        _run_cli(argv)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        return INTERRUPTED_EXIT_CODE
+    return None
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
