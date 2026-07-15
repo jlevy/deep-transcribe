@@ -96,6 +96,9 @@ Its key defaults:
   For uv, set `UV_EXCLUDE_NEWER` to a cool-off window (recent uv accepts a relative
   duration like `"14 days"`); this project sets it in `pyproject.toml`, CI, and the
   Makefile so direct commands and standard workflows default to the same policy.
+  Packages owned and released by jlevy are first-party and permanently exempted with
+  `[tool.uv.exclude-newer-package]`; the rolling window still applies to third-party
+  dependencies.
   Override it explicitly for a stricter window, such as
   `UV_EXCLUDE_NEWER="30 days" make upgrade`. A reviewed emergency exception must be
   equally explicit, using `UV_EXCLUDE_NEWER="0 days"` only for that invocation and

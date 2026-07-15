@@ -12,15 +12,23 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P14D"
 
 [options.exclude-newer-package]
-flowmark-rs = "2100-01-01T08:00:00Z"
+flowmark-rs = "2099-12-31T00:00:00Z"
 kash-media = "2099-12-31T00:00:00Z"
 pillow = "2026-07-02T00:00:00Z"
-pprose = "2100-01-01T08:00:00Z"
+deep-transcribe = "2099-12-31T00:00:00Z"
+flowmark = "2099-12-31T00:00:00Z"
+chopdiff = "2099-12-31T00:00:00Z"
 kash-docs = "2099-12-31T00:00:00Z"
-deep-transcribe = "2100-01-01T08:00:00Z"
-flowmark = "2100-01-01T08:00:00Z"
+tminify = "2099-12-31T00:00:00Z"
+flexdoc = "2099-12-31T00:00:00Z"
+sidematter-format = "2099-12-31T00:00:00Z"
+clideps = "2099-12-31T00:00:00Z"
+pprose = "2099-12-31T00:00:00Z"
+prettyfmt = "2099-12-31T00:00:00Z"
+strif = "2099-12-31T00:00:00Z"
+frontmatter-format = "2099-12-31T00:00:00Z"
 kash-shell = "2099-12-31T00:00:00Z"
-flexdoc = "2100-01-01T08:00:00Z"
+funlog = "2099-12-31T00:00:00Z"
 
 [manifest]
 constraints = [{ name = "pillow", specifier = ">=12.3.0" }]

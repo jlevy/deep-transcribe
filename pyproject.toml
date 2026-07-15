@@ -111,11 +111,28 @@ required-version = ">=0.9"
 # Safe project-level default for every uv command. CI and the Makefile repeat it so
 # copied commands and tool execution outside project discovery retain the same policy.
 exclude-newer = "14 days"
-# First-party packages bypass the third-party cool-off so new patch releases resolve
-# immediately. Pillow is a temporary exception for its security-fix release.
-# - pillow 12.3.0 (2026-07-01): security-fix release (PYSEC-2026-2254/2256/2257).
-exclude-newer-package = { kash-media = "2099-12-31T00:00:00Z", kash-docs = "2099-12-31T00:00:00Z", kash-shell = "2099-12-31T00:00:00Z", pillow = "2026-07-02T00:00:00Z" }
 constraint-dependencies = ["pillow>=12.3.0"]
+
+[tool.uv.exclude-newer-package]
+# Packages owned and released by jlevy bypass the third-party cool-off.
+chopdiff = "2099-12-31T00:00:00Z"
+clideps = "2099-12-31T00:00:00Z"
+deep-transcribe = "2099-12-31T00:00:00Z"
+flexdoc = "2099-12-31T00:00:00Z"
+flowmark-rs = "2099-12-31T00:00:00Z"
+flowmark = "2099-12-31T00:00:00Z"
+frontmatter-format = "2099-12-31T00:00:00Z"
+funlog = "2099-12-31T00:00:00Z"
+kash-docs = "2099-12-31T00:00:00Z"
+kash-media = "2099-12-31T00:00:00Z"
+kash-shell = "2099-12-31T00:00:00Z"
+pprose = "2099-12-31T00:00:00Z"
+prettyfmt = "2099-12-31T00:00:00Z"
+sidematter-format = "2099-12-31T00:00:00Z"
+strif = "2099-12-31T00:00:00Z"
+tminify = "2099-12-31T00:00:00Z"
+# Pillow 12.3.0 is a temporary security-fix exception (PYSEC-2026-2254/2256/2257).
+pillow = "2026-07-02T00:00:00Z"
 
 [tool.ruff]
 # Set as desired, typically 88 (black standard) or 100 (wide).
