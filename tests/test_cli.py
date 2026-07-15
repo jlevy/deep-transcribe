@@ -45,6 +45,31 @@ if heavy_modules:
     assert not result.stderr
 
 
+def test_keyboard_interrupt_exits_without_traceback() -> None:
+    code = dedent("""
+        import os
+        import signal
+
+        from deep_transcribe import cli_main
+
+        def interrupt(argv):
+            os.kill(os.getpid(), signal.SIGINT)
+
+        cli_main._run_cli = interrupt
+        raise SystemExit(cli_main.main([]))
+        """)
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 130
+    assert result.stdout == ""
+    assert result.stderr == "\nInterrupted.\n"
+    assert "Traceback" not in result.stderr
+
+
 def test_parser_accepts_canonical_transcription_contract() -> None:
     args = build_parser().parse_args(
         [
