@@ -5,7 +5,7 @@ title: Modernize and validate Deep Transcribe end to end
 kind: epic
 status: open
 priority: 1
-version: 26
+version: 27
 labels:
   - deep-transcribe-modernization
 dependencies: []
@@ -36,6 +36,10 @@ child_order_hints:
   - is-01kxj5t1w964tpzxfx8eacf734
   - is-01kxj8kybch3y98k47rphvdw9z
 created_at: 2026-07-15T05:45:24.686Z
-updated_at: 2026-07-15T06:50:12.482Z
+updated_at: 2026-07-15T06:50:48.926Z
 ---
 Coordinate dependency/model modernization across Deep Transcribe, kash-shell, kash-docs, and kash-media; Deepgram settings; startup/install weight; source context and speaker correction; URL/local-media fixes; zero-install skill/docs; patch releases; and release-grade end-to-end validation.
+
+## Notes
+
+Implementation is merged and patch releases are published: kash-shell 0.4.6, kash-media 0.4.4, deep-transcribe 0.1.9. Global uv tool was uninstalled and reinstalled at 0.1.9; dependency tree contains no Torch and help starts in 0.05-0.07s. All legacy Beads issues were imported and validated in tbd before the obsolete .beads store was removed. Only README fixture approval remains.
