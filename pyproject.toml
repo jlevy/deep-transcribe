@@ -37,10 +37,12 @@ classifiers = [
 # ---- Main dependencies ----
 
 dependencies = [
-    # kash-media pins the matching kash-docs and kash-shell releases. As of 0.4.2
-    # the media chain no longer pulls PDF/browser ML deps (torch, docling,
+    # The media chain no longer pulls PDF/browser ML deps (torch, docling,
     # playwright, marker); keep it that way — deep-transcribe needs none of them.
-    "kash-media>=0.4.2",
+    "kash-media>=0.4.3,<0.5",
+    # Direct metadata parsing and sidematter persistence imports:
+    "frontmatter-format>=0.3.0,<0.4",
+    "sidematter-format>=0.1.0,<0.2",
     # Direct imports of these (prettyfmt for paths, rich for terminal output):
     "prettyfmt>=0.4.1",
     "rich>=14.0.0",

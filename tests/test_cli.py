@@ -7,8 +7,14 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from textwrap import dedent
 
-from deep_transcribe.cli_main import build_legacy_parser, build_parser, main
+from deep_transcribe.cli_main import (
+    build_legacy_parser,
+    build_parser,
+    build_transcription_metadata,
+    main,
+)
 from deep_transcribe.model_profiles import MODEL_PROFILES, ModelProvider
 
 
@@ -50,7 +56,12 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
             "--language",
             "multi",
             "--rerun",
+            "--rerun-processing",
             "--json",
+            "--key-term",
+            "SignalFlow",
+            "--speaker",
+            "0=Alice Chen",
             "https://example.com/video",
         ]
     )
@@ -61,8 +72,49 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
     assert args.workspace == "./custom-workspace"
     assert args.language == "multi"
     assert args.rerun
+    assert args.rerun_processing
     assert args.json
+    assert args.key_term == ["SignalFlow"]
+    assert args.speaker == [("0", "Alice Chen")]
+    assert args.transcription_model == "nova-3"
+    assert args.diarize_model == "latest"
     assert args.source == "https://example.com/video"
+
+
+def test_cli_metadata_file_and_inline_values_merge() -> None:
+    with TemporaryDirectory() as temp_dir:
+        metadata_path = Path(temp_dir) / "interview.yml"
+        metadata_path.write_text(
+            dedent("""
+                description: Product interview
+                additional_context: Old context
+                key_terms: [SignalFlow]
+                speaker_hints: {0: Alice Chen}
+                """).strip()
+        )
+        args = build_parser().parse_args(
+            [
+                "transcribe",
+                "--metadata",
+                str(metadata_path),
+                "--context",
+                "Alice interviews Bob.",
+                "--key-term",
+                "Nova Prime",
+                "--speaker",
+                "1=Bob Diaz",
+                "https://example.com/video",
+            ]
+        )
+        metadata = build_transcription_metadata(args)
+
+    assert metadata.description == "Product interview"
+    assert metadata.additional_context == "Alice interviews Bob."
+    assert metadata.key_terms == ["SignalFlow", "Nova Prime"]
+    assert metadata.extra["transcription"]["speaker_hints"] == {
+        "0": "Alice Chen",
+        "1": "Bob Diaz",
+    }
 
 
 def test_legacy_parser_preserves_flag_only_contract() -> None:
@@ -139,7 +191,7 @@ def test_cross_agent_skill_mirrors_match_distribution_source() -> None:
 
     assert distribution_skill == (repo_root / ".agents/skills/deep-transcribe/SKILL.md").read_text()
     assert distribution_skill == (repo_root / ".claude/skills/deep-transcribe/SKILL.md").read_text()
-    assert "deep-transcribe==0.1.7" in distribution_skill
+    assert "deep-transcribe==0.1.8" in distribution_skill
     assert "deep-transcribe transcribe --help" in distribution_skill
 
     assert (repo_root / "skills/deep-transcribe/agents/openai.yaml").read_text() == (

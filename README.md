@@ -30,7 +30,7 @@ Do not commit API keys.
 Run the pinned release without installing it globally:
 
 ```shell
-uvx --from deep-transcribe==0.1.7 deep-transcribe --help
+uvx --from deep-transcribe==0.1.8 deep-transcribe --help
 ```
 
 For repeated human use, a persistent tool install is also available:
@@ -66,8 +66,9 @@ deep-transcribe logs --help
 ```
 
 The command pages document all presets, individual processing stages, Deepgram language
-selection, caching and rerun behavior, JSON output, model profiles, MCP tools, and
-examples. Existing flag-only invocations remain supported for backward compatibility.
+and model selection, source metadata and speaker hints, caching and rerun behavior, JSON
+output, model profiles, MCP tools, and examples. Existing flag-only invocations remain
+supported for backward compatibility.
 
 ### Model Provider
 
@@ -93,6 +94,34 @@ deep-transcribe transcribe --basic \
 
 Use `deep-transcribe transcribe --help` to choose formatted, annotated, deep, or custom
 processing.
+
+### Source Context and Corrections
+
+Add context directly or use one reusable YAML file for URLs and raw media files:
+
+```yaml
+title: Acme product interview
+description: Alice Chen interviews Bob Diaz about SignalFlow.
+additional_context: Alice is the host and Bob is the product lead.
+key_terms:
+  - Alice Chen
+  - Bob Diaz
+  - SignalFlow
+speaker_hints:
+  "0": Alice Chen
+  "1": Bob Diaz
+```
+
+```shell
+deep-transcribe transcribe --annotated --metadata interview.yml ./interview.mp3
+```
+
+Update the metadata and rerun the same command to correct speaker names, descriptions, or
+other semantic context. Those corrections reuse the cached Deepgram transcript. Changing
+`key_terms` deliberately requests a new transcript because the terms affect speech
+recognition. Use `--rerun-processing` to force every downstream stage while preserving the
+raw transcript; `--rerun` intentionally requests fresh speech-to-text processing. Run
+`deep-transcribe transcribe --help` for the equivalent concise flags.
 
 ## Output
 

@@ -19,7 +19,7 @@ deep-transcribe --help
 If it is unavailable, use the pinned zero-install runner:
 
 ```shell
-uvx --from deep-transcribe==0.1.7 deep-transcribe --help
+uvx --from deep-transcribe==0.1.8 deep-transcribe --help
 ```
 
 Use the same executable prefix for later commands. Do not install the package globally
@@ -29,7 +29,8 @@ Transcribe is unavailable.
 Run the relevant help command before acting:
 
 - `deep-transcribe transcribe --help` for URLs and local audio or video, processing
-  presets, individual stages, languages, caching, and JSON artifact paths
+  presets, individual stages, source metadata, speaker corrections, Deepgram settings,
+  caching, and JSON artifact paths
 - `deep-transcribe models --help` to inspect or persist the current Anthropic and OpenAI
   profiles
 - `deep-transcribe mcp --help` to expose every transcription preset as an MCP tool
@@ -48,6 +49,13 @@ workspace model profile unless the user requests it.
 Choose the least expensive preset that meets the request. Use custom stages only when
 the requested output differs from a preset. Run with JSON output when artifact paths
 will be consumed programmatically.
+
+When the user supplies names, terminology, roles, or recording context, follow the
+metadata options shown by `transcribe --help`. Prefer a reusable metadata file for
+corrections. Rerun with the updated file; semantic corrections reuse the raw transcript,
+while key-term changes intentionally request a new transcription. Use the documented
+downstream-only rerun flag when forcing formatting or model processing without refreshing
+speech-to-text.
 
 After completion, report the workspace, transcript, and HTML paths. When quality review
 is requested, inspect the source transcript and rendered HTML for missing speech,
