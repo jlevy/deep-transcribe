@@ -14,6 +14,7 @@ from deep_transcribe.transcription_metadata import (
     TranscriptionMetadata,
     apply_transcription_metadata,
     copy_source_metadata,
+    get_speaker_roster,
     parse_transcription_metadata,
     persist_item_metadata,
 )
@@ -77,7 +78,12 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     if options.format:
         # Speaker identification (if requested)
         if options.identify_speakers:
-            result = identify_speakers(result)
+            if get_speaker_roster(result):
+                from deep_transcribe.speaker_correction import correct_speaker_turns
+
+                result = correct_speaker_turns(result)
+            else:
+                result = identify_speakers(result)
 
         result = strip_html(result)
         result = break_into_paragraphs(result)
@@ -119,7 +125,7 @@ TRANSCRIPTION_ACTION_PARAMS = common_params("language") + (
         "metadata_yaml",
         (
             "Inline YAML or JSON source metadata. Supports title, description, "
-            "additional_context, key_terms, speaker_hints, and extra."
+            "additional_context, key_terms, speaker_hints, speaker_roster, and extra."
         ),
         type=str,
         default_value="",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,6 +52,16 @@ class TranscriptionMetadata:
             return []
         return [term for term in cast(list[object], terms) if isinstance(term, str)]
 
+    @property
+    def speaker_roster(self) -> list[str]:
+        transcription = self.extra.get(TRANSCRIPTION_METADATA_KEY)
+        if not isinstance(transcription, dict):
+            return []
+        roster = cast(dict[str, Any], transcription).get("speaker_roster")
+        if not isinstance(roster, list):
+            return []
+        return [label for label in cast(list[object], roster) if isinstance(label, str)]
+
 
 def _deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
     result = deepcopy(base)
@@ -96,6 +107,22 @@ def _normalize_speaker_hints(value: object) -> dict[str, str]:
     return hints
 
 
+def normalize_speaker_roster(value: object) -> list[str]:
+    """Validate and normalize a complete speaker roster."""
+    if not isinstance(value, list):
+        raise ValueError("`speaker_roster` must be a YAML list of speaker names or roles")
+    roster = cast(list[object], value)
+    if not all(isinstance(label, str) and label.strip() for label in roster):
+        raise ValueError("`speaker_roster` must contain only nonempty strings")
+    normalized = list(dict.fromkeys(cast(str, label).strip() for label in roster))
+    if len(normalized) < 2:
+        raise ValueError("`speaker_roster` must contain at least two distinct speakers")
+    label_keys = [re.sub(r"[\W_]+", "", label.casefold()) for label in normalized]
+    if any(not key for key in label_keys) or len(set(label_keys)) != len(label_keys):
+        raise ValueError("`speaker_roster` labels must be distinct names or roles")
+    return normalized
+
+
 def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
     """Validate and normalize a YAML/JSON transcription metadata object."""
     if not isinstance(data, dict):
@@ -109,6 +136,7 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         "extra",
         "key_terms",
         "speaker_hints",
+        "speaker_roster",
     }
     unexpected_fields = sorted(str(key) for key in data_dict if key not in allowed_fields)
     if unexpected_fields:
@@ -128,10 +156,14 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         transcription["key_terms"] = _normalize_key_terms(transcription["key_terms"])
     if "speaker_hints" in transcription:
         transcription["speaker_hints"] = _normalize_speaker_hints(transcription["speaker_hints"])
+    if "speaker_roster" in transcription:
+        transcription["speaker_roster"] = normalize_speaker_roster(transcription["speaker_roster"])
     if "key_terms" in data_dict:
         transcription["key_terms"] = _normalize_key_terms(data_dict["key_terms"])
     if "speaker_hints" in data_dict:
         transcription["speaker_hints"] = _normalize_speaker_hints(data_dict["speaker_hints"])
+    if "speaker_roster" in data_dict:
+        transcription["speaker_roster"] = normalize_speaker_roster(data_dict["speaker_roster"])
     if transcription or TRANSCRIPTION_METADATA_KEY in extra:
         extra[TRANSCRIPTION_METADATA_KEY] = transcription
 
@@ -166,6 +198,24 @@ def apply_transcription_metadata(item: Item, metadata: TranscriptionMetadata) ->
     if metadata.extra:
         item.extra = _deep_merge(item.extra or {}, metadata.extra)
     return item
+
+
+def get_speaker_roster(item: Item) -> list[str]:
+    """Read Deep Transcribe's speaker roster from the extensible item metadata payload."""
+    item_extra = cast(dict[str, object], item.extra or {})
+    raw_transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    raw_roster = (
+        cast(dict[object, object], raw_transcription).get("speaker_roster")
+        if isinstance(raw_transcription, dict)
+        else None
+    )
+    if not isinstance(raw_roster, list):
+        return []
+    return [
+        label.strip()
+        for label in cast(list[object], raw_roster)
+        if isinstance(label, str) and label.strip()
+    ]
 
 
 def copy_source_metadata(source: Item, target: Item) -> Item:
@@ -208,6 +258,7 @@ def test_transcription_metadata_normalizes_merges_and_applies() -> None:
             key_terms: [SignalFlow, SignalFlow, Nova Prime]
             speaker_hints:
               0: Alice Chen
+            speaker_roster: [Alice Chen, Bob Diaz]
             extra:
               transcription:
                 future_option: true
@@ -231,5 +282,15 @@ def test_transcription_metadata_normalizes_merges_and_applies() -> None:
             "future_option": True,
             "key_terms": ["SignalFlow", "Nova Prime"],
             "speaker_hints": {"0": "Alice Chen", "1": "Bob Diaz"},
+            "speaker_roster": ["Alice Chen", "Bob Diaz"],
         }
     }
+
+
+def test_speaker_roster_rejects_ambiguous_duplicate_labels() -> None:
+    try:
+        transcription_metadata_from_mapping({"speaker_roster": ["Mr. Adams", "Mr Adams"]})
+    except ValueError as error:
+        assert "distinct names or roles" in str(error)
+    else:
+        raise AssertionError("Equivalent speaker labels must be rejected")
