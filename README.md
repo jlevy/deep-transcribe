@@ -68,10 +68,10 @@ Use the same path as `--workspace` when configuring a different workspace.
 
 ### Quick Demo
 
-Try a basic transcription of this short two-person interview:
+Try a basic transcription of this short two-person hotel dialogue:
 
 ```bash
-deep-transcribe --basic "https://www.youtube.com/watch?v=naIkpQ_cIt0"
+deep-transcribe --basic "https://www.youtube.com/watch?v=wyqfYJX23lg"
 ```
 
 Output is saved to `./transcriptions/` as a transcript source file and browser-ready
