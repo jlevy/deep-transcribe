@@ -159,7 +159,7 @@ def run_transcription(
         rerun: If True, rerun actions even if cached outputs already exist
 
     Returns:
-        Tuple of (markdown_path, html_path) for the generated files
+        Tuple of (transcript_path, html_path) for the generated files
     """
     # Import dynamically for faster startup.
     from kash.config.setup import kash_setup
@@ -176,9 +176,22 @@ def run_transcription(
         runtime.workspace.log_workspace_info()
 
         with get_unified_live().status("Processing…"):
-            # Prepare the URL input and run transcription.
-            input = prepare_action_input(url)
-            result_item = transcribe_with_options(input.items[0], options, language=language)
+            action_input = prepare_action_input(url)
+            item = action_input.items[0]
+
+            # Generic web fetches may return the downloaded content rather than the URL
+            # resource required by the media transcription action.
+            if not is_url_resource(item) and item.url:
+                from kash.model import Format, ItemType
+
+                url_item = Item(type=ItemType.resource, format=Format.url, url=item.url)
+                if found_path := runtime.workspace.find_by_id(url_item):
+                    item = runtime.workspace.load(found_path)
+                else:
+                    runtime.workspace.save(url_item)
+                    item = url_item
+
+            result_item = transcribe_with_options(item, options, language=language)
 
             return format_results(result_item, runtime.workspace.base_dir, no_minify=no_minify)
 
@@ -193,57 +206,78 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
         no_minify: If True, skip HTML minification
 
     Returns:
-        Tuple of (markdown_path, html_path) for the generated files
+        Tuple of (transcript_path, html_path) for the generated files
     """
     # Import dynamically for faster startup.
     from kash.actions.core.minify_html import minify_html
     from kash.model import Format, ItemType
-    from kash.web_gen.template_render import render_web_template
+    from kash.web_gen.webpage_render import render_item_as_html
     from kash.workspaces.workspaces import current_ws
 
-    # Generate HTML using simple webpage template
-    html_content = render_web_template(
-        "simple_webpage.html.jinja",
-        data={
-            "title": result_item.title,
-            "add_title_h1": True,
-            "content_html": result_item.body_as_html(),
-            "thumbnail_url": result_item.thumbnail_url,
-            "enable_themes": True,
-            "show_theme_toggle": False,
-        },
-    )
-
-    # Create initial HTML item from template
     raw_html_item = result_item.derived_copy(
         type=ItemType.export,
         format=Format.html,
-        body=html_content,
+    )
+    raw_html_item = render_item_as_html(
+        result_item,
+        raw_html_item,
+        add_title_h1=True,
+        template_filename="simple_webpage.html.jinja",
     )
     current_ws().save(raw_html_item)
 
-    # Minify HTML if requested
     if not no_minify:
-        minified_item = minify_html(raw_html_item)
-        html_content = minified_item.body
+        html_item = minify_html(raw_html_item)
     else:
-        html_content = raw_html_item.body
+        html_item = raw_html_item
 
-    # Create final HTML item with the processed content
-    html_item = raw_html_item.derived_copy(
-        type=ItemType.export,
-        format=Format.html,
-        body=html_content,
-    )
-    current_ws().save(html_item)
-
-    # Get file paths from the items
     assert result_item.store_path
     assert html_item.store_path
-    assert html_content
+    assert html_item.body
 
-    md_path = base_dir / Path(result_item.store_path)
+    transcript_path = base_dir / Path(result_item.store_path)
     html_path = base_dir / Path(html_item.store_path)
-    html_path.write_text(html_content)
 
-    return md_path, html_path
+    return transcript_path, html_path
+
+
+## Tests
+
+
+def test_format_results_copies_frame_assets() -> None:
+    from tempfile import TemporaryDirectory
+
+    from kash.exec import kash_runtime
+    from kash.model import Format, ItemType
+    from kash.workspaces import current_ws
+    from sidematter_format import Sidematter
+    from strif import atomic_output_file
+
+    with TemporaryDirectory() as temp_dir:
+        workspace_dir = Path(temp_dir) / "workspace"
+        with kash_runtime(workspace_dir):
+            ws = current_ws()
+            result_item = Item(
+                type=ItemType.doc,
+                format=Format.md_html,
+                title="Transcript with frames",
+            )
+            source_path = ws.assign_store_path(result_item)
+            source_assets = Sidematter(source_path).assets_dir
+            result_item.body = f'<img src="{source_assets.name}/frame.jpg" alt="Frame">'
+            ws.save(result_item)
+
+            frame_path = source_assets / "frame.jpg"
+            with atomic_output_file(frame_path, make_parents=True) as temp_path:
+                temp_path.write_bytes(b"frame")
+
+            transcript_path, html_path = format_results(
+                result_item,
+                ws.base_dir,
+                no_minify=True,
+            )
+
+            html_assets = Sidematter(html_path).assets_dir
+            assert transcript_path == source_path
+            assert f"{html_assets.name}/frame.jpg" in html_path.read_text()
+            assert (html_assets / "frame.jpg").read_bytes() == b"frame"

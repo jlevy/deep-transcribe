@@ -2,143 +2,124 @@
 
 High-quality transcription, formatting, and analysis of videos and podcasts.
 
-It currently uses [Deepgram](https://deepgram.com/) for transcription and diarization
-and [Claude Sonnet 4](https://docs.anthropic.com/en/docs/about-claude/models/overview)
-or [OpenAI o3](https://platform.openai.com/docs/models) for analysis and summarization.
+Deep Transcribe accepts YouTube and other media URLs or local audio and video files. It
+uses Deepgram Nova-3 with the current batch diarizer, then can identify speakers, format
+paragraphs and timestamps, add sections and summaries, research key passages, capture
+video frames, and export browser-ready HTML.
 
-Take a video or audio URL (such as YouTube), download it, and perform a “deep
-transcription” of it, including full transcription, identifying speakers, adding
-sections, timestamps, inserting frame captures, and researching or footnoting key
-topics.
+LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles. New
+workspaces use the current Anthropic profile by default, and an equivalent OpenAI
+profile is included.
 
-What kind of detail and annotations it includes depends on the options you specify.
+## Requirements
 
-By default this needs API keys for Deepgram and Anthropic (Claude).
+Install [uv](https://docs.astral.sh/uv/) and
+[ffmpeg](https://ffmpeg.org/). Deep Transcribe requires Python 3.13, which uv fetches
+automatically.
 
-This is built on [kash](https://www.github.com/jlevy/kash) and its
-[kash-media](https://www.github.com/jlevy/kash-media) kit of tools for handling videos.
+Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment or a
+`.env` file in the current directory or one of its parents:
 
-## Usage
+- `ANTHROPIC_API_KEY` for the default Anthropic profile
+- `OPENAI_API_KEY` for the OpenAI profile
 
-### Key Setup
+Do not commit API keys.
 
-See the `env.template` to set up DEEPGRAM_API_KEY and ANTHROPIC_API_KEY.
+## Zero-Install CLI
 
-### Basic Usage
+Run the pinned release without installing it globally:
 
-```bash
-# Annotated transcription (sections, summaries, descriptions, frame captures)
-# (This is the default behavior and the same as --annotated)
-deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID
-
-# Basic transcription (just text)
-deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --basic
-
-# Formatted transcription (with speakers, paragraphs, timestamps)
-deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --formatted
-
-# Deep processing (everything including research annotations)
-deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --deep
-
-# Custom transcription options
-deep-transcribe https://www.youtube.com/watch?v=VIDEO_ID --with format,insert_section_headings,research_paras
+```shell
+uvx --from deep-transcribe==0.1.6 deep-transcribe --help
 ```
 
-### Available Options
+For repeated human use, a persistent tool install is also available:
 
-Use `--help` to see all current options.
+```shell
+uv tool install deep-transcribe
+deep-transcribe --help
+```
 
-The `--with` flag accepts these processing options:
+## Cross-Agent Skill
 
-- `format`: Apply formatting pipeline (speakers, paragraphs, timestamps)
+Install the repository skill through the cross-agent skills installer:
 
-- `identify_speakers`: Identify different speakers in the audio
+```shell
+npx skills add jlevy/deep-transcribe
+```
 
-- `insert_section_headings`: Add section headings to break up content
+The skill uses a local `deep-transcribe` executable when available and otherwise uses
+the pinned zero-install runner. It routes agents to CLI help rather than carrying a
+second copy of the command manual.
 
-- `add_summary_bullets`: Add a bulleted summary
+## Self-Documenting CLI
 
-- `add_description`: Add a description at the top
+Start with the top-level command directory, then open the help page for the relevant
+task:
 
-- `insert_frame_captures`: Insert frame captures from video
+```shell
+deep-transcribe --help
+deep-transcribe transcribe --help
+deep-transcribe models --help
+deep-transcribe mcp --help
+deep-transcribe logs --help
+```
 
-- `research_paras`: Add research annotations to paragraphs
+The command pages document all presets, individual processing stages, Deepgram language
+selection, caching and rerun behavior, JSON output, model profiles, MCP tools, and
+examples. Existing flag-only invocations remain supported for backward compatibility.
 
-### Presets
+### Model Provider
 
-- `--basic`: Just transcription (equivalent to no additional options)
+Inspect the exact current Anthropic and OpenAI role mappings before selecting one:
 
-- `--formatted`: Transcription + formatting (equivalent to `--with
-  identify_speakers,format`)
+```shell
+deep-transcribe models
+deep-transcribe models --set anthropic
+deep-transcribe models --set openai
+```
 
-- `--annotated`: Full processing except research (equivalent to `--with
-  identify_speakers,format,insert_section_headings,add_summary_bullets,add_description,insert_frame_captures`)
-  \- **default when no preset specified**
+The selection is saved in the chosen workspace. Pass `--workspace` to `models` and
+`transcribe` when using a location other than `./transcriptions`.
 
-- `--deep`: Complete processing including research (equivalent to `--with
-  identify_speakers,format,insert_section_headings,research_paras,add_summary_bullets,add_description,insert_frame_captures`)
+### Quick Demo
+
+This short two-person hotel dialogue exercises transcription and diarization:
+
+```shell
+deep-transcribe transcribe --basic \
+    "https://www.youtube.com/watch?v=wyqfYJX23lg"
+```
+
+Use `deep-transcribe transcribe --help` to choose formatted, annotated, deep, or custom
+processing.
 
 ## Output
 
-The tool generates:
-- **Markdown file**: Clean, formatted transcript with HTML tags for citations
+Each run reports:
 
-- **HTML file**: Browser-ready version with rich formatting and navigation
+- the workspace containing cached media and intermediate results
+- the transcript source
+- browser-ready HTML
 
-- **Cached files**: Original video/audio files and intermediate processing results
-
-All files are stored in the workspace directory (default: `./transcriptions/`).
+Use `--json` when another tool or agent needs stable artifact paths. You can also open
+the workspace with `kash` to inspect cached and intermediate items.
 
 ## MCP Server
 
-Run as an MCP server for integration with other tools.
-The MCP server exposes four transcription actions:
-
-- `transcribe_annotated`: Annotated transcription (recommended default)
-
-- `transcribe_formatted`: Formatted transcription
-
-- `transcribe_basic`: Basic transcription only
-
-- `transcribe_deep`: Complete processing including research
-
-```bash
-# Run as stdio MCP server
-deep-transcribe --mcp
-
-# Run as SSE MCP server at 127.0.0.1:4440
-deep-transcribe --sse
-
-# View MCP server logs
-deep-transcribe --logs
-```
-
-Note: Both `--sse` and `--logs` automatically enable MCP mode, so you don’t need to
-specify `--mcp` explicitly.
-
-### Claude Desktop Configuration
-
-For Claude Desktop, a config like this should work (adjusted to use your appropriate
-home folder):
-
-```json
-{
-  "mcpServers": {
-    "deep_transcribe": {
-      "command": "/Users/levy/.local/bin/deep-transcribe",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
+Run `deep-transcribe mcp --help` for the available transcription tools and transports.
+Run `deep-transcribe logs --help` for server log handling.
 
 ## Project Docs
 
-For how to install uv and Python, see [installation.md](docs/installation.md).
+For environment setup, see [installation.md](docs/installation.md).
 
 For development workflows, see [development.md](docs/development.md).
 
-For instructions on publishing to PyPI, see [publishing.md](docs/publishing.md).
+For the manual, agent-reviewed release test, see
+[e2e-test.runbook.md](tests/e2e-test.runbook.md).
+
+For publishing, see [publishing.md](docs/publishing.md).
 
 * * *
 

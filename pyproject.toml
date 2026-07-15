@@ -37,10 +37,10 @@ classifiers = [
 # ---- Main dependencies ----
 
 dependencies = [
-    # kash-media pins the matching kash-docs and kash-shell releases. As of 0.4.0
+    # kash-media pins the matching kash-docs and kash-shell releases. As of 0.4.1
     # the media chain no longer pulls PDF/browser ML deps (torch, docling,
     # playwright, marker); keep it that way — deep-transcribe needs none of them.
-    "kash-media>=0.4.0",
+    "kash-media>=0.4.1",
     # Direct imports of these (clideps for argparse helpers, prettyfmt for paths):
     "clideps>=0.1.8",
     "prettyfmt>=0.4.1",
@@ -114,10 +114,10 @@ required-version = ">=0.9"
 exclude-newer = "14 days"
 # Per-package exceptions to the cool-off (remove each at the next routine upgrade
 # once it ages past the global window):
-# - kash-media 0.4.0 / kash-docs 0.2.0 / kash-shell 0.4.1: first-party releases
-#   published 2026-07-13 from their own CI (trusted publishing, watched end to end).
+# - kash-media 0.4.1 / kash-docs 0.2.1 / kash-shell 0.4.3: first-party releases
+#   published 2026-07-14 from their own CI (trusted publishing, watched end to end).
 # - pillow 12.3.0 (2026-07-01): security-fix release (PYSEC-2026-2254/2256/2257).
-exclude-newer-package = { kash-media = "2026-07-15T00:00:00Z", kash-docs = "2026-07-15T00:00:00Z", kash-shell = "2026-07-15T00:00:00Z", pillow = "2026-07-02T00:00:00Z" }
+exclude-newer-package = { kash-media = "2026-07-16T00:00:00Z", kash-docs = "2026-07-16T00:00:00Z", kash-shell = "2026-07-16T00:00:00Z", pillow = "2026-07-02T00:00:00Z" }
 constraint-dependencies = ["pillow>=12.3.0"]
 
 [tool.ruff]
