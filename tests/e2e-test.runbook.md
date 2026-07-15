@@ -45,8 +45,9 @@ Use local editable dependencies when testing unreleased `kash-shell`, `kash-docs
 `kash-media` changes.
 
 ```shell
-uv sync --all-groups
-uv run deep-transcribe --version
+uv lock --check
+uv sync --locked --all-groups
+uv run --locked deep-transcribe --version
 uv pip show deep-transcribe kash-media kash-docs kash-shell deepgram-sdk litellm
 make lint
 make test
@@ -57,7 +58,7 @@ kash loads or in the process environment. Never print their values. Confirm that
 can load them:
 
 ```shell
-uv run python - <<'PY'
+uv run --locked python - <<'PY'
 import os
 
 from kash.run import kash_init
@@ -84,7 +85,7 @@ echo "$DEEP_TRANSCRIBE_E2E_WS"
 Run a fresh basic transcription:
 
 ```shell
-uv run deep-transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --language en \
@@ -95,7 +96,7 @@ Then exercise HTML stripping, paragraph formatting, timestamp backfilling, and H
 export independently of an LLM:
 
 ```shell
-uv run deep-transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --with format \
@@ -119,7 +120,7 @@ The annotated pipeline exercises the fast and standard roles. Check both configu
 careful models directly so every model in the two profiles is live-tested:
 
 ```shell
-uv run python - <<'PY'
+uv run --locked python - <<'PY'
 from kash.llm_utils import LLMName, llm_completion
 from kash.run import kash_init
 
@@ -140,13 +141,13 @@ PY
 Configure the workspace and run the default annotated pipeline:
 
 ```shell
-KASH_WS_ROOT="$DEEP_TRANSCRIBE_E2E_WS" uv run kash set_params \
+KASH_WS_ROOT="$DEEP_TRANSCRIBE_E2E_WS" uv run --locked kash set_params \
     careful_llm=claude-fable-5 \
     structured_llm=claude-sonnet-5 \
     standard_llm=claude-sonnet-5 \
     fast_llm=claude-haiku-4-5-20251001
 
-uv run deep-transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun \
@@ -165,13 +166,13 @@ The media cache prevents another paid transcription request while `--rerun` forc
 speaker identification, formatting, annotation, and export to execute again.
 
 ```shell
-KASH_WS_ROOT="$DEEP_TRANSCRIBE_E2E_WS" uv run kash set_params \
+KASH_WS_ROOT="$DEEP_TRANSCRIBE_E2E_WS" uv run --locked kash set_params \
     careful_llm=gpt-5.6-sol \
     structured_llm=gpt-5.6-terra \
     standard_llm=gpt-5.6-terra \
     fast_llm=gpt-5.6-luna
 
-uv run deep-transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun \
@@ -192,7 +193,7 @@ release scope; do not substitute it for the required annotated run.
 Download the auto captions as a temporary reference:
 
 ```shell
-uv run yt-dlp \
+uv run --locked yt-dlp \
     --skip-download \
     --write-auto-subs \
     --sub-langs en-orig \
@@ -225,7 +226,7 @@ Serve the workspace locally and have the reviewing agent open each provider's fi
 HTML export in a browser:
 
 ```shell
-uv run python -m http.server 8765 \
+uv run --locked python -m http.server 8765 \
     --bind 127.0.0.1 \
     --directory "$DEEP_TRANSCRIBE_E2E_WS/workspace"
 ```
