@@ -189,12 +189,13 @@ template).
    moves (e.g. litellm) and whether they actually reach PyPI installs, which is
    governed by the released kash pins, not this repo's lock.
 
-3. **Same-day first-party pins** (a kash-media released today is inside the 14-day
-   cool-off): allow it surgically and remove at the next routine upgrade:
+3. **First-party releases**: packages owned and released by jlevy bypass the 14-day
+   third-party cool-off. Keep the repository's permanent exemption table complete when
+   adding another first-party package:
 
    ```toml
-   [tool.uv]
-   exclude-newer-package = { kash-media = "<tomorrow>T00:00:00Z" }
+   [tool.uv.exclude-newer-package]
+   new-first-party-package = "2099-12-31T00:00:00Z"
    ```
 
 4. **If `gh` is unavailable**: annotated tag + push, then trigger `publish.yml` on

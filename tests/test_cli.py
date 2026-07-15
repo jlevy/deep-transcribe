@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -8,6 +10,33 @@ from tempfile import TemporaryDirectory
 
 from deep_transcribe.cli_main import build_legacy_parser, build_parser, main
 from deep_transcribe.model_profiles import MODEL_PROFILES, ModelProvider
+
+
+def test_help_path_does_not_import_runtime_stack() -> None:
+    code = """
+import sys
+from deep_transcribe.cli_main import build_parser
+
+build_parser().format_help()
+heavy_modules = sorted(
+    name
+    for name in sys.modules
+    if name == "kash"
+    or name.startswith("kash.")
+    or name == "clideps"
+    or name.startswith("clideps.")
+)
+if heavy_modules:
+    raise RuntimeError(f"Help imported runtime modules: {heavy_modules}")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert not result.stderr
 
 
 def test_parser_accepts_canonical_transcription_contract() -> None:
@@ -110,7 +139,7 @@ def test_cross_agent_skill_mirrors_match_distribution_source() -> None:
 
     assert distribution_skill == (repo_root / ".agents/skills/deep-transcribe/SKILL.md").read_text()
     assert distribution_skill == (repo_root / ".claude/skills/deep-transcribe/SKILL.md").read_text()
-    assert "deep-transcribe==0.1.6" in distribution_skill
+    assert "deep-transcribe==0.1.7" in distribution_skill
     assert "deep-transcribe transcribe --help" in distribution_skill
 
     assert (repo_root / "skills/deep-transcribe/agents/openai.yaml").read_text() == (
