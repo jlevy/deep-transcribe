@@ -104,6 +104,17 @@ Its key defaults:
   equally explicit, using `UV_EXCLUDE_NEWER="0 days"` only for that invocation and
   recording why the normal gate was bypassed.
 
+- **Standing per-package exceptions:** A few third-party packages are worth less
+  cool-off than the default, and they get a dated entry in
+  `[tool.uv.exclude-newer-package]` with the reason recorded beside it.
+  Today that is `yt-dlp`, which chases YouTube extractor changes and tends to break in
+  the field within weeks of a site change, so running it two weeks behind is its own
+  kind of failure.
+  Note each entry is a *cutoff, not a floor*: leaving one in place freezes that package
+  at an old release, so re-review the dates on every refresh and bump them to just past
+  the newest stable version.
+  Never point one at a future date, and never at a `.devN` nightly.
+
 - **Vet before adding:** Confirm the package is actually needed and its name is spelled
   correctly (typosquats are common), and prefer a little first-party code over a new
   dependency.
