@@ -17,6 +17,14 @@ Install [uv](https://docs.astral.sh/uv/) and
 [ffmpeg](https://ffmpeg.org/). Deep Transcribe requires Python 3.13, which uv fetches
 automatically.
 
+For YouTube sources, also install a JavaScript runtime —
+[deno](https://deno.com/) (preferred), or Node.js or bun if you already have one.
+yt-dlp uses it to solve the JavaScript challenges YouTube now applies to media URLs.
+Audio-only transcription generally still works without a runtime, but yt-dlp warns on
+every fetch and loses access to some formats, so treat it as required in practice.
+Environments without a system runtime (containers, bare CI) can install the redistributed
+binary instead, with `uv pip install deno`.
+
 Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment or a
 `.env` file in the current directory or one of its parents:
 

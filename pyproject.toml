@@ -41,11 +41,21 @@ dependencies = [
     # playwright, marker); keep it that way — deep-transcribe needs none of them.
     "kash-media>=0.4.4,<0.5",
     # Direct metadata parsing and sidematter persistence imports:
-    "frontmatter-format>=0.3.0,<0.4",
+    "frontmatter-format>=0.4.0,<0.5",
     "sidematter-format>=0.1.0,<0.2",
     # Direct imports of these (prettyfmt for paths, rich for terminal output):
     "prettyfmt>=0.4.1",
     "rich>=14.0.0",
+    # Not imported here — yt-dlp arrives via kash-media. Named directly only to pull
+    # the `default` extra, which carries yt-dlp-ejs, the external-JavaScript solver
+    # YouTube's signature and `n` challenges now require. Without it yt-dlp runs
+    # degraded (it drops progressive formats such as 18 and warns on every fetch), and
+    # the only other way to get the solver is `--remote-components ejs:github|npm`,
+    # which fetches JavaScript at run time outside uv.lock and outside the cool-off.
+    # Take it as an extra rather than pinning yt-dlp-ejs ourselves: the two are
+    # version-coupled (yt-dlp pins an exact ejs), so this keeps the pairing correct
+    # across upgrades. Needs a JS runtime on PATH — deno (preferred), node, or bun.
+    "yt-dlp[default]>=2026.8.19",
 ]
 
 
@@ -53,14 +63,14 @@ dependencies = [
 
 [dependency-groups]
 build = [
-    "hatchling==1.30.1",
+    "hatchling==1.31.0",
     "uv-dynamic-versioning==0.14.0",
 ]
 dev = [
     "pytest>=9.1.1",
     "pytest-sugar>=1.1.1",
-    "ruff>=0.15.20",
-    "codespell>=2.4.2",
+    "ruff>=0.16.2",
+    "codespell>=2.4.3",
     "rich>=15.0.0",
     "basedpyright>=1.39.9",
     "funlog>=0.2.1",
@@ -85,7 +95,7 @@ deep-transcribe = "deep_transcribe.cli_main:main"
 # https://github.com/ninoseki/uv-dynamic-versioning/
 
 [build-system]
-requires = ["hatchling==1.30.1", "uv-dynamic-versioning==0.14.0"]
+requires = ["hatchling==1.31.0", "uv-dynamic-versioning==0.14.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
@@ -113,10 +123,17 @@ required-version = ">=0.9"
 # Safe project-level default for every uv command. CI and the Makefile repeat it so
 # copied commands and tool execution outside project discovery retain the same policy.
 exclude-newer = "14 days"
+# Security floor: Pillow < 12.3.0 is vulnerable (PYSEC-2026-2254/2256/2257). 12.3.0 is
+# now older than the rolling cool-off, so it no longer needs an exclude-newer exception;
+# this floor stays to block any transitive downgrade.
 constraint-dependencies = ["pillow>=12.3.0"]
 
 [tool.uv.exclude-newer-package]
 # Packages owned and released by jlevy bypass the third-party cool-off.
+# Keep this list a superset of the personal uv config (~/.config/uv/uv.toml): project
+# settings take precedence over user settings, so listing every first-party name here
+# keeps `uv.lock` byte-identical on a dev machine and in CI. Names not currently in the
+# dependency tree are harmless and stop the lock from drifting if one appears later.
 chopdiff = "2099-12-31T00:00:00Z"
 clideps = "2099-12-31T00:00:00Z"
 deep-transcribe = "2099-12-31T00:00:00Z"
@@ -128,13 +145,24 @@ funlog = "2099-12-31T00:00:00Z"
 kash-docs = "2099-12-31T00:00:00Z"
 kash-media = "2099-12-31T00:00:00Z"
 kash-shell = "2099-12-31T00:00:00Z"
+kpress = "2099-12-31T00:00:00Z"
+metabrowser = "2099-12-31T00:00:00Z"
 pprose = "2099-12-31T00:00:00Z"
 prettyfmt = "2099-12-31T00:00:00Z"
 sidematter-format = "2099-12-31T00:00:00Z"
+softschema = "2099-12-31T00:00:00Z"
 strif = "2099-12-31T00:00:00Z"
 tminify = "2099-12-31T00:00:00Z"
-# Pillow 12.3.0 is a temporary security-fix exception (PYSEC-2026-2254/2256/2257).
-pillow = "2026-07-02T00:00:00Z"
+
+# Reviewed third-party exceptions. Each is a hard cutoff, not a floor, so it pins how
+# fresh that package may be and must be re-reviewed (and the date bumped) on every
+# dependency refresh — otherwise it silently freezes the package at an old release.
+#
+# yt-dlp tracks YouTube's extractor changes and breaks in the field within weeks of a
+# site change, so a 14-day cool-off costs more than it buys here. Kept as short-lived
+# and deliberate: bump to just past the newest stable release, never to a date in the
+# future, and never onto a `.devN` nightly. Reviewed 2026-08-24 for 2026.8.19.
+yt-dlp = "2026-08-20T00:00:00Z"
 
 [tool.ruff]
 # Set as desired, typically 88 (black standard) or 100 (wide).
