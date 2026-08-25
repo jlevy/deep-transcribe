@@ -46,6 +46,16 @@ dependencies = [
     # Direct imports of these (prettyfmt for paths, rich for terminal output):
     "prettyfmt>=0.4.1",
     "rich>=14.0.0",
+    # Not imported here — yt-dlp arrives via kash-media. Named directly only to pull
+    # the `default` extra, which carries yt-dlp-ejs, the external-JavaScript solver
+    # YouTube's signature and `n` challenges now require. Without it yt-dlp runs
+    # degraded (it drops progressive formats such as 18 and warns on every fetch), and
+    # the only other way to get the solver is `--remote-components ejs:github|npm`,
+    # which fetches JavaScript at run time outside uv.lock and outside the cool-off.
+    # Take it as an extra rather than pinning yt-dlp-ejs ourselves: the two are
+    # version-coupled (yt-dlp pins an exact ejs), so this keeps the pairing correct
+    # across upgrades. Needs a JS runtime on PATH — deno (preferred), node, or bun.
+    "yt-dlp[default]>=2026.8.19",
 ]
 
 
