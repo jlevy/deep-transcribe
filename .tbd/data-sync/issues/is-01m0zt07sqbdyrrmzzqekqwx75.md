@@ -5,15 +5,19 @@ title: Render local-media timestamps as muted plain text
 kind: bug
 status: closed
 priority: 2
-version: 3
+version: 7
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-26T19:50:53.486Z
-updated_at: 2026-08-26T20:17:22.105Z
-closed_at: 2026-08-26T20:17:22.105Z
-close_reason: Implemented, validated end-to-end, committed, pushed, and CI passed.
+updated_at: 2026-08-26T23:37:09.834Z
+closed_at: 2026-08-26T23:37:09.834Z
+close_reason: Implemented upstream and in Deep Transcribe, validated with focused and full tests, committed and pushed, passed CI, and verified in the final browser-generated PDF.
 resolution: null
 duplicate_of: null
 ---
-Render transcript timestamps as muted bracketed text. Keep timestamp links only for supported web media URLs, and never emit unusable file-path links for local media. Cover local and web source behavior without placing private fixtures in the repository.
+Render local-media timestamps as muted bracketed plain text with no unusable file link and no trailing space before the closing bracket. Keep seekable links only for supported web media. Cover local and web source behavior with generic fixtures.
+
+## Notes
+
+Reopened: Expanded print acceptance criteria: 8pt single-light-gray timestamps with no trailing gap, plus regression coverage for nested timestamp spans around frame captures.
