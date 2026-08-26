@@ -51,6 +51,14 @@ def test_skill_template_is_concise_and_routes_to_built_in_docs() -> None:
     assert "MCP" not in template
 
 
+def test_skill_runner_selection_handles_source_checkouts_and_stale_path_commands() -> None:
+    template = get_skill_template()
+
+    assert "uv run deep-transcribe --docs" in template
+    assert "A command merely existing on `PATH` is not sufficient" in template
+    assert "missing or rejects `--docs`" in template
+
+
 def test_compose_skill_substitutes_an_exact_release_pin() -> None:
     rendered = compose_skill("1.2.3")
 
@@ -224,7 +232,10 @@ def test_agents_md_block_routes_agents_to_executable_documentation() -> None:
     assert block.startswith(AGENTS_BEGIN_PREFIX)
     assert block.rstrip().endswith(AGENTS_END_MARKER)
     assert "deep-transcribe --docs" in block
-    assert "deep-transcribe --skill" in block
+    assert "same verified runner with `--skill`" in block
+    assert "- Run `deep-transcribe --skill`" not in block
+    assert "uv run deep-transcribe --docs" in block
+    assert "only if `deep-transcribe --docs` succeeds" in block
     assert "deep-transcribe==1.2.3" in block
     assert f"--exclude-newer-package yt-dlp={YTDLP_DISCOVERY_CUTOFF}" in block
 

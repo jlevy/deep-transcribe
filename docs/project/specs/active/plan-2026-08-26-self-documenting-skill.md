@@ -181,8 +181,10 @@ Its implementation beads follow the plan’s execution order:
   `dt-gw9f` and `dt-eayp`.
 - [x] `dt-3ka6`: Make the zero-install runner honor the yt-dlp freshness exception;
   blocked by `dt-gw9f`.
-- [x] `dt-ulcm`: Validate, land, and release the hard cut; blocked by all
+- [x] `dt-ulcm`: Validate, land, and release the hard cut; blocked by the original
   implementation, removal, documentation, and packaging beads above.
+- [x] `dt-esip`: Make skill runner selection reject stale executables after release;
+  blocked by `dt-gw9f`.
 
 ## Testing Strategy
 

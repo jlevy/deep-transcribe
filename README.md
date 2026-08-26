@@ -61,8 +61,10 @@ Install the public discovery skill through the cross-agent skills installer:
 npx skills add jlevy/deep-transcribe@deep-transcribe
 ```
 
-The skill uses a local `deep-transcribe` executable when available and otherwise uses
-the pinned zero-install runner.
+In a Deep Transcribe source checkout, the skill uses `uv run deep-transcribe` so an
+older executable on `PATH` cannot override the checkout.
+Elsewhere, it accepts an installed command only after `deep-transcribe --docs` succeeds
+and falls back to the pinned zero-install runner when that capability check fails.
 It routes agents to executable documentation rather than carrying a second command
 manual.
 
