@@ -1,8 +1,9 @@
 # Deep Transcribe Release Test Runbook
 
-Run this manual, agent-reviewed test before every release. Unit tests verify request
-construction; this runbook verifies the real YouTube, Deepgram, LLM, formatting, and
-export path and requires a model to review the output quality.
+Run this manual, agent-reviewed test before every release.
+Unit tests verify request construction; this runbook verifies the real YouTube,
+Deepgram, LLM, formatting, and export path and requires a model to review the output
+quality.
 
 ## Release Gate
 
@@ -14,8 +15,8 @@ The release passes only when:
 - the environment excludes optional document/AWS runtimes and Torch;
 - a fresh workspace completes the basic and annotated runs below;
 - the log proves Deepgram used `nova-3` with `diarize_model=latest`;
-- a raw-file run preserves YAML context, applies explicit speaker corrections, and reuses
-  Deepgram unless key terms change;
+- a raw-file run preserves YAML context, applies explicit speaker corrections, and
+  reuses Deepgram unless key terms change;
 - the careful-role smoke checks and both provider profiles exercise all six configured
   LLM models successfully;
 - Markdown and HTML artifacts pass the transcript, speaker, timestamp, annotation, and
@@ -32,11 +33,12 @@ Use this 2 minute 40 second two-speaker hotel dialogue:
 https://www.youtube.com/watch?v=wyqfYJX23lg
 ```
 
-The title begins `English for Hotel and Tourism: "Checking into a hotel"`. The video
-has clear English audio, two alternating speakers, an explicit guest name, room number,
-hotel terminology, and YouTube auto captions. It provides compact coverage of
-transcription, diarization, role naming, timestamps, summaries, and frame captures. The
-audio is authoritative; auto captions are only a navigation and comparison aid.
+The title begins `English for Hotel and Tourism: "Checking into a hotel"`. The video has
+clear English audio, two alternating speakers, an explicit guest name, room number,
+hotel terminology, and YouTube auto captions.
+It provides compact coverage of transcription, diarization, role naming, timestamps,
+summaries, and frame captures.
+The audio is authoritative; auto captions are only a navigation and comparison aid.
 
 Expected labels are `Hotel Receptionist` and `Tom Sanders`. If the video becomes
 unavailable, replace it in this runbook with another public, captioned, two-speaker
@@ -60,8 +62,8 @@ make lint
 make test
 ```
 
-Check the warmed CLI path three times. Each `real` result should remain below 0.25
-seconds on a typical development machine:
+Check the warmed CLI path three times.
+Each `real` result should remain below 0.25 seconds on a typical development machine:
 
 ```shell
 for run in 1 2 3; do
@@ -73,8 +75,8 @@ Measure the installed executable rather than `uv run`; dependency resolution ove
 not CLI startup time.
 
 Deep Transcribe retains OpenCV and scikit-image for frame capture and visual
-deduplication. It must not install unrelated document conversion, AWS, or Torch
-runtimes:
+deduplication.
+It must not install unrelated document conversion, AWS, or Torch runtimes:
 
 ```shell
 if uv pip list | rg '^(boto3|magika|markitdown|onnxruntime|torch|weasyprint)\b'; then
@@ -84,8 +86,9 @@ fi
 ```
 
 Set `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY` in a `.env` file that
-kash loads or in the process environment. Never print their values. Confirm that kash
-can load them:
+kash loads or in the process environment.
+Never print their values.
+Confirm that kash can load them:
 
 ```shell
 uv run --locked python - <<'PY'
@@ -135,8 +138,9 @@ uv run --locked deep-transcribe transcribe \
     "$DEEP_TRANSCRIBE_E2E_URL"
 ```
 
-Inspect the workspace log. It must contain a successful Deepgram request with these
-query parameters and no legacy diarization flag:
+Inspect the workspace log.
+It must contain a successful Deepgram request with these query parameters and no legacy
+diarization flag:
 
 ```shell
 rg -n 'api\.deepgram\.com/v1/listen' "$DEEP_TRANSCRIBE_E2E_WS/logs/workspace.log"
@@ -175,9 +179,9 @@ uv run --locked deep-transcribe transcribe \
     "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp3"
 ```
 
-Inspect the raw transcript to determine which Deepgram speaker ID is the receptionist and
-which is Tom. Add an authoritative `speaker_hints` mapping to `hotel.yml`; for example,
-use the following mapping only if it matches the raw transcript:
+Inspect the raw transcript to determine which Deepgram speaker ID is the receptionist
+and which is Tom. Add an authoritative `speaker_hints` mapping to `hotel.yml`; for
+example, use the following mapping only if it matches the raw transcript:
 
 ```yaml
 speaker_hints:
@@ -185,9 +189,10 @@ speaker_hints:
   "1": Tom Sanders
 ```
 
-If Deepgram merged distinct voices under one ID, use a complete roster instead of treating
-that ID as authoritative. Describe chronology, forms of address, or exact dialogue transitions
-in `additional_context`, then rerun processing:
+If Deepgram merged distinct voices under one ID, use a complete roster instead of
+treating that ID as authoritative.
+Describe chronology, forms of address, or exact dialogue transitions in
+`additional_context`, then rerun processing:
 
 ```yaml
 speaker_roster:
@@ -195,12 +200,12 @@ speaker_roster:
   - Tom Sanders
 ```
 
-The corrected intermediate transcript must use every roster label, preserve every timestamped
-ASR span verbatim, and contain no `UNKNOWN` speaker. Review short greetings, interjections, and
-sentence fragments at each speaker boundary.
+The corrected intermediate transcript must use every roster label, preserve every
+timestamped ASR span verbatim, and contain no `UNKNOWN` speaker.
+Review short greetings, interjections, and sentence fragments at each speaker boundary.
 
-Count Deepgram calls, then rerun the annotated pipeline with the corrected metadata. A
-speaker-only or descriptive-context correction must not make another Deepgram request:
+Count Deepgram calls, then rerun the annotated pipeline with the corrected metadata.
+A speaker-only or descriptive-context correction must not make another Deepgram request:
 
 ```shell
 DEEPGRAM_COUNT_BEFORE="$(rg -c 'Transcribing via Deepgram' \
@@ -209,7 +214,6 @@ DEEPGRAM_COUNT_BEFORE="$(rg -c 'Transcribing via Deepgram' \
 uv run --locked deep-transcribe transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
-    --rerun-processing \
     --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
     "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp3"
 
@@ -220,9 +224,14 @@ test "$(find "$DEEP_TRANSCRIBE_E2E_WS/workspace/resources" \
     -maxdepth 1 -name '*.mp3' | wc -l | tr -d ' ')" = 1
 ```
 
-Finally add a real phrase from the audio, such as `checking into a hotel`, to `key_terms`
-and run `--basic` again. This accuracy-affecting change must make exactly one new Deepgram
-request:
+This is the normal cache-aware correction path: the metadata change should invalidate
+the first affected semantic action and its dependents without forcing unrelated work.
+Reserve `--rerun-processing` for a deliberate refresh of every post-transcription stage,
+such as a model-profile comparison.
+
+Finally add a real phrase from the audio, such as `checking into a hotel`, to
+`key_terms` and run `--basic` again.
+This accuracy-affecting change must make exactly one new Deepgram request:
 
 ```shell
 uv run --locked deep-transcribe transcribe \
@@ -235,15 +244,17 @@ test "$(rg -c 'Transcribing via Deepgram' \
     "$DEEP_TRANSCRIBE_E2E_WS/logs/workspace.log")" = "$((DEEPGRAM_COUNT_BEFORE + 1))"
 ```
 
-Confirm the raw-file metadata is present in the source sidematter and propagated into the
-final transcript frontmatter. Confirm the correction is reflected in speaker names,
-description, summary, and headings without adding unsupported details.
+Confirm the raw-file metadata is present in the source sidematter and propagated into
+the final transcript frontmatter.
+Confirm the correction is reflected in speaker names, description, summary, and headings
+without adding unsupported details.
 
 ## Local MP4 Frame-Capture Regression
 
-Download the fixture as an MP4 outside a fresh workspace. Run Deep Transcribe from the
-repository root, not the fixture directory, so a basename-only lookup cannot accidentally
-find the source file in the process working directory:
+Download the fixture as an MP4 outside a fresh workspace.
+Run Deep Transcribe from the repository root, not the fixture directory, so a
+basename-only lookup cannot accidentally find the source file in the process working
+directory:
 
 ```shell
 LOCAL_VIDEO_WS="$DEEP_TRANSCRIBE_E2E_WS/local-video"
@@ -262,18 +273,23 @@ uv run --locked deep-transcribe transcribe \
     --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
     "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp4"
 
+test -z "$(find "$LOCAL_VIDEO_WS/workspace" -type f \
+    -name 'hotel.mp4' -print -quit)"
 test -n "$(find "$LOCAL_VIDEO_WS/workspace/docs" -type f \
     \( -name '*.jpg' -o -name '*.png' \) -print -quit)"
 ```
 
-Confirm the run reaches `insert_frame_captures`, resolves the imported resource through
-its workspace path, and finishes without `Original filename not found` or `Workspace
-resource not found`. Open the exported HTML and verify the local MP4 frame captures load.
+Confirm the source resource is stored as a `file://` reference instead of a full MP4
+copy, the run reaches `insert_frame_captures`, and the original remains resolvable for
+frame extraction. It must finish without `Original filename not found`,
+`Workspace resource not found`, or a full-size source copy in the workspace.
+Open the exported HTML and verify the local MP4 frame captures load.
 
 ## Careful-Role Model Checks
 
-The annotated pipeline exercises the fast and standard roles. Check both configured
-careful models directly so every model in the two profiles is live-tested:
+The annotated pipeline exercises the fast and standard roles.
+Check both configured careful models directly so every model in the two profiles is
+live-tested:
 
 ```shell
 uv run --locked python - <<'PY'
@@ -310,8 +326,9 @@ uv run --locked deep-transcribe transcribe \
 ```
 
 Confirm the log records `claude-haiku-4-5-20251001` for speaker identification and
-formatting and `claude-sonnet-5` for summaries and descriptions. It must contain no
-provider authentication, unsupported-model, or malformed-output error.
+formatting and `claude-sonnet-5` for summaries and descriptions.
+It must contain no provider authentication, unsupported-model, or malformed-output
+error.
 
 ## OpenAI Profile
 
@@ -334,12 +351,14 @@ uv run --locked deep-transcribe transcribe \
 ```
 
 Confirm the log records `gpt-5.6-luna` for speaker identification and formatting and
-`gpt-5.6-terra` for summaries and descriptions. It must contain no provider
-authentication, unsupported-model, or malformed-output error.
+`gpt-5.6-terra` for summaries and descriptions.
+It must contain no provider authentication, unsupported-model, or malformed-output
+error.
 
-The optional `--deep` preset also performs paragraph research and may require
-additional research-provider credentials. Run it when that integration is part of the
-release scope; do not substitute it for the required annotated run.
+The optional `--deep` preset also performs paragraph research and may require additional
+research-provider credentials.
+Run it when that integration is part of the release scope; do not substitute it for the
+required annotated run.
 
 ## Transcript Quality Review
 
@@ -355,9 +374,9 @@ uv run --locked yt-dlp \
     "$DEEP_TRANSCRIBE_E2E_URL"
 ```
 
-Have the reviewing model read the reference captions, raw transcription, final
-Markdown, and final HTML. Review at least the beginning, middle, and end against the
-video. Do not rely only on file sizes or command exit status.
+Have the reviewing model read the reference captions, raw transcription, final Markdown,
+and final HTML. Review at least the beginning, middle, and end against the video.
+Do not rely only on file sizes or command exit status.
 
 The transcript passes when:
 
@@ -365,20 +384,20 @@ The transcript passes when:
 - names, job terms, times, and other meaning-bearing words match the audio;
 - punctuation and paragraph boundaries are readable;
 - the receptionist and Tom remain consistently labeled across long turns;
-- no paragraph combines a question and answer from different speakers, except a
-  genuine overlap or an isolated brief interjection noted in the report;
+- no paragraph combines a question and answer from different speakers, except a genuine
+  overlap or an isolated brief interjection noted in the report;
 - every transcript paragraph has a timestamp near its first spoken word, including the
   first and last paragraphs, and sampled links land within about two seconds;
 - speaker identification consistently uses `Hotel Receptionist` and `Tom Sanders`;
-- the annotated output has an accurate description and summary, useful section
-  headings, relevant frame captures, and no unsupported claims;
-- every exported frame asset is referenced by the HTML, with no rejected similarity-filter
-  candidates left in the export directory;
+- the annotated output has an accurate description and summary, useful section headings,
+  relevant frame captures, and no unsupported claims;
+- every exported frame asset is referenced by the HTML, with no rejected
+  similarity-filter candidates left in the export directory;
 - the HTML renders without raw template syntax, broken links, missing media, clipped
   text, or unreadable styling.
 
-Serve the workspace locally and have the reviewing agent open each provider's final
-HTML export in a browser:
+Serve the workspace locally and have the reviewing agent open each provider’s final HTML
+export in a browser:
 
 ```shell
 uv run --locked python -m http.server 8765 \
@@ -386,15 +405,16 @@ uv run --locked python -m http.server 8765 \
     --directory "$DEEP_TRANSCRIBE_E2E_WS/workspace"
 ```
 
-Visually inspect the beginning, middle, and end. Also inspect the rendered DOM and
-confirm that every frame image is complete with nonzero natural dimensions, the page
-has no horizontal overflow, and no template markers such as `{{` or `}}` are visible.
+Visually inspect the beginning, middle, and end.
+Also inspect the rendered DOM and confirm that every frame image is complete with
+nonzero natural dimensions, the page has no horizontal overflow, and no template markers
+such as `{{` or `}}` are visible.
 Broken or missing frame captures fail the release gate.
 
-Minor punctuation or filler-word differences may pass when meaning is unchanged. Any
-missing phrase, wrong proper noun, mixed-speaker paragraph, shifted timestamp series,
-hallucinated summary claim, or repeated processing artifact is a release blocker until
-fixed or explicitly accepted by the release owner.
+Minor punctuation or filler-word differences may pass when meaning is unchanged.
+Any missing phrase, wrong proper noun, mixed-speaker paragraph, shifted timestamp
+series, hallucinated summary claim, or repeated processing artifact is a release blocker
+until fixed or explicitly accepted by the release owner.
 
 ## Report
 
@@ -427,3 +447,7 @@ Delete the temporary workspace only after the report is complete:
 ```shell
 rm -rf "$DEEP_TRANSCRIBE_E2E_WS"
 ```
+
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
+-->

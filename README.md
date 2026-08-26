@@ -24,8 +24,8 @@ every fetch and loses access to some formats, so treat it as required in practic
 Environments without a system runtime (containers, bare CI) can install the
 redistributed binary instead, with `uv pip install deno`.
 
-Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment or a `.env`
-file in the current directory or one of its parents:
+Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment, a `.env` or
+`.env.local` file in the current directory or one of its parents, or `~/.env.local`:
 
 - `ANTHROPIC_API_KEY` for the default Anthropic profile
 - `OPENAI_API_KEY` for the OpenAI profile
@@ -222,6 +222,9 @@ Run `deep-transcribe logs --help` for server log handling.
 For environment setup, see [installation.md](docs/installation.md).
 
 For development workflows, see [development.md](docs/development.md).
+
+For cache-aware corrections and feature additions, see
+[iterative-reruns.md](docs/iterative-reruns.md).
 
 For the manual, agent-reviewed release test, see
 [e2e-test.runbook.md](tests/e2e-test.runbook.md).

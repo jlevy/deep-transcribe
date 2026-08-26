@@ -111,6 +111,22 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
     assert args.source == "https://example.com/video"
 
 
+def test_transcribe_help_explains_incremental_and_forced_reruns() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "deep_transcribe", "transcribe", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    help_text = " ".join(result.stdout.split())
+
+    assert "normal rerun resumes at the first affected stage" in help_text
+    assert "--rerun-processing" in help_text
+    assert "forces every post-transcription stage" in help_text
+    assert "--rerun" in help_text
+    assert "including speech-to-text" in help_text
+
+
 def test_cli_metadata_file_and_inline_values_merge() -> None:
     with TemporaryDirectory() as temp_dir:
         metadata_path = Path(temp_dir) / "interview.yml"

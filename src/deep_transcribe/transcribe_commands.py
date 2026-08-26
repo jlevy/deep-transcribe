@@ -22,6 +22,20 @@ from deep_transcribe.transcription_metadata import (
 log = logging.getLogger(__name__)
 
 
+def _media_source_locator(source: str) -> str:
+    """
+    Represent local media as a file URL so kash caches it without first copying the
+    entire source into the workspace.
+    """
+    source_path = Path(source).expanduser()
+    if not source_path.is_file():
+        return source
+
+    from kash.utils.common.url import as_file_url
+
+    return as_file_url(source_path)
+
+
 def transcribe_with_options(
     item: Item,
     options: TranscribeOptions,
@@ -299,7 +313,7 @@ def run_transcription(
         runtime.workspace.log_workspace_info()
 
         with get_unified_live().status("Processing…"):
-            action_input = prepare_action_input(url)
+            action_input = prepare_action_input(_media_source_locator(url))
             item = action_input.items[0]
             source_item = item
             source_metadata_changed = False
