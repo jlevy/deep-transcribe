@@ -88,6 +88,7 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
     from kash.kits.media.actions.transcribe.insert_frame_captures import insert_frame_captures
 
+    from deep_transcribe.timestamp_citations import normalize_timestamp_citations
     from deep_transcribe.transcript_overview import (
         add_transcript_description,
         add_transcript_outline,
@@ -111,6 +112,7 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
         result = strip_html(result)
         result = break_into_paragraphs(result)
         result = backfill_timestamps(result)
+        result = normalize_timestamp_citations(result)
 
     # Apply annotation pipeline if requested
     if options.insert_section_headings:
@@ -460,6 +462,8 @@ def test_format_results_copies_frame_assets() -> None:
             assert (html_assets / "frame.jpg").read_bytes() == b"frame"
             assert "Transcribed by github.com/jlevy/deep-transcribe" in html_text
             assert ".theme-toggle" in html_text
-            assert ".timestamp-icon" in html_text
+            assert ".timestamp-link:hover" in html_text
             assert ".timestamp-link a" in html_text
+            assert "color: var(--color-secondary) !important" in html_text
             assert "display: none !important" in html_text
+            assert 'id="yt-popover"' in html_text

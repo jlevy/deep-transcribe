@@ -1,20 +1,27 @@
-{% extends "simple_webpage.html.jinja" %}
+{% extends "youtube_webpage.html.jinja" %}
 
 {% block custom_styles %}
 {{ super() }}
 <style>
+.timestamp-link,
+.timestamp-link:hover {
+  background-color: transparent !important;
+  color: var(--color-secondary) !important;
+}
+
+.timestamp-link a,
+.timestamp-link a:visited {
+  color: inherit !important;
+  text-decoration: none;
+}
+
+.timestamp-link a:hover {
+  text-decoration: underline;
+}
+
 @media print {
-  .theme-toggle,
-  .timestamp-icon {
+  .theme-toggle {
     display: none !important;
-  }
-
-  .timestamp-link {
-    font-size: 0 !important;
-  }
-
-  .timestamp-link a {
-    font-size: var(--font-size-small) !important;
   }
 
   @page {

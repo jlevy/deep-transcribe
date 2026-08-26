@@ -214,8 +214,13 @@ rg -n 'Video transcript already in cache|Transcribing via Deepgram' \
 A semantic-only rerun should report a transcript cache hit, and the Deepgram request
 count should not increase.
 Then inspect the transcript and HTML at the beginning, middle, and end.
-Check speaker continuity, missing speech, timestamp links, headings, synopsis, outline,
+Check speaker continuity, missing speech, timestamps, headings, synopsis, outline,
 annotations, and frame captures.
+Timestamps are muted bracketed text.
+Supported web sources receive time-specific links, and YouTube links open an embedded
+player.
+Local audio and video timestamps are intentionally not linked because a `file://`
+URL cannot seek reliably.
 A zero exit status confirms execution, not transcription quality.
 
 ### Recover From a Failed Stage
