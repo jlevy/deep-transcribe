@@ -8,7 +8,7 @@
 UV_EXCLUDE_NEWER ?= 14 days
 export UV_EXCLUDE_NEWER
 
-.PHONY: default install lint lint-check test upgrade build clean
+.PHONY: default install lint lint-check test upgrade build sync-skill clean
 
 default: install lint test
 
@@ -30,6 +30,9 @@ upgrade:
 
 build: install
 	uv build --no-build-isolation
+
+sync-skill:
+	uv run python -m deep_transcribe.skill_support --repository-root .
 
 clean:
 	-rm -rf dist/

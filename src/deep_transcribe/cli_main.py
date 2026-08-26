@@ -1,13 +1,11 @@
 """
 Take a video or audio URL or local file, cache it, and produce a transcript source and
-browser-ready HTML. Run `deep-transcribe transcribe --help` for processing choices,
-`deep-transcribe models --help` for Anthropic and OpenAI profiles, and
-`deep-transcribe mcp --help` for agent integrations.
+browser-ready HTML. Run `deep-transcribe --docs` for the complete operational guide,
+`deep-transcribe transcribe --help` for processing choices, and
+`deep-transcribe models --help` for Anthropic and OpenAI profiles.
 
 More information: https://github.com/jlevy/deep-transcribe
 """
-
-from __future__ import annotations
 
 import argparse
 import json
@@ -33,9 +31,15 @@ DESCRIPTION = "High-quality transcription, formatting, and analysis of videos an
 
 DEFAULT_WS = "./transcriptions"
 
-DEFAULT_MCP_SERVER_PORT = 4440
-
-COMMANDS = {"transcribe", "models", "mcp", "logs"}
+COMMANDS = {"transcribe", "models"}
+REMOVED_COMMANDS = {"mcp", "logs"}
+ROOT_OPTIONS = {
+    "--docs",
+    "--skill",
+    "--install-skill",
+    "--surfaces",
+    "--agent-base",
+}
 
 # Conventional shell status for a process interrupted by SIGINT.
 INTERRUPTED_EXIT_CODE = 130
@@ -78,6 +82,40 @@ def _formatter_class() -> type[argparse.HelpFormatter]:
 
 def _add_version_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {get_app_version()}")
+
+
+def _add_agent_arguments(parser: argparse.ArgumentParser) -> None:
+    output = parser.add_argument_group("Built-in Documentation and Agent Skill")
+    action = output.add_mutually_exclusive_group()
+    action.add_argument(
+        "--docs",
+        action="store_true",
+        help="Print the complete packaged Deep Transcribe guide",
+    )
+    action.add_argument(
+        "--skill",
+        action="store_true",
+        help="Print the version-pinned Deep Transcribe SKILL.md",
+    )
+    action.add_argument(
+        "--install-skill",
+        action="store_true",
+        help=(
+            "Install the skill project-locally to portable, Claude, and AGENTS.md "
+            "surfaces by default"
+        ),
+    )
+    output.add_argument(
+        "--surfaces",
+        metavar="LIST",
+        help=("With --install-skill: comma-separated portable, claude, agents-md, or all"),
+    )
+    output.add_argument(
+        "--agent-base",
+        type=Path,
+        metavar="DIR",
+        help="With --install-skill: write one explicit DIR/skills/deep-transcribe bundle",
+    )
 
 
 def _add_workspace_argument(parser: _ArgumentContainer) -> None:
@@ -352,51 +390,6 @@ def _build_models_parser(subparsers: _SubparserCollection) -> None:
     parser.add_argument("--json", action="store_true", help="Print profile data as JSON")
 
 
-def _build_mcp_parser(subparsers: _SubparserCollection) -> None:
-    parser = subparsers.add_parser(
-        "mcp",
-        help="Expose all four transcription presets as MCP tools",
-        description="Run an MCP server exposing basic, formatted, annotated, and deep tools.",
-        formatter_class=_formatter_class(),
-        epilog=dedent(f"""
-            Tools:
-
-            - `transcribe_basic`
-            - `transcribe_formatted`
-            - `transcribe_annotated`
-            - `transcribe_deep`
-
-            Examples:
-
-            ```shell
-            deep-transcribe mcp
-            deep-transcribe mcp --transport sse
-            ```
-
-            SSE listens on http://127.0.0.1:{DEFAULT_MCP_SERVER_PORT}.
-            """),
-    )
-    parser.set_defaults(command="mcp")
-    parser.add_argument(
-        "--transport",
-        choices=("stdio", "sse"),
-        default="stdio",
-        help="MCP transport (default: %(default)s)",
-    )
-    _add_workspace_argument(parser)
-
-
-def _build_logs_parser(subparsers: _SubparserCollection) -> None:
-    parser = subparsers.add_parser(
-        "logs",
-        help="Follow MCP server logs",
-        description="Follow all Deep Transcribe MCP server logs.",
-        formatter_class=_formatter_class(),
-    )
-    parser.set_defaults(command="logs")
-    _add_workspace_argument(parser)
-
-
 def build_parser() -> argparse.ArgumentParser:
     """Build the canonical, self-documenting command parser."""
     parser = argparse.ArgumentParser(
@@ -404,59 +397,61 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=_formatter_class(),
         description=DESCRIPTION,
         epilog=dedent(f"""
-            **Getting started:** `{APP_NAME} transcribe --help`
+            **Getting started:** `{APP_NAME} --docs`
 
             **IMPORTANT:** Run `{APP_NAME} <command> --help` before using a command.
-            Legacy flag-only invocations remain supported for backward compatibility.
+            A direct source without the `transcribe` command is also supported.
 
             {APP_NAME} {get_app_version()}
             """),
     )
     _add_version_argument(parser)
+    _add_agent_arguments(parser)
     subparsers = parser.add_subparsers(dest="command", title="Commands", metavar="COMMAND")
     _build_transcribe_parser(subparsers)
     _build_models_parser(subparsers)
-    _build_mcp_parser(subparsers)
-    _build_logs_parser(subparsers)
     return parser
 
 
-def build_legacy_parser() -> argparse.ArgumentParser:
-    """Build the pre-command parser retained for backward compatibility."""
+def build_direct_parser() -> argparse.ArgumentParser:
+    """Build the concise parser for `deep-transcribe [OPTIONS] SOURCE`."""
     parser = argparse.ArgumentParser(
         prog=APP_NAME,
         formatter_class=_formatter_class(),
         description=DESCRIPTION,
         epilog=dedent(f"""
-            This flag-only form remains supported. New scripts and agents should use:
+            This concise form is equivalent to the `transcribe` command.
+            For task-oriented help, use:
 
             - `{APP_NAME} transcribe --help`
             - `{APP_NAME} models --help`
-            - `{APP_NAME} mcp --help`
+            - `{APP_NAME} --docs`
 
             {APP_NAME} {get_app_version()}
             """),
     )
-    parser.set_defaults(command="legacy")
+    parser.set_defaults(command="transcribe")
     _add_version_argument(parser)
-    _add_transcription_arguments(parser, source_required=False)
-
-    server = parser.add_argument_group("MCP Compatibility Flags")
-    server.add_argument("--mcp", action="store_true", help="Run the stdio MCP server")
-    server.add_argument(
-        "--sse",
-        action="store_true",
-        help=f"Run the SSE MCP server on http://127.0.0.1:{DEFAULT_MCP_SERVER_PORT}",
-    )
-    server.add_argument("--logs", action="store_true", help="Follow MCP server logs")
+    _add_transcription_arguments(parser, source_required=True)
     return parser
 
 
+def _is_root_option(argument: str) -> bool:
+    option = argument.split("=", 1)[0]
+    return option in ROOT_OPTIONS
+
+
 def _parse_args(argv: Sequence[str]) -> tuple[argparse.ArgumentParser, argparse.Namespace]:
-    if not argv or argv[0] in COMMANDS or argv[0] in {"-h", "--help", "--version"}:
+    if (
+        not argv
+        or argv[0] in COMMANDS
+        or argv[0] in REMOVED_COMMANDS
+        or argv[0] in {"-h", "--help", "--version"}
+        or _is_root_option(argv[0])
+    ):
         parser = build_parser()
     else:
-        parser = build_legacy_parser()
+        parser = build_direct_parser()
     return parser, parser.parse_args(argv)
 
 
@@ -536,19 +531,6 @@ def _display_model_profiles(
         print("\nUse `deep-transcribe models --set PROVIDER` to save a profile.")
 
 
-def _run_mcp_server(*, transport: str) -> None:
-    from kash.mcp.mcp_main import McpMode, run_mcp_server
-
-    mcp_mode = McpMode.standalone_sse if transport == "sse" else McpMode.standalone_stdio
-    action_names = [
-        "transcribe_annotated",
-        "transcribe_formatted",
-        "transcribe_basic",
-        "transcribe_deep",
-    ]
-    run_mcp_server(mcp_mode, proxy_to=None, tool_names=action_names)
-
-
 def _speaker_hint(value: str) -> tuple[str, str]:
     speaker_id, separator, name = value.partition("=")
     if not separator or not speaker_id.strip() or not name.strip():
@@ -556,7 +538,7 @@ def _speaker_hint(value: str) -> tuple[str, str]:
     return speaker_id.strip(), name.strip()
 
 
-def build_transcription_metadata(args: argparse.Namespace) -> TranscriptionMetadata:
+def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMetadata":
     from deep_transcribe.transcription_metadata import (
         TranscriptionMetadata,
         load_transcription_metadata,
@@ -608,12 +590,82 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
     return options
 
 
+def _parse_skill_surfaces(
+    value: str | None,
+    parser: argparse.ArgumentParser,
+) -> frozenset[str] | None:
+    if value is None:
+        return None
+
+    from deep_transcribe.skill_support import ALL_SURFACES
+
+    tokens = [token.strip() for token in value.split(",") if token.strip()]
+    if not tokens:
+        parser.error(
+            "--surfaces requires a comma-separated list of portable, claude, agents-md, or all"
+        )
+
+    selected: set[str] = set()
+    for token in tokens:
+        if token == "all":
+            selected.update(ALL_SURFACES)
+        elif token in ALL_SURFACES:
+            selected.add(token)
+        else:
+            parser.error(
+                f"unknown skill surface {token!r}; choose portable, claude, agents-md, or all"
+            )
+    return frozenset(selected)
+
+
+def _handle_documentation_and_skill_options(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+) -> bool:
+    docs = bool(getattr(args, "docs", False))
+    skill = bool(getattr(args, "skill", False))
+    install = bool(getattr(args, "install_skill", False))
+    surfaces_value = getattr(args, "surfaces", None)
+    agent_base = getattr(args, "agent_base", None)
+
+    if not install and (surfaces_value is not None or agent_base is not None):
+        parser.error("--surfaces and --agent-base require --install-skill")
+
+    if docs:
+        from deep_transcribe.skill_support import get_docs_content
+
+        print(get_docs_content(), end="")
+        return True
+
+    if skill:
+        from deep_transcribe.skill_support import compose_skill
+
+        print(compose_skill(), end="")
+        return True
+
+    if install:
+        from deep_transcribe.skill_support import install_skill
+
+        if agent_base is not None and surfaces_value is not None:
+            parser.error("--surfaces cannot be combined with --agent-base")
+        selected = _parse_skill_surfaces(surfaces_value, parser)
+        results = install_skill(agent_base=agent_base, surfaces=selected)
+        if any(result.action == "blocked-newer" for result in results):
+            raise SystemExit(1)
+        return True
+
+    return False
+
+
 def _run_cli(argv: Sequence[str] | None = None) -> None:
     cli_argv = list(argv) if argv is not None else sys.argv[1:]
     parser, args = _parse_args(cli_argv)
 
     if not cli_argv:
         parser.print_help()
+        return
+
+    if _handle_documentation_and_skill_options(parser, args):
         return
 
     if args.command == "models":
@@ -636,28 +688,6 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         rich_logging=True,
         console_log_level=LogLevel.warning,
     )
-
-    if args.command == "mcp":
-        _run_mcp_server(transport=args.transport)
-        return
-
-    if args.command == "logs":
-        from kash.mcp.mcp_server_commands import mcp_logs
-
-        mcp_logs(follow=True, all=True)
-        return
-
-    if args.command == "legacy":
-        if args.logs:
-            from kash.mcp.mcp_server_commands import mcp_logs
-
-            mcp_logs(follow=True, all=True)
-            return
-        if args.mcp or args.sse:
-            _run_mcp_server(transport="sse" if args.sse else "stdio")
-            return
-        if not args.source:
-            parser.error("SOURCE is required unless an MCP compatibility flag is specified")
 
     try:
         from deep_transcribe.transcribe_commands import run_transcription

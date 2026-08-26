@@ -9,8 +9,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
 
+import pytest
+
 from deep_transcribe.cli_main import (
-    build_legacy_parser,
+    build_direct_parser,
     build_parser,
     build_transcription_metadata,
     main,
@@ -167,8 +169,8 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
     assert metadata.speaker_roster == ["Alice Chen", "Bob Diaz", "Carol Evans"]
 
 
-def test_legacy_parser_preserves_flag_only_contract() -> None:
-    args = build_legacy_parser().parse_args(
+def test_direct_parser_supports_the_concise_transcription_contract() -> None:
+    args = build_direct_parser().parse_args(
         [
             "--deep",
             "--no_minify",
@@ -178,20 +180,21 @@ def test_legacy_parser_preserves_flag_only_contract() -> None:
         ]
     )
 
-    assert args.command == "legacy"
+    assert args.command == "transcribe"
     assert args.deep
     assert args.no_minify
     assert args.source == "https://example.com/video"
-
-    mcp_args = build_legacy_parser().parse_args(["--mcp"])
-    assert mcp_args.mcp
-    assert mcp_args.source is None
 
 
 def test_help_and_model_directory_expose_all_command_surfaces() -> None:
     help_text = build_parser().format_help()
 
-    assert all(command in help_text for command in ("transcribe", "models", "mcp", "logs"))
+    assert all(command in help_text for command in ("transcribe", "models"))
+    assert "mcp" not in help_text.lower()
+    assert "logs" not in help_text.lower()
+    assert "--docs" in help_text
+    assert "--skill" in help_text
+    assert "--install-skill" in help_text
     assert "IMPORTANT" in help_text
 
     output = StringIO()
@@ -235,15 +238,45 @@ def test_model_profile_selection_persists_in_transcription_workspace() -> None:
     assert f"fast_llm: {profile.fast_llm}" in params_text
 
 
-def test_cross_agent_skill_mirrors_match_distribution_source() -> None:
-    repo_root = Path(__file__).parents[1]
-    distribution_skill = (repo_root / "skills/deep-transcribe/SKILL.md").read_text()
+def test_docs_and_skill_cli_paths_avoid_the_runtime_stack() -> None:
+    for option, expected in (
+        ("--docs", "Iterate Without Repeating Speech-to-Text"),
+        ("--skill", "name: deep-transcribe"),
+    ):
+        result = subprocess.run(
+            [sys.executable, "-m", "deep_transcribe", option],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert expected in result.stdout
+        assert "MCP" not in result.stdout
 
-    assert distribution_skill == (repo_root / ".agents/skills/deep-transcribe/SKILL.md").read_text()
-    assert distribution_skill == (repo_root / ".claude/skills/deep-transcribe/SKILL.md").read_text()
-    assert "deep-transcribe==0.1.9" in distribution_skill
-    assert "deep-transcribe transcribe --help" in distribution_skill
 
-    assert (repo_root / "skills/deep-transcribe/agents/openai.yaml").read_text() == (
-        repo_root / ".agents/skills/deep-transcribe/agents/openai.yaml"
-    ).read_text()
+def test_install_skill_cli_validates_surface_arguments(tmp_path: Path) -> None:
+    assert main(["--install-skill", "--agent-base", str(tmp_path / "agent")]) is None
+    assert (tmp_path / "agent/skills/deep-transcribe/SKILL.md").is_file()
+
+    with pytest.raises(SystemExit) as error:
+        main(["--install-skill", "--surfaces=portable", "--agent-base", str(tmp_path)])
+    assert error.value.code == 2
+
+    with pytest.raises(SystemExit) as error:
+        main(["--install-skill", "--surfaces=unknown"])
+    assert error.value.code == 2
+
+    with pytest.raises(SystemExit) as error:
+        main(["--install-skill", "--surfaces="])
+    assert error.value.code == 2
+
+    with pytest.raises(SystemExit) as error:
+        main(["--agent-base", str(tmp_path)])
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("arguments", [["mcp"], ["logs"], ["--mcp"], ["--sse"], ["--logs"]])
+def test_removed_mcp_surfaces_are_rejected(arguments: list[str]) -> None:
+    with pytest.raises(SystemExit) as error:
+        main(arguments)
+
+    assert error.value.code == 2

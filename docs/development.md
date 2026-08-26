@@ -32,6 +32,9 @@ make
 # Build wheel:
 make build
 
+# Regenerate public and repository-local skill copies from the packaged source:
+make sync-skill
+
 # Linting (auto-fixes formatting and lint issues):
 make lint
 
@@ -72,6 +75,38 @@ source .venv/bin/activate
 
 See [uv docs](https://docs.astral.sh/uv/) for details.
 
+## Packaged Documentation and Skill
+
+Deep Transcribe owns one canonical set of executable guidance:
+
+- `src/deep_transcribe/resources/docs.md` is printed by `deep-transcribe --docs`.
+- `src/deep_transcribe/resources/skill/` is the authored skill bundle.
+- `skills/deep-transcribe/`, `.agents/skills/deep-transcribe/`, and
+  `.claude/skills/deep-transcribe/` are generated discovery and local-agent copies.
+
+Edit only the packaged source, then regenerate the checked-in copies:
+
+```shell
+make sync-skill
+flowmark --auto \
+    src/deep_transcribe/resources/docs.md \
+    src/deep_transcribe/resources/skill/SKILL.md \
+    skills/deep-transcribe/SKILL.md \
+    .agents/skills/deep-transcribe/SKILL.md \
+    .claude/skills/deep-transcribe/SKILL.md
+uv run pytest tests/test_skill.py tests/test_cli.py
+```
+
+The test suite fails if a generated bundle drifts from the canonical source.
+It also checks exact release pins, complete bundle contents, idempotency, target
+selection, forward-format protection, and preservation of host-authored `AGENTS.md`
+content.
+
+Before a release, validate the generated `skills/deep-transcribe/` directory with the
+current Agent Skills validator, build the distributions, and confirm that the wheel
+contains `resources/docs.md`, `resources/skill/SKILL.md`, and
+`resources/skill/agents/openai.yaml`.
+
 ## IDE setup
 
 If you use VSCode or a fork like Cursor or Windsurf, you can install the following
@@ -98,8 +133,7 @@ Its key defaults:
   Makefile so direct commands and standard workflows default to the same policy.
   Packages owned and released by jlevy are first-party and permanently exempted with
   `[tool.uv.exclude-newer-package]`; the rolling window still applies to third-party
-  dependencies.
-  Override it explicitly for a stricter window, such as
+  dependencies. Override it explicitly for a stricter window, such as
   `UV_EXCLUDE_NEWER="30 days" make upgrade`. A reviewed emergency exception must be
   equally explicit, using `UV_EXCLUDE_NEWER="0 days"` only for that invocation and
   recording why the normal gate was bypassed.
@@ -109,10 +143,9 @@ Its key defaults:
   `[tool.uv.exclude-newer-package]` with the reason recorded beside it.
   Today that is `yt-dlp`, which chases YouTube extractor changes and tends to break in
   the field within weeks of a site change, so running it two weeks behind is its own
-  kind of failure.
-  Note each entry is a *cutoff, not a floor*: leaving one in place freezes that package
-  at an old release, so re-review the dates on every refresh and bump them to just past
-  the newest stable version.
+  kind of failure. Note each entry is a *cutoff, not a floor*: leaving one in place
+  freezes that package at an old release, so re-review the dates on every refresh and
+  bump them to just past the newest stable version.
   Never point one at a future date, and never at a `.devN` nightly.
 
 - **Vet before adding:** Confirm the package is actually needed and its name is spelled

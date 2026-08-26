@@ -68,10 +68,10 @@ An uncertain adjudication still fails closed instead of choosing a label.
   cache identity.
 - **Deep Transcribe:** Parse and validate metadata files, enrich source items, correct
   merged speaker boundaries from a supplied roster, own presets and rerun behavior, and
-  expose the complete workflow through its CLI, MCP actions, and skill.
+  expose the complete workflow through its self-documenting CLI and installable skill.
 
 Deep Transcribe accepts a metadata file plus concise context, key-term, and speaker
-flags. The MCP preset actions accept the same schema as inline YAML or JSON through
+flags. Internal preset actions accept the same schema as inline YAML or JSON through
 `metadata_yaml`. A semantic-only correction changes downstream action hashes while
 reusing the cached raw transcript.
 A key-term change is part of the Deepgram settings cache identity and intentionally
