@@ -9,7 +9,7 @@ author: Joshua Levy with Codex assistance
 
 **Author:** Joshua Levy with Codex assistance
 
-**Status:** In Review
+**Status:** Complete
 
 ## Overview
 
@@ -161,12 +161,28 @@ interfaces; they are not compatibility shims for MCP.
 - [x] Run focused tests, the full test suite, lint/type checks, and package builds.
 - [x] Inspect wheel and source distributions for the complete docs and skill bundle.
 - [x] Test the CLI and installer from a built artifact in a clean temporary environment.
-- [ ] Open and land the pull request after CI passes.
-- [ ] Tag the next patch release and confirm publication.
+- [x] Open and land the pull request after CI passes.
+- [x] Tag the next patch release and confirm publication.
 - [x] Verify a representative metadata-only transcription rerun reuses the cached raw
   transcript and updates inspected speaker labels.
-- [ ] Smoke-test the released pinned `uvx` runner for `--docs`, `--skill`, and skill
+- [x] Smoke-test the released pinned `uvx` runner for `--docs`, `--skill`, and skill
   installation.
+
+## Implementation Beads
+
+Epic `dt-v7oh` tracks this spec.
+Its implementation beads follow the plan’s execution order:
+
+- [x] `dt-dq7h`: Define the built-in documentation and skill contract with tests.
+- [x] `dt-gw9f`: Implement packaged documentation and the self-installing skill; blocked
+  by `dt-dq7h`.
+- [x] `dt-eayp`: Remove the MCP server as a hard cut; blocked by `dt-dq7h`.
+- [x] `dt-8mqx`: Consolidate iterative-rerun and skill documentation; blocked by
+  `dt-gw9f` and `dt-eayp`.
+- [x] `dt-3ka6`: Make the zero-install runner honor the yt-dlp freshness exception;
+  blocked by `dt-gw9f`.
+- [x] `dt-ulcm`: Validate, land, and release the hard cut; blocked by all
+  implementation, removal, documentation, and packaging beads above.
 
 ## Testing Strategy
 
