@@ -13,7 +13,13 @@ _TIMESTAMP_ICON_PREFIX_PATTERN = re.compile(
     re.DOTALL,
 )
 _LOCAL_FILE_TIMESTAMP_LINK_PATTERN = re.compile(
-    r'<a\b[^>]*\bhref="file://[^"]*"[^>]*>(?P<label>[^<]*)</a>(?=&nbsp;</span>)'
+    r'<a\b[^>]*\bhref="file://[^"]*"[^>]*>(?P<label>[^<]*)</a>'
+    r"(?=(?:&nbsp;|\u00a0)?</span>)"
+)
+_TIMESTAMP_TRAILING_SPACE_PATTERN = re.compile(
+    r'(?P<opening><span\b(?=[^>]*\bclass="[^"]*\btimestamp-link\b)[^>]*>)'
+    r"(?P<content>.*?)(?:&nbsp;|\u00a0)(?=</span>)",
+    re.DOTALL,
 )
 
 
@@ -25,6 +31,7 @@ def normalize_timestamp_citations(item: Item) -> Item:
 
     body = _TIMESTAMP_ICON_PREFIX_PATTERN.sub(r"\g<opening>", item.body)
     body = _LOCAL_FILE_TIMESTAMP_LINK_PATTERN.sub(r"\g<label>", body)
+    body = _TIMESTAMP_TRAILING_SPACE_PATTERN.sub(r"\g<opening>\g<content>", body)
     return item.derived_copy(body=body)
 
 
@@ -42,7 +49,7 @@ def test_normalize_timestamp_citations_keeps_only_seekable_links() -> None:
     web_citation = (
         '<span class="citation timestamp-link" data-timestamp="456.00">⏱️'
         '<a href="https://www.youtube.com/watch?v=abcdefghijk&amp;t=456s">'
-        "07:36</a>&nbsp;</span>"
+        "07:36</a>\u00a0</span>"
     )
     item = Item(
         type=ItemType.doc,
@@ -55,5 +62,8 @@ def test_normalize_timestamp_citations_keeps_only_seekable_links() -> None:
     assert result.body is not None
     assert "⏱️" not in result.body
     assert "file://" not in result.body
-    assert ">02:03&nbsp;</span>" in result.body
+    assert ">02:03</span>" in result.body
+    assert "07:36</a></span>" in result.body
+    assert "&nbsp;</span>" not in result.body
+    assert "\u00a0</span>" not in result.body
     assert '<a href="https://www.youtube.com/' in result.body

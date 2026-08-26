@@ -461,6 +461,9 @@ def test_format_results_copies_frame_assets() -> None:
             assert f"{html_assets.name}/frame.jpg" in html_text
             assert (html_assets / "frame.jpg").read_bytes() == b"frame"
             assert "Transcribed by github.com/jlevy/deep-transcribe" in html_text
+            assert "font-family: var(--font-sans) !important" in html_text
+            assert "font-size: 8pt" in html_text
+            assert "color: var(--color-tertiary) !important" in html_text
             assert ".theme-toggle" in html_text
             assert ".timestamp-link:hover" in html_text
             assert ".timestamp-link a" in html_text
