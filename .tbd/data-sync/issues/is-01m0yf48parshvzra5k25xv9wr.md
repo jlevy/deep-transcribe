@@ -3,9 +3,9 @@ type: is
 id: is-01m0yf48parshvzra5k25xv9wr
 title: Make Deep Transcribe self-documenting and self-installing
 kind: epic
-status: open
+status: closed
 priority: 1
-version: 11
+version: 12
 spec_path: docs/project/specs/active/plan-2026-08-26-self-documenting-skill.md
 delegate: codex@spud10.local
 labels:
@@ -24,10 +24,10 @@ child_order_hints:
 hold: null
 hold_until: null
 created_at: 2026-08-26T07:21:36.713Z
-updated_at: 2026-08-26T07:57:06.201Z
+updated_at: 2026-08-26T08:39:50.115Z
 started_at: 2026-08-26T07:22:07.605Z
-closed_at: null
-close_reason: null
+closed_at: 2026-08-26T08:39:50.113Z
+close_reason: "All spec beads are implemented; the post-release stale-runner follow-up is validated in PR #12 with passing CI."
 resolution: null
 duplicate_of: null
 ---
