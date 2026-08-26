@@ -92,6 +92,7 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
         add_transcript_description,
         add_transcript_outline,
     )
+    from deep_transcribe.transcript_spacing import normalize_transcript_fragments
 
     processing_instructions = remove_processing_instructions(result)
 
@@ -106,6 +107,7 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
             else:
                 result = identify_speakers(result)
 
+        result = normalize_transcript_fragments(result)
         result = strip_html(result)
         result = break_into_paragraphs(result)
         result = backfill_timestamps(result)
@@ -382,6 +384,7 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
     # Import dynamically for faster startup.
     from kash.actions.core.minify_html import minify_html
     from kash.model import Format, ItemType
+    from kash.web_gen.template_render import additional_template_dirs
     from kash.web_gen.webpage_render import render_item_as_html
     from kash.workspaces.workspaces import current_ws
 
@@ -389,12 +392,14 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
         type=ItemType.export,
         format=Format.html,
     )
-    raw_html_item = render_item_as_html(
-        result_item,
-        raw_html_item,
-        add_title_h1=True,
-        template_filename="simple_webpage.html.jinja",
-    )
+    templates_dir = Path(__file__).parent / "resources" / "templates"
+    with additional_template_dirs(templates_dir):
+        raw_html_item = render_item_as_html(
+            result_item,
+            raw_html_item,
+            add_title_h1=True,
+            template_filename="deep_transcribe_webpage.html.jinja",
+        )
     current_ws().save(raw_html_item)
 
     if not no_minify:
@@ -449,6 +454,12 @@ def test_format_results_copies_frame_assets() -> None:
             )
 
             html_assets = Sidematter(html_path).assets_dir
+            html_text = html_path.read_text()
             assert transcript_path == source_path
-            assert f"{html_assets.name}/frame.jpg" in html_path.read_text()
+            assert f"{html_assets.name}/frame.jpg" in html_text
             assert (html_assets / "frame.jpg").read_bytes() == b"frame"
+            assert "Transcribed by github.com/jlevy/deep-transcribe" in html_text
+            assert ".theme-toggle" in html_text
+            assert ".timestamp-icon" in html_text
+            assert ".timestamp-link a" in html_text
+            assert "display: none !important" in html_text

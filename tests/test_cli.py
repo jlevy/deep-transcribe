@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from contextlib import redirect_stdout
@@ -15,6 +16,7 @@ from deep_transcribe.cli_main import (
     build_direct_parser,
     build_parser,
     build_transcription_metadata,
+    configure_kash_workspace,
     main,
 )
 from deep_transcribe.model_profiles import MODEL_PROFILES, ModelProvider
@@ -195,6 +197,17 @@ def test_direct_parser_supports_the_concise_transcription_contract() -> None:
     assert args.deep
     assert args.no_minify
     assert args.source == "https://example.com/video"
+
+
+def test_kash_workspace_is_configured_before_runtime_imports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("KASH_WS_ROOT", raising=False)
+
+    workspace = configure_kash_workspace(tmp_path / "transcriptions")
+
+    assert workspace == (tmp_path / "transcriptions").resolve()
+    assert workspace == Path(os.environ["KASH_WS_ROOT"])
 
 
 def test_help_and_model_directory_expose_all_command_surfaces() -> None:

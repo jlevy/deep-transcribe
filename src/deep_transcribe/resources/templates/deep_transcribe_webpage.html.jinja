@@ -1,0 +1,27 @@
+{% extends "simple_webpage.html.jinja" %}
+
+{% block custom_styles %}
+{{ super() }}
+<style>
+@media print {
+  .theme-toggle,
+  .timestamp-icon {
+    display: none !important;
+  }
+
+  .timestamp-link {
+    font-size: 0 !important;
+  }
+
+  .timestamp-link a {
+    font-size: var(--font-size-small) !important;
+  }
+
+  @page {
+    @bottom-left {
+      content: "Transcribed by github.com/jlevy/deep-transcribe";
+    }
+  }
+}
+</style>
+{% endblock custom_styles %}

@@ -10,6 +10,7 @@ More information: https://github.com/jlevy/deep-transcribe
 import argparse
 import json
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
@@ -43,6 +44,13 @@ ROOT_OPTIONS = {
 
 # Conventional shell status for a process interrupted by SIGINT.
 INTERRUPTED_EXIT_CODE = 130
+
+
+def configure_kash_workspace(workspace: str | Path) -> Path:
+    """Resolve the CLI workspace before importing Kash so its state stays local."""
+    workspace_path = Path(workspace).expanduser().resolve()
+    os.environ["KASH_WS_ROOT"] = str(workspace_path)
+    return workspace_path
 
 
 class _ArgumentContainer(Protocol):
@@ -705,10 +713,11 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         )
         return
 
+    workspace = configure_kash_workspace(args.workspace)
+
     from kash.config.settings import LogLevel
     from kash.config.setup import kash_setup
 
-    workspace = Path(args.workspace).expanduser().resolve()
     kash_setup(
         kash_ws_root=workspace,
         rich_logging=True,
