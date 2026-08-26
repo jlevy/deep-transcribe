@@ -28,9 +28,10 @@ uv python install 3.13 # Or pick another version.
 
 ## Environment Setup
 
-Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment or a `.env`
-file in the current directory or one of its parents. Use `ANTHROPIC_API_KEY` for the
-default profile or `OPENAI_API_KEY` for the OpenAI profile. Do not commit the file.
+Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment, a `.env` or
+`.env.local` file in the current directory or one of its parents, or `~/.env.local`. Use
+`ANTHROPIC_API_KEY` for the default profile or `OPENAI_API_KEY` for the OpenAI profile.
+Do not commit the file.
 
 Run `deep-transcribe models --help` for the current model mappings and workspace
 configuration command.

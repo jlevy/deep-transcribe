@@ -232,12 +232,14 @@ def _add_transcription_arguments(
     execution.add_argument(
         "--rerun",
         action="store_true",
-        help="Rerun every stage, including paid speech-to-text transcription",
+        help="Force every stage to rerun, including paid speech-to-text transcription",
     )
     execution.add_argument(
         "--rerun-processing",
         action="store_true",
-        help="Rerun post-transcription stages while reusing the raw transcript cache",
+        help=(
+            "Force every post-transcription stage to rerun while reusing the raw transcript cache"
+        ),
     )
     execution.add_argument(
         "--json",
@@ -255,6 +257,13 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
         `deep-transcribe models` to inspect both profiles or
         `deep-transcribe models --set openai` to persist the OpenAI profile in
         this workspace.
+
+        **Iterative reruns:** A normal rerun resumes at the first affected stage and
+        reuses compatible cached work. Updating descriptive context or speaker metadata
+        preserves speech-to-text; changing key terms, the language, or a Deepgram model
+        creates a new transcription cache entry. `--rerun-processing` forces every
+        post-transcription stage while preserving the raw transcript. `--rerun` forces
+        every stage, including speech-to-text.
 
         Examples:
 
