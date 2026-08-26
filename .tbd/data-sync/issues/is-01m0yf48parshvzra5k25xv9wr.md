@@ -3,9 +3,9 @@ type: is
 id: is-01m0yf48parshvzra5k25xv9wr
 title: Make Deep Transcribe self-documenting and self-installing
 kind: epic
-status: in_progress
+status: closed
 priority: 1
-version: 8
+version: 9
 spec_path: docs/project/specs/active/plan-2026-08-26-self-documenting-skill.md
 delegate: codex@spud10.local
 labels:
@@ -23,7 +23,11 @@ child_order_hints:
 hold: null
 hold_until: null
 created_at: 2026-08-26T07:21:36.713Z
-updated_at: 2026-08-26T07:36:38.069Z
+updated_at: 2026-08-26T07:49:23.226Z
 started_at: 2026-08-26T07:22:07.605Z
+closed_at: 2026-08-26T07:49:23.224Z
+close_reason: Deep Transcribe now packages and prints its iterative-rerun guide, prints and installs its complete cross-agent skill, has no MCP server surface, and is released as v0.1.11 with end-to-end validation.
+resolution: null
+duplicate_of: null
 ---
 Implement the approved hard-cut plan: package built-in iterative-rerun documentation, add printable and self-installing cross-agent skill surfaces, remove the MCP server completely, validate artifacts end to end, and publish the next patch release.
