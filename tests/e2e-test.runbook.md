@@ -167,6 +167,8 @@ description: A receptionist checks Tom Sanders into a hotel.
 additional_context: |
   The two roles are Hotel Receptionist and guest Tom Sanders. Review names and room
   details carefully.
+processing_instructions: |
+  Keep the synopsis brief. Organize the outline around the phases of check-in.
 key_terms:
   - Tom Sanders
   - Hotel Receptionist
@@ -203,6 +205,10 @@ speaker_roster:
 The corrected intermediate transcript must use every roster label, preserve every
 timestamped ASR span verbatim, and contain no `UNKNOWN` speaker.
 Review short greetings, interjections, and sentence fragments at each speaker boundary.
+
+The annotated HTML must place a two-paragraph synopsis above an always-visible
+sans-serif outline. The outline should use the generated section structure and concise
+nested bullets rather than reproduce every transcript detail.
 
 Count Deepgram calls, then rerun the annotated pipeline with the corrected metadata.
 A speaker-only or descriptive-context correction must not make another Deepgram request:

@@ -93,6 +93,8 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
             "Alice Chen",
             "--speaker-role",
             "Bob Diaz",
+            "--instructions",
+            "Use a concise section-aligned outline.",
             "https://example.com/video",
         ]
     )
@@ -108,6 +110,7 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
     assert args.key_term == ["SignalFlow"]
     assert args.speaker == [("0", "Alice Chen")]
     assert args.speaker_role == ["Alice Chen", "Bob Diaz"]
+    assert args.instructions == ["Use a concise section-aligned outline."]
     assert args.transcription_model == "nova-3"
     assert args.diarize_model == "latest"
     assert args.source == "https://example.com/video"
@@ -127,6 +130,8 @@ def test_transcribe_help_explains_incremental_and_forced_reruns() -> None:
     assert "forces every post-transcription stage" in help_text
     assert "--rerun" in help_text
     assert "including speech-to-text" in help_text
+    assert "--instructions" in help_text
+    assert "Trusted post-transcription processing instructions" in help_text
 
 
 def test_cli_metadata_file_and_inline_values_merge() -> None:
@@ -136,6 +141,7 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
             dedent("""
                 description: Product interview
                 additional_context: Old context
+                processing_instructions: Prefer sections from the transcript.
                 key_terms: [SignalFlow]
                 speaker_hints: {0: Alice Chen}
                 speaker_roster: [Alice Chen, Bob Diaz]
@@ -154,6 +160,8 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
                 "1=Bob Diaz",
                 "--speaker-role",
                 "Carol Evans",
+                "--instructions",
+                "Keep each section concise.",
                 "https://example.com/video",
             ]
         )
@@ -167,6 +175,9 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
         "1": "Bob Diaz",
     }
     assert metadata.speaker_roster == ["Alice Chen", "Bob Diaz", "Carol Evans"]
+    assert metadata.processing_instructions == (
+        "Prefer sections from the transcript.\n\nKeep each section concise."
+    )
 
 
 def test_direct_parser_supports_the_concise_transcription_contract() -> None:

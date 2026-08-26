@@ -17,6 +17,8 @@ from deep_transcribe.transcription_metadata import (
     get_speaker_roster,
     parse_transcription_metadata,
     persist_item_metadata,
+    remove_processing_instructions,
+    set_processing_instructions,
 )
 
 log = logging.getLogger(__name__)
@@ -79,14 +81,19 @@ def transcribe_with_options(
 def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     # Import dynamically for faster startup.
     from kash.actions.core.strip_html import strip_html
-    from kash.kits.docs.actions.text.add_description import add_description
-    from kash.kits.docs.actions.text.add_summary_bullets import add_summary_bullets
     from kash.kits.docs.actions.text.break_into_paragraphs import break_into_paragraphs
     from kash.kits.docs.actions.text.insert_section_headings import insert_section_headings
     from kash.kits.docs.actions.text.research_paras import research_paras
     from kash.kits.media.actions.transcribe.backfill_timestamps import backfill_timestamps
     from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
     from kash.kits.media.actions.transcribe.insert_frame_captures import insert_frame_captures
+
+    from deep_transcribe.transcript_overview import (
+        add_transcript_description,
+        add_transcript_outline,
+    )
+
+    processing_instructions = remove_processing_instructions(result)
 
     # Apply formatting pipeline if requested
     if options.format:
@@ -110,14 +117,21 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     if options.research_paras:
         result = research_paras(result)
 
+    has_overview_stage = options.add_summary_bullets or options.add_description
+    if has_overview_stage:
+        set_processing_instructions(result, processing_instructions)
+
     if options.add_summary_bullets:
-        result = add_summary_bullets(result)
+        result = add_transcript_outline(result)
 
     if options.add_description:
-        result = add_description(result)
+        result = add_transcript_description(result)
 
     if options.insert_frame_captures:
         result = insert_frame_captures(result)
+
+    if not has_overview_stage:
+        set_processing_instructions(result, processing_instructions)
 
     return result
 
@@ -139,7 +153,8 @@ TRANSCRIPTION_ACTION_PARAMS = common_params("language") + (
         "metadata_yaml",
         (
             "Inline YAML or JSON source metadata. Supports title, description, "
-            "additional_context, key_terms, speaker_hints, speaker_roster, and extra."
+            "additional_context, processing_instructions, key_terms, speaker_hints, "
+            "speaker_roster, and extra."
         ),
         type=str,
         default_value="",

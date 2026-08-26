@@ -62,14 +62,15 @@ Do not change a workspace’s saved model profile unless the user requests it.
 Choose the least expensive preset that meets the request and use `--json` when artifact
 paths will be consumed programmatically.
 When names, roles, terminology, or chronology are known, supply them with a private
-metadata file or the context flags documented by `transcribe --help`. Do not guess
-unsupported names.
+metadata file or the context flags documented by `transcribe --help`. Put output-shape,
+emphasis, and level-of-detail requests in `processing_instructions`, `--instructions`,
+or `--instructions-file`. Do not guess unsupported names.
 
 ## Iterate on a Reviewed Result
 
 Preserve the exact source and workspace.
 Inspect the current transcript and HTML, update the private metadata or add requested
-processing stages, then run the same command normally.
+processing instructions or stages, then run the same command normally.
 That normal rerun resumes at the first affected action and reuses compatible media,
 speech-to-text, and model output.
 

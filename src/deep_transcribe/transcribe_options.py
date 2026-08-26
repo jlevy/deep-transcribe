@@ -34,10 +34,10 @@ class TranscribeOptions:
     """Add research annotations to paragraphs."""
 
     add_summary_bullets: bool = False
-    """Add a bulleted summary of the content at the top."""
+    """Add a concise, section-aligned outline at the top."""
 
     add_description: bool = False
-    """Add a description at the top of the transcript."""
+    """Add a brief paragraph-broken synopsis at the top."""
 
     insert_frame_captures: bool = False
     """Insert frame captures from video (for video content)."""
