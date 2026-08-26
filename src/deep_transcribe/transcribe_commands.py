@@ -170,7 +170,6 @@ def _transcribe_preset(
 @kash_action(
     precondition=is_url_resource | is_audio_resource | is_video_resource,
     params=TRANSCRIPTION_ACTION_PARAMS,
-    mcp_tool=True,
 )
 def transcribe_basic(
     item: Item,
@@ -195,7 +194,6 @@ def transcribe_basic(
 @kash_action(
     precondition=is_url_resource | is_audio_resource | is_video_resource,
     params=TRANSCRIPTION_ACTION_PARAMS,
-    mcp_tool=True,
 )
 def transcribe_formatted(
     item: Item,
@@ -220,7 +218,6 @@ def transcribe_formatted(
 @kash_action(
     precondition=is_url_resource | is_audio_resource | is_video_resource,
     params=TRANSCRIPTION_ACTION_PARAMS,
-    mcp_tool=True,
 )
 def transcribe_annotated(
     item: Item,
@@ -245,7 +242,6 @@ def transcribe_annotated(
 @kash_action(
     precondition=is_url_resource | is_audio_resource | is_video_resource,
     params=TRANSCRIPTION_ACTION_PARAMS,
-    mcp_tool=True,
 )
 def transcribe_deep(
     item: Item,

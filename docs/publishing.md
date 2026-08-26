@@ -173,37 +173,69 @@ Follow this checklist for each new release.
    uvx --from PROJECT==X.Y.Z PROJECT --version
    ```
 
-
 ### Agent Runbook: deep-transcribe Specifics
 
 Repo-specific additions to the checklist above (keep this section when updating the
 template).
 
-1. **Release order**: deep-transcribe is the app at the end of the kash chain
-   (kash → kash-docs → kash-media → deep-transcribe). Before releasing, bump the
-   `kash-media>=` floor to the latest released kash-media so users get the current
-   stack.
+1. **Release order**: deep-transcribe is the app at the end of the kash chain (kash →
+   kash-docs → kash-media → deep-transcribe).
+   Before releasing, bump the `kash-media>=` floor to the latest released kash-media so
+   users get the current stack.
 
-2. **Release notes**: load `tbd guidelines release-notes-guidelines` and describe
-   the aggregate delta since the last tag. Note any security-relevant transitive
-   moves (e.g. litellm) and whether they actually reach PyPI installs, which is
-   governed by the released kash pins, not this repo's lock.
+2. **Release notes**: load `tbd guidelines release-notes-guidelines` and describe the
+   aggregate delta since the last tag.
+   Note any security-relevant transitive moves (e.g. litellm) and whether they actually
+   reach PyPI installs, which is governed by the released kash pins, not this repo’s
+   lock.
 
 3. **First-party releases**: packages owned and released by jlevy bypass the 14-day
-   third-party cool-off. Keep the repository's permanent exemption table complete when
-   adding another first-party package:
+   third-party cool-off.
+   Keep the repository’s permanent exemption table complete when adding another
+   first-party package:
 
    ```toml
    [tool.uv.exclude-newer-package]
    new-first-party-package = "2099-12-31T00:00:00Z"
    ```
 
-4. **If `gh` is unavailable**: annotated tag + push, then trigger `publish.yml` on
-   the tag via `workflow_dispatch` — it publishes to PyPI and auto-creates the
-   matching GitHub Release from the annotated tag's message (backfill older
-   tags by dispatching `github-release.yml`). Confirm with
+4. **If `gh` is unavailable**: annotated tag + push, then trigger `publish.yml` on the
+   tag via `workflow_dispatch` — it publishes to PyPI and auto-creates the matching
+   GitHub Release from the annotated tag’s message (backfill older tags by dispatching
+   `github-release.yml`). Confirm with
    `curl -s https://pypi.org/pypi/deep-transcribe/json` and smoke-test
    `uvx --from deep-transcribe==X.Y.Z deep-transcribe --version`.
+
+5. **Self-documenting skill**: before tagging, set `DISCOVERY_VERSION` in
+   `src/deep_transcribe/skill_support.py` to the new exact release.
+   Keep `YTDLP_DISCOVERY_CUTOFF` synchronized with the reviewed `yt-dlp` entry under
+   `[tool.uv.exclude-newer-package]`, then run:
+
+   ```shell
+   make sync-skill
+   uv run pytest tests/test_skill.py tests/test_cli.py
+   make build
+   ```
+
+   Confirm the generated skill copies are clean, validate `skills/deep-transcribe/`
+   against the current Agent Skills schema, and inspect the wheel for the packaged docs
+   and complete skill bundle.
+
+6. **Published self-documentation smoke test**: after PyPI publishes the release, run
+   the exact pinned artifact rather than a local checkout:
+
+   ```shell
+   uvx --exclude-newer-package yt-dlp=YYYY-MM-DD \
+       --from deep-transcribe==X.Y.Z deep-transcribe --docs
+   uvx --exclude-newer-package yt-dlp=YYYY-MM-DD \
+       --from deep-transcribe==X.Y.Z deep-transcribe --skill
+   uvx --exclude-newer-package yt-dlp=YYYY-MM-DD \
+       --from deep-transcribe==X.Y.Z deep-transcribe --install-skill \
+       --agent-base /tmp/deep-transcribe-skill-smoke
+   ```
+
+   Inspect both `SKILL.md` and `agents/openai.yaml` in the installed bundle.
+   The published discovery pin must resolve to the same release.
 
 ### Release Notes Format
 

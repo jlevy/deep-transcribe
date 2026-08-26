@@ -20,8 +20,7 @@ dynamic = ["version"]
 # https://pypi.org/classifiers/
 # Adjust as needed:
 classifiers = [
-    # Adjust as needed:
-    "Development Status :: 4 - Beta",
+    "Development Status :: 2 - Pre-Alpha",
     # "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",

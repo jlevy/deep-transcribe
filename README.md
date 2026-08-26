@@ -37,8 +37,14 @@ Do not commit API keys.
 Run the pinned release without installing it globally:
 
 ```shell
-uvx --from deep-transcribe==0.1.9 deep-transcribe --help
+uvx \
+    --exclude-newer-package yt-dlp=2026-08-20T00:00:00Z \
+    --from deep-transcribe==0.1.11 \
+    deep-transcribe --help
 ```
+
+The yt-dlp cutoff carries this release’s reviewed freshness exception through uv
+installations that enforce a global dependency cool-off.
 
 For repeated human use, a persistent tool install is also available:
 
@@ -49,15 +55,28 @@ deep-transcribe --help
 
 ## Cross-Agent Skill
 
-Install the repository skill through the cross-agent skills installer:
+Install the public discovery skill through the cross-agent skills installer:
 
 ```shell
-npx skills add jlevy/deep-transcribe
+npx skills add jlevy/deep-transcribe@deep-transcribe
 ```
 
 The skill uses a local `deep-transcribe` executable when available and otherwise uses
 the pinned zero-install runner.
-It routes agents to CLI help rather than carrying a second copy of the command manual.
+It routes agents to executable documentation rather than carrying a second command
+manual.
+
+If the CLI is already available, install its complete skill bundle directly from a
+project root:
+
+```shell
+deep-transcribe --install-skill
+```
+
+This writes the portable `.agents/skills/deep-transcribe/` bundle, the
+`.claude/skills/deep-transcribe/` mirror, and a marker-bounded project instruction block
+in `AGENTS.md`. The install is idempotent.
+Run `deep-transcribe --docs` for surface selection and explicit global-install options.
 
 ## Self-Documenting CLI
 
@@ -66,16 +85,19 @@ task:
 
 ```shell
 deep-transcribe --help
+deep-transcribe --docs
+deep-transcribe --skill
 deep-transcribe transcribe --help
 deep-transcribe models --help
-deep-transcribe mcp --help
-deep-transcribe logs --help
 ```
 
 The command pages document all presets, individual processing stages, Deepgram language
 and model selection, source metadata and speaker hints, caching and rerun behavior, JSON
-output, model profiles, MCP tools, and examples.
-Existing flag-only invocations remain supported for backward compatibility.
+output, model profiles, and examples.
+`--docs` prints the complete guide packaged with the installed release, including the
+review-and-rerun workflow and skill installation.
+Both `deep-transcribe transcribe OPTIONS INPUT` and the concise
+`deep-transcribe OPTIONS INPUT` form are supported transcription interfaces.
 
 ### Model Provider
 
@@ -212,19 +234,20 @@ Each run reports:
 Use `--json` when another tool or agent needs stable artifact paths.
 You can also open the workspace with `kash` to inspect cached and intermediate items.
 
-## MCP Server
+## Built-in Guide
 
-Run `deep-transcribe mcp --help` for the available transcription tools and transports.
-Run `deep-transcribe logs --help` for server log handling.
+Run `deep-transcribe --docs` for the complete operational guide.
+It includes environment setup, context metadata, speaker correction, incremental reruns,
+cache verification, model-profile comparisons, output review, privacy, troubleshooting,
+and agent-skill installation.
+Because the guide ships inside the package, agents can read documentation that matches
+the executable they are about to use.
 
 ## Project Docs
 
 For environment setup, see [installation.md](docs/installation.md).
 
 For development workflows, see [development.md](docs/development.md).
-
-For cache-aware corrections and feature additions, see
-[iterative-reruns.md](docs/iterative-reruns.md).
 
 For the manual, agent-reviewed release test, see
 [e2e-test.runbook.md](tests/e2e-test.runbook.md).

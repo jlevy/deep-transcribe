@@ -8,7 +8,13 @@ from rich import print as rprint
 
 # Update as needed.
 SRC_PATHS = ["src", "tests", "devtools"]
-DOC_PATHS = ["README.md"]
+DOC_PATHS = [
+    "README.md",
+    "docs",
+    "skills/deep-transcribe",
+    ".agents/skills/deep-transcribe",
+    ".claude/skills/deep-transcribe",
+]
 
 
 reconfigure(emoji=not get_console().options.legacy_windows)  # No emojis on legacy windows.
