@@ -37,6 +37,9 @@ DEFAULT_MCP_SERVER_PORT = 4440
 
 COMMANDS = {"transcribe", "models", "mcp", "logs"}
 
+# Conventional shell status for a process interrupted by SIGINT.
+INTERRUPTED_EXIT_CODE = 130
+
 
 class _ArgumentContainer(Protocol):
     def add_argument(self, *args: str, **kwargs: Any) -> argparse.Action: ...
@@ -164,7 +167,7 @@ def _add_transcription_arguments(
         metavar="YAML_OR_JSON",
         help=(
             "Metadata file with title, description, additional_context, key_terms, "
-            "speaker_hints, or extra fields"
+            "speaker_hints, speaker_roster, or extra fields"
         ),
     )
     context.add_argument(
@@ -196,6 +199,16 @@ def _add_transcription_arguments(
         type=_speaker_hint,
         metavar="ID=NAME",
         help="Authoritative speaker label, such as 0='Alice Chen'; repeat as needed",
+    )
+    context.add_argument(
+        "--speaker-role",
+        action="append",
+        default=[],
+        metavar="NAME_OR_ROLE",
+        help=(
+            "Known speaker name or role for context-aware boundary correction; "
+            "repeat for the complete roster"
+        ),
     )
 
     execution = parser.add_argument_group("Execution and Output")
@@ -252,6 +265,7 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
         deep-transcribe transcribe --basic --with format URL
         deep-transcribe transcribe --annotated --metadata interview.yml ./interview.mp3
         deep-transcribe transcribe --speaker 0="Alice Chen" --key-term SignalFlow URL
+        deep-transcribe transcribe --speaker-role Host --speaker-role Guest URL
         ```
         """).strip()
     )
@@ -555,6 +569,10 @@ def build_transcription_metadata(args: argparse.Namespace) -> TranscriptionMetad
         inline_data["key_terms"] = list(dict.fromkeys([*metadata.key_terms, *args.key_term]))
     if args.speaker:
         inline_data["speaker_hints"] = dict(args.speaker)
+    if args.speaker_role:
+        inline_data["speaker_roster"] = list(
+            dict.fromkeys([*metadata.speaker_roster, *args.speaker_role])
+        )
 
     if inline_data:
         metadata = metadata.merged_with(transcription_metadata_from_mapping(inline_data))
@@ -581,7 +599,7 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
     return options
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def _run_cli(argv: Sequence[str] | None = None) -> None:
     cli_argv = list(argv) if argv is not None else sys.argv[1:]
     parser, args = _parse_args(cli_argv)
 
@@ -673,5 +691,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(1) from error
 
 
+def main(argv: Sequence[str] | None = None) -> int | None:
+    try:
+        _run_cli(argv)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        return INTERRUPTED_EXIT_CODE
+    return None
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

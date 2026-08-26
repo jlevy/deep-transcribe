@@ -185,6 +185,20 @@ speaker_hints:
   "1": Tom Sanders
 ```
 
+If Deepgram merged distinct voices under one ID, use a complete roster instead of treating
+that ID as authoritative. Describe chronology, forms of address, or exact dialogue transitions
+in `additional_context`, then rerun processing:
+
+```yaml
+speaker_roster:
+  - Hotel Receptionist
+  - Tom Sanders
+```
+
+The corrected intermediate transcript must use every roster label, preserve every timestamped
+ASR span verbatim, and contain no `UNKNOWN` speaker. Review short greetings, interjections, and
+sentence fragments at each speaker boundary.
+
 Count Deepgram calls, then rerun the annotated pipeline with the corrected metadata. A
 speaker-only or descriptive-context correction must not make another Deepgram request:
 
@@ -358,6 +372,8 @@ The transcript passes when:
 - speaker identification consistently uses `Hotel Receptionist` and `Tom Sanders`;
 - the annotated output has an accurate description and summary, useful section
   headings, relevant frame captures, and no unsupported claims;
+- every exported frame asset is referenced by the HTML, with no rejected similarity-filter
+  candidates left in the export directory;
 - the HTML renders without raw template syntax, broken links, missing media, clipped
   text, or unreadable styling.
 

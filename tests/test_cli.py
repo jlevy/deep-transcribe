@@ -45,6 +45,31 @@ if heavy_modules:
     assert not result.stderr
 
 
+def test_keyboard_interrupt_exits_without_traceback() -> None:
+    code = dedent("""
+        import os
+        import signal
+
+        from deep_transcribe import cli_main
+
+        def interrupt(argv):
+            os.kill(os.getpid(), signal.SIGINT)
+
+        cli_main._run_cli = interrupt
+        raise SystemExit(cli_main.main([]))
+        """)
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 130
+    assert result.stdout == ""
+    assert result.stderr == "\nInterrupted.\n"
+    assert "Traceback" not in result.stderr
+
+
 def test_parser_accepts_canonical_transcription_contract() -> None:
     args = build_parser().parse_args(
         [
@@ -62,6 +87,10 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
             "SignalFlow",
             "--speaker",
             "0=Alice Chen",
+            "--speaker-role",
+            "Alice Chen",
+            "--speaker-role",
+            "Bob Diaz",
             "https://example.com/video",
         ]
     )
@@ -76,6 +105,7 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
     assert args.json
     assert args.key_term == ["SignalFlow"]
     assert args.speaker == [("0", "Alice Chen")]
+    assert args.speaker_role == ["Alice Chen", "Bob Diaz"]
     assert args.transcription_model == "nova-3"
     assert args.diarize_model == "latest"
     assert args.source == "https://example.com/video"
@@ -90,6 +120,7 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
                 additional_context: Old context
                 key_terms: [SignalFlow]
                 speaker_hints: {0: Alice Chen}
+                speaker_roster: [Alice Chen, Bob Diaz]
                 """).strip()
         )
         args = build_parser().parse_args(
@@ -103,6 +134,8 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
                 "Nova Prime",
                 "--speaker",
                 "1=Bob Diaz",
+                "--speaker-role",
+                "Carol Evans",
                 "https://example.com/video",
             ]
         )
@@ -115,6 +148,7 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
         "0": "Alice Chen",
         "1": "Bob Diaz",
     }
+    assert metadata.speaker_roster == ["Alice Chen", "Bob Diaz", "Carol Evans"]
 
 
 def test_legacy_parser_preserves_flag_only_contract() -> None:
@@ -191,7 +225,7 @@ def test_cross_agent_skill_mirrors_match_distribution_source() -> None:
 
     assert distribution_skill == (repo_root / ".agents/skills/deep-transcribe/SKILL.md").read_text()
     assert distribution_skill == (repo_root / ".claude/skills/deep-transcribe/SKILL.md").read_text()
-    assert "deep-transcribe==0.1.8" in distribution_skill
+    assert "deep-transcribe==0.1.9" in distribution_skill
     assert "deep-transcribe transcribe --help" in distribution_skill
 
     assert (repo_root / "skills/deep-transcribe/agents/openai.yaml").read_text() == (

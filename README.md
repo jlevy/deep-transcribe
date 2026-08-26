@@ -2,23 +2,30 @@
 
 High-quality transcription, formatting, and analysis of videos and podcasts.
 
-Deep Transcribe accepts YouTube and other media URLs or local audio and video files. It
-uses Deepgram Nova-3 with the current batch diarizer, then can identify speakers, format
-paragraphs and timestamps, add sections and summaries, research key passages, capture
-video frames, and export browser-ready HTML.
+Deep Transcribe accepts YouTube and other media URLs or local audio and video files.
+It uses Deepgram Nova-3 with the current batch diarizer, then can identify speakers,
+format paragraphs and timestamps, add sections and summaries, research key passages,
+capture video frames, and export browser-ready HTML.
 
-LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles. New
-workspaces use the current Anthropic profile by default, and an equivalent OpenAI
+LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles.
+New workspaces use the current Anthropic profile by default, and an equivalent OpenAI
 profile is included.
 
 ## Requirements
 
-Install [uv](https://docs.astral.sh/uv/) and
-[ffmpeg](https://ffmpeg.org/). Deep Transcribe requires Python 3.13, which uv fetches
-automatically.
+Install [uv](https://docs.astral.sh/uv/) and [ffmpeg](https://ffmpeg.org/). Deep
+Transcribe requires Python 3.13, which uv fetches automatically.
 
-Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment or a
-`.env` file in the current directory or one of its parents:
+For YouTube sources, also install a JavaScript runtime — [deno](https://deno.com/)
+(preferred), or Node.js or bun if you already have one.
+yt-dlp uses it to solve the JavaScript challenges YouTube now applies to media URLs.
+Audio-only transcription generally still works without a runtime, but yt-dlp warns on
+every fetch and loses access to some formats, so treat it as required in practice.
+Environments without a system runtime (containers, bare CI) can install the
+redistributed binary instead, with `uv pip install deno`.
+
+Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment or a `.env`
+file in the current directory or one of its parents:
 
 - `ANTHROPIC_API_KEY` for the default Anthropic profile
 - `OPENAI_API_KEY` for the OpenAI profile
@@ -30,7 +37,7 @@ Do not commit API keys.
 Run the pinned release without installing it globally:
 
 ```shell
-uvx --from deep-transcribe==0.1.8 deep-transcribe --help
+uvx --from deep-transcribe==0.1.9 deep-transcribe --help
 ```
 
 For repeated human use, a persistent tool install is also available:
@@ -49,8 +56,8 @@ npx skills add jlevy/deep-transcribe
 ```
 
 The skill uses a local `deep-transcribe` executable when available and otherwise uses
-the pinned zero-install runner. It routes agents to CLI help rather than carrying a
-second copy of the command manual.
+the pinned zero-install runner.
+It routes agents to CLI help rather than carrying a second copy of the command manual.
 
 ## Self-Documenting CLI
 
@@ -67,8 +74,8 @@ deep-transcribe logs --help
 
 The command pages document all presets, individual processing stages, Deepgram language
 and model selection, source metadata and speaker hints, caching and rerun behavior, JSON
-output, model profiles, MCP tools, and examples. Existing flag-only invocations remain
-supported for backward compatibility.
+output, model profiles, MCP tools, and examples.
+Existing flag-only invocations remain supported for backward compatibility.
 
 ### Model Provider
 
@@ -80,17 +87,19 @@ deep-transcribe models --set anthropic
 deep-transcribe models --set openai
 ```
 
-The selection is saved in the chosen workspace. Pass `--workspace` to `models` and
-`transcribe` when using a location other than `./transcriptions`.
+The selection is saved in the chosen workspace.
+Pass `--workspace` to `models` and `transcribe` when using a location other than
+`./transcriptions`.
 
 ### End-to-End Example: A Reservation Glitch and a Free Jacuzzi
 
 The release test uses a short, two-person
 [hotel check-in video](https://www.youtube.com/watch?v=wyqfYJX23lg). Guest Tom Sanders
-arrives at the Transnational Hotel, where his reservation briefly goes missing. The
-receptionist eventually finds it and offers him a free business-suite upgrade with a
-Jacuzzi. It is about 2 minutes 40 seconds long, has two clearly alternating speakers,
-and includes enough names, numbers, and plot details to expose weak transcription or
+arrives at the Transnational Hotel, where his reservation briefly goes missing.
+The receptionist eventually finds it and offers him a free business-suite upgrade with a
+Jacuzzi.
+It is about 2 minutes 40 seconds long, has two clearly alternating speakers, and
+includes enough names, numbers, and plot details to expose weak transcription or
 summarization.
 
 Create a metadata file with information that is known before transcription:
@@ -136,10 +145,11 @@ This one command:
    and a description using that context; and
 5. captures distinct video frames and exports browser-ready HTML.
 
-The command prints the final Markdown and HTML paths. In the `v0.1.8` release test, the
-transcript contained 550 words in 29 speaker turns and the HTML included 19 distinct
-frame captures. Manual review confirmed the two speaker names, Transnational Hotel,
-Room 653, the missing reservation, the free suite upgrade, and the check-in instructions.
+The command prints the final Markdown and HTML paths.
+In the `v0.1.8` release test, the transcript contained 550 words in 29 speaker turns and
+the HTML included 19 distinct frame captures.
+Manual review confirmed the two speaker names, Transnational Hotel, Room 653, the
+missing reservation, the free suite upgrade, and the check-in instructions.
 
 #### Correct Context Without Paying for Transcription Again
 
@@ -150,14 +160,26 @@ semantic processing stages:
 deep-transcribe transcribe \
     --workspace ./output \
     --annotated \
-    --rerun-processing \
     --metadata ./hotel.yml \
     "https://www.youtube.com/watch?v=wyqfYJX23lg"
 ```
 
-Changes to `additional_context`, `description`, or `speaker_hints` reuse the cached raw
-Deepgram transcript. A `key_terms` change intentionally creates a new transcript because
-it can affect speech recognition. Full `--rerun` also requests fresh speech-to-text.
+Changes to `additional_context`, `description`, `speaker_hints`, or `speaker_roster`
+change the semantic action inputs.
+The normal rerun resumes at the first affected stage, reuses the cached raw Deepgram
+transcript and unchanged intermediates, and rebuilds dependent outputs.
+If the diarizer merges or splits voices incorrectly, provide the complete
+`speaker_roster` and describe roles or dialogue transitions in `additional_context`.
+Deep Transcribe then corrects each turn with the careful model profile.
+A `key_terms` change intentionally creates a new transcript because it can affect speech
+recognition. Full `--rerun` also requests fresh speech-to-text.
+Use `--rerun-processing` only when every downstream stage should run again, such as
+after changing the saved model profile or when deliberately regenerating model output.
+
+New processing features also reuse earlier work.
+For example, add researched paragraph annotations to the existing transcript with
+`--with research_paras`; Deep Transcribe reuses compatible formatting and runs that
+feature plus the stages that depend on its output.
 
 To compare providers on the same transcript, select the OpenAI profile and rerun the
 processing stages:
@@ -172,10 +194,12 @@ deep-transcribe transcribe \
     "https://www.youtube.com/watch?v=wyqfYJX23lg"
 ```
 
-Use `--set anthropic` to switch back. The same workflow works for a raw `.mp3` or `.mp4`:
-replace the URL with the local path, where the metadata is especially useful because a raw
-file may have no title, description, speaker names, or other source context. Run
-`deep-transcribe transcribe --help` for individual flags and custom processing stages.
+Use `--set anthropic` to switch back.
+The same workflow works for a raw `.mp3` or `.mp4`: replace the URL with the local path,
+where the metadata is especially useful because a raw file may have no title,
+description, speaker names, or other source context.
+Run `deep-transcribe transcribe --help` for individual flags and custom processing
+stages.
 
 ## Output
 
@@ -185,8 +209,8 @@ Each run reports:
 - the transcript source
 - browser-ready HTML
 
-Use `--json` when another tool or agent needs stable artifact paths. You can also open
-the workspace with `kash` to inspect cached and intermediate items.
+Use `--json` when another tool or agent needs stable artifact paths.
+You can also open the workspace with `kash` to inspect cached and intermediate items.
 
 ## MCP Server
 

@@ -27,11 +27,24 @@ extra:
     speaker_hints:
       "0": Alice Chen
       "1": Bob Diaz
+    speaker_roster:
+      - Alice Chen
+      - Bob Diaz
 ```
 
 The `extra.transcription` mapping is an extensible payload. Kash core preserves it without
 knowing its schema. Kash-media consumes the fields it understands and ignores unknown fields,
 so Deep Transcribe can add local metadata without changing kash core.
+
+`speaker_hints` rename trustworthy provider IDs directly. `speaker_roster` is a complete
+list of known speaking roles for recordings where provider diarization merged distinct
+voices. Deep Transcribe owns the roster-based boundary-correction stage: it uses the
+workspace's careful model profile to assign each timestamped utterance to an exact roster
+label without rewriting transcript text, rejects uncertain or unknown assignments, and
+preserves the raw provider transcript for review. Use descriptive `additional_context` to
+distinguish roles by chronology, subject matter, or forms of address. Include exact dialogue
+transition cues when brief interjections are ambiguous. Do not add silent people to the
+roster.
 
 ## Package responsibilities
 
@@ -42,8 +55,9 @@ so Deep Transcribe can add local metadata without changing kash core.
   transforms remain context-free.
 - **kash-media:** Provide stable transcription and speaker-identification primitives, consume
   recognized `extra.transcription` hints, and include transcription settings in cache identity.
-- **Deep Transcribe:** Parse and validate metadata files, enrich source items, own presets and
-  rerun behavior, and expose the complete workflow through its CLI, MCP actions, and skill.
+- **Deep Transcribe:** Parse and validate metadata files, enrich source items, correct merged
+  speaker boundaries from a supplied roster, own presets and rerun behavior, and expose the
+  complete workflow through its CLI, MCP actions, and skill.
 
 Deep Transcribe accepts a metadata file plus concise context, key-term, and speaker flags.
 The MCP preset actions accept the same schema as inline YAML or JSON through
