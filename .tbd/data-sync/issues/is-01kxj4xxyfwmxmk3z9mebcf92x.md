@@ -5,7 +5,7 @@ title: Modernize and validate Deep Transcribe end to end
 kind: epic
 status: open
 priority: 1
-version: 34
+version: 35
 labels:
   - deep-transcribe-modernization
 dependencies: []
@@ -41,8 +41,9 @@ child_order_hints:
   - is-01kxjaq0ksv5jkjkm9r02x38wt
   - is-01kxjaq0trtms6w1nqbkrq2yxd
   - is-01kxjar0zn3a684rf5qnb1nvcn
+  - is-01m0yf48parshvzra5k25xv9wr
 created_at: 2026-07-15T05:45:24.686Z
-updated_at: 2026-07-15T07:27:39.650Z
+updated_at: 2026-08-26T07:21:36.713Z
 ---
 Coordinate dependency/model modernization across Deep Transcribe, kash-shell, kash-docs, and kash-media; Deepgram settings; startup/install weight; source context and speaker correction; URL/local-media fixes; zero-install skill/docs; patch releases; and release-grade end-to-end validation.
 
