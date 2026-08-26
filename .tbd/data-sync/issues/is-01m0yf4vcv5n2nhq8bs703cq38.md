@@ -5,17 +5,23 @@ title: Implement packaged docs and self-installing skill
 kind: feature
 status: closed
 priority: 1
-version: 3
+version: 6
 spec_path: docs/project/specs/active/plan-2026-08-26-self-documenting-skill.md
 delegate: codex@spud10.local
 labels:
   - agent-skill
-dependencies: []
+dependencies:
+  - type: blocks
+    target: is-01m0yf4wbyqyw7g1kr9775qv0x
+  - type: blocks
+    target: is-01m0yfzry4rznthesfgjpr2a7y
+  - type: blocks
+    target: is-01m0yf4wq1tesb7t6kq0pabd67
 parent_id: is-01m0yf48parshvzra5k25xv9wr
 hold: null
 hold_until: null
 created_at: 2026-08-26T07:21:55.865Z
-updated_at: 2026-08-26T07:34:38.977Z
+updated_at: 2026-08-26T07:53:07.413Z
 started_at: 2026-08-26T07:33:35.647Z
 closed_at: 2026-08-26T07:34:38.975Z
 close_reason: Implemented packaged --docs and canonical skill assets, --skill, complete idempotent --install-skill surfaces, release-pin rendering, format guards, AGENTS.md preservation, repository synchronization, and validator-clean generated bundles.

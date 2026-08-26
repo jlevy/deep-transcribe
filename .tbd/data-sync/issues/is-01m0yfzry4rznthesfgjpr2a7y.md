@@ -5,17 +5,19 @@ title: Make the zero-install skill runner honor the yt-dlp freshness exception
 kind: bug
 status: closed
 priority: 1
-version: 3
+version: 4
 spec_path: docs/project/specs/active/plan-2026-08-26-self-documenting-skill.md
 delegate: codex@spud10.local
 labels:
   - packaging
-dependencies: []
+dependencies:
+  - type: blocks
+    target: is-01m0yf4wq1tesb7t6kq0pabd67
 parent_id: is-01m0yf48parshvzra5k25xv9wr
 hold: null
 hold_until: null
 created_at: 2026-08-26T07:36:38.069Z
-updated_at: 2026-08-26T07:38:03.036Z
+updated_at: 2026-08-26T07:53:07.436Z
 started_at: 2026-08-26T07:36:43.352Z
 closed_at: 2026-08-26T07:38:03.036Z
 close_reason: Rendered the reviewed yt-dlp cutoff into every version-pinned uvx runner, synchronized it with pyproject by test, updated release maintenance docs, and passed a clean built-wheel docs/skill/install smoke test under the global uv cool-off.
