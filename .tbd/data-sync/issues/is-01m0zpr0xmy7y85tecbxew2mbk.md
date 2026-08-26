@@ -3,13 +3,17 @@ type: is
 id: is-01m0zpr0xmy7y85tecbxew2mbk
 title: Keep Kash initialization inside the selected local workspace
 kind: bug
-status: open
+status: closed
 priority: 2
-version: 1
+version: 2
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-26T18:53:58.578Z
-updated_at: 2026-08-26T18:53:58.578Z
+updated_at: 2026-08-26T20:17:22.099Z
+closed_at: 2026-08-26T20:17:22.099Z
+close_reason: Implemented, validated end-to-end, committed, pushed, and CI passed.
+resolution: null
+duplicate_of: null
 ---
 Ensure Deep Transcribe configures Kash before import-time logging and cache initialization so the selected --workspace contains operational state instead of falling back to the home-directory global workspace.
