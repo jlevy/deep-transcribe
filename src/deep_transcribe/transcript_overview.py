@@ -15,7 +15,8 @@ from deep_transcribe.transcription_metadata import (
 
 DESCRIPTION_PROMPT = dedent("""
     The input contains an optional trusted processing-instructions block followed by a
-    transcript. Follow those instructions when they apply to this synopsis.
+    transcript. Apply only instructions relevant to the synopsis. Instructions about an
+    outline or another stage must not change the output form requested here.
 
     Write a brief synopsis of the whole conversation in two short paragraphs. Each
     paragraph should contain one or two sentences. Identify the participants and their
@@ -31,7 +32,8 @@ DESCRIPTION_PROMPT = dedent("""
 
 OUTLINE_PROMPT = dedent("""
     The input contains an optional trusted processing-instructions block followed by a
-    transcript. Follow those instructions when they apply to this outline.
+    transcript. Apply only instructions relevant to the outline. Instructions about a
+    synopsis or another stage must not change the output form requested here.
 
     Create a concise structural outline of the whole conversation:
 
@@ -150,23 +152,35 @@ def wrap_transcript_description(item: Item, description: str) -> Item:
 
 @kash_action(
     precondition=has_simple_text_body,
+    output_type=ItemType.doc,
+    output_format=Format.md_html,
     llm_options=OUTLINE_OPTIONS,
     params=common_params("model"),
 )
 def add_transcript_outline(item: Item, model: LLMName = LLM.default_standard) -> Item:
     """Add a concise, section-aligned outline above a transcript."""
-    outline_item = llm_transform_item(prepare_transcript_for_model(item), model=model)
+    outline_item = llm_transform_item(
+        prepare_transcript_for_model(item),
+        model=model,
+        format=Format.md_html,
+    )
     assert outline_item.body
     return wrap_transcript_outline(item, normalize_transcript_outline(outline_item.body))
 
 
 @kash_action(
     precondition=has_simple_text_body,
+    output_type=ItemType.doc,
+    output_format=Format.md_html,
     llm_options=DESCRIPTION_OPTIONS,
     params=common_params("model"),
 )
 def add_transcript_description(item: Item, model: LLMName = LLM.default_standard) -> Item:
     """Add a short, paragraph-broken synopsis above a transcript."""
-    description_item = llm_transform_item(prepare_transcript_for_model(item), model=model)
+    description_item = llm_transform_item(
+        prepare_transcript_for_model(item),
+        model=model,
+        format=Format.md_html,
+    )
     assert description_item.body
     return wrap_transcript_description(item, description_item.body)

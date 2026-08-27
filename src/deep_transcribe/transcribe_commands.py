@@ -5,7 +5,12 @@ from pathlib import Path
 
 # Keep kash imports minimal initially.
 from kash.exec import kash_action
-from kash.exec.preconditions import is_audio_resource, is_url_resource, is_video_resource
+from kash.exec.preconditions import (
+    has_simple_text_body,
+    is_audio_resource,
+    is_url_resource,
+    is_video_resource,
+)
 from kash.model import Item, Param
 from kash.model.params_model import common_params
 
@@ -53,6 +58,43 @@ def _identify_transcript_speakers(result: Item) -> Item:
     return identify_speakers(result)
 
 
+@kash_action(
+    precondition=has_simple_text_body,
+    params=(
+        Param(
+            "processing_instructions",
+            "Output-only instructions for transcript overview stages.",
+            type=str,
+        ),
+    ),
+)
+def _attach_processing_instructions(item: Item, *, processing_instructions: str) -> Item:
+    """Create a cache boundary whose identity includes output-only instructions."""
+    result = item.derived_copy(body=item.body)
+    set_processing_instructions(result, processing_instructions)
+    return result
+
+
+def _transcribe_raw(
+    item: Item,
+    *,
+    language: str,
+    transcription_model: str,
+    diarize_model: str,
+    key_terms: str,
+) -> Item:
+    """Run the lazily imported raw media transcription action."""
+    from kash.kits.media.actions.transcribe.transcribe import transcribe
+
+    return transcribe(
+        item,
+        language=language,
+        transcription_model=transcription_model,
+        diarize_model=diarize_model,
+        key_terms=key_terms,
+    )
+
+
 def transcribe_with_options(
     item: Item,
     options: TranscribeOptions,
@@ -65,35 +107,63 @@ def transcribe_with_options(
     """
     Apply transcription processing steps to an item based on provided options.
     """
-    from kash.kits.media.actions.transcribe.transcribe import transcribe
-    from kash.kits.media.transcription_context import get_transcription_metadata
     from kash.workspaces import current_ws
 
-    key_terms = "\n".join(get_transcription_metadata(item).get("key_terms", []))
-    result = transcribe(
-        item,
-        language=language,
-        transcription_model=transcription_model,
-        diarize_model=diarize_model,
-        key_terms=key_terms,
-    )
+    workspace = current_ws()
+    key_terms = "\n".join(TranscriptionMetadata(extra=item.extra or {}).key_terms)
 
-    # A raw transcription cache hit can predate newly supplied descriptive metadata.
-    # Refresh only its metadata so later semantic action hashes see the correction.
-    old_metadata = result.metadata()
-    copy_source_metadata(item, result)
-    if result.metadata() != old_metadata:
-        current_ws().save(result, overwrite=True)
+    # Output-only instructions must not change the raw transcription action identity.
+    # Hold them outside the cached transcription and speaker-formatting chain, then
+    # restore them immediately before the overview stages that consume them.
+    processing_instructions = remove_processing_instructions(item)
+    if processing_instructions is not None and item.store_path is not None:
+        # Kash hashes a stored input's file content when assembling an operation. Keep
+        # the persisted source canonical too, or an in-memory removal alone cannot make
+        # instruction-only reruns hit the raw action cache.
+        persist_item_metadata(item, workspace)
+    try:
+        result = _transcribe_raw(
+            item,
+            language=language,
+            transcription_model=transcription_model,
+            diarize_model=diarize_model,
+            key_terms=key_terms,
+        )
+
+        # A raw transcription cache hit can predate newly supplied descriptive metadata.
+        # Refresh only its metadata so later semantic action hashes see the correction.
+        old_metadata = result.metadata()
+        copy_source_metadata(item, result)
+        remove_processing_instructions(result)
+        if result.metadata() != old_metadata:
+            workspace.save(result, overwrite=True)
+    finally:
+        set_processing_instructions(item, processing_instructions)
+        if processing_instructions is not None and item.store_path is not None:
+            persist_item_metadata(item, workspace)
 
     if rerun_processing:
         from kash.exec import kash_runtime
 
-        with kash_runtime(current_ws().base_dir, rerun=True):
-            return _process_transcript(result, options)
-    return _process_transcript(result, options)
+        with kash_runtime(workspace.base_dir, rerun=True):
+            return _process_transcript(
+                result,
+                options,
+                processing_instructions=processing_instructions,
+            )
+    return _process_transcript(
+        result,
+        options,
+        processing_instructions=processing_instructions,
+    )
 
 
-def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
+def _process_transcript(
+    result: Item,
+    options: TranscribeOptions,
+    *,
+    processing_instructions: str | None,
+) -> Item:
     # Import dynamically for faster startup.
     from kash.actions.core.strip_html import strip_html
     from kash.kits.docs.actions.text.break_into_paragraphs import break_into_paragraphs
@@ -109,7 +179,8 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     )
     from deep_transcribe.transcript_spacing import normalize_transcript_fragments
 
-    processing_instructions = remove_processing_instructions(result)
+    # Sanitize legacy raw-cache entries that may still carry output-only instructions.
+    remove_processing_instructions(result)
 
     # Apply formatting pipeline if requested
     if options.format:
@@ -131,8 +202,11 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
         result = research_paras(result)
 
     has_overview_stage = options.add_summary_bullets or options.add_description
-    if has_overview_stage:
-        set_processing_instructions(result, processing_instructions)
+    if has_overview_stage and processing_instructions:
+        result = _attach_processing_instructions(
+            result,
+            processing_instructions=processing_instructions,
+        )
 
     if options.add_summary_bullets:
         result = add_transcript_outline(result)

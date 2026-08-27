@@ -1,9 +1,11 @@
-from kash.model import Item, ItemType
+from kash.model import Format, Item, ItemType
 from kash.utils.common.url import Url
 
 from deep_transcribe.transcript_overview import (
     DESCRIPTION_PROMPT,
     OUTLINE_PROMPT,
+    add_transcript_description,
+    add_transcript_outline,
     normalize_transcript_outline,
     prepare_transcript_for_model,
     wrap_transcript_outline,
@@ -63,8 +65,16 @@ def test_transcript_overview_is_brief_visible_and_section_aligned() -> None:
     assert "font-family: var(--font-sans)" in outlined.body
     assert outlined.body.index("Outline") < outlined.body.index("Transcript body.")
     assert "two short paragraphs" in DESCRIPTION_PROMPT
+    assert "outline or another stage" in DESCRIPTION_PROMPT
     assert "existing section headings" in OUTLINE_PROMPT
     assert "two to four sub-bullets" in OUTLINE_PROMPT
+    assert "synopsis or another stage" in OUTLINE_PROMPT
+
+    for overview_action in (add_transcript_outline, add_transcript_description):
+        action_class = getattr(overview_action, "__action_class__")  # noqa: B009
+        action = action_class.create(None)
+        assert action.output_type is ItemType.doc
+        assert action.output_format is Format.md_html
 
 
 def test_outline_discards_model_preamble_before_the_first_section() -> None:
