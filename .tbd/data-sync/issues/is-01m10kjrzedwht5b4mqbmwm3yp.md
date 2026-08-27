@@ -3,9 +3,9 @@ type: is
 id: is-01m10kjrzedwht5b4mqbmwm3yp
 title: Simplify the README and publish a hotel example showcase
 kind: epic
-status: in_progress
+status: closed
 priority: 1
-version: 12
+version: 14
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
@@ -21,6 +21,14 @@ child_order_hints:
   - is-01m10pqak9vwp3nykvpwj6g1st
   - is-01m10pw16cxazcada1p8ww8mp2
 created_at: 2026-08-27T03:17:55.303Z
-updated_at: 2026-08-27T04:15:24.363Z
+updated_at: 2026-08-27T04:27:16.116Z
+closed_at: 2026-08-27T04:27:16.115Z
+close_reason: "All showcase children are complete in 3845021 and PR #13; CI is green."
+resolution: null
+duplicate_of: null
 ---
 Make the public entry point obvious: a versionless uvx quick start, a compact hotel example, and clickable source/result previews. Prepare and visually validate public HTML/PDF sample artifacts without committing the proposed PDF until the user approves it.
+
+## Notes
+
+Completed in commit 3845021 and PR #13: simplified versionless quick start, prose-first context workflow, clickable hotel video/PDF showcase, browser-print documentation, approved PDF and preview, and print typography/pagination polish. All local gates and GitHub CI pass.

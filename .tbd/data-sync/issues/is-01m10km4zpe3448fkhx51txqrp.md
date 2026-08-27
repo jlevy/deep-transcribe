@@ -3,16 +3,16 @@ type: is
 id: is-01m10km4zpe3448fkhx51txqrp
 title: Create and visually validate the hotel sample PDF
 kind: task
-status: in_progress
+status: closed
 priority: 1
-version: 6
+version: 8
 labels: []
 dependencies: []
 parent_id: is-01m10kjrzedwht5b4mqbmwm3yp
 created_at: 2026-08-27T03:18:40.373Z
-updated_at: 2026-08-27T04:21:19.207Z
-closed_at: null
-close_reason: null
+updated_at: 2026-08-27T04:27:15.848Z
+closed_at: 2026-08-27T04:27:15.848Z
+close_reason: "Implemented and committed in 3845021; PR #13 is open and all CI checks pass."
 resolution: null
 duplicate_of: null
 ---
@@ -20,4 +20,4 @@ Print the public hotel HTML with a real browser, render representative pages, in
 
 ## Notes
 
-Regenerated the proposed public sample from the cached final transcript, not from speech-to-text. Chrome/Skia produced a tagged seven-page Letter PDF with 29 timestamp links and the Deep Transcribe footer on every page. Timestamps and footer are now 9pt in one light gray; frame-bearing turns stay intact at page boundaries. Visually inspected all seven pages. PDF and preview remain untracked pending user approval.
+The user approved the final sample. The Chrome/Skia PDF and preview are committed in 3845021: seven tagged Letter pages, 29 timestamp links, a 9pt light-gray timestamp/footer treatment, no clipped frame turns, and visual inspection of every page. PR #13 CI passes.
