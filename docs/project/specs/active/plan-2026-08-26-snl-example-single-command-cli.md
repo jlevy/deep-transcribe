@@ -5,11 +5,11 @@ author: Joshua Levy with Codex assistance
 ---
 # Feature: Single-Command CLI and SNL Hotel Check-In Example
 
-**Date:** 2026-08-26 (last updated 2026-08-26)
+**Date:** 2026-08-26 (last updated 2026-08-27)
 
 **Author:** Joshua Levy with Codex assistance
 
-**Status:** In Progress
+**Status:** Complete
 
 ## Overview
 
@@ -330,7 +330,7 @@ No checked-in text may continue to teach `deep-transcribe transcribe`, `deep-tra
   and raw Deepgram transcript.
 - [x] Browser-print the final HTML, inspect the rendered PDF, capture the README preview, and
   replace the old public example only after review.
-- [ ] Run focused tests, the full quality gate, package builds, skill drift validation, and the
+- [x] Run focused tests, the full quality gate, package builds, skill drift validation, and the
   installed-release smoke checks before completing the release.
 
 ## Implementation Beads
@@ -347,7 +347,7 @@ Its implementation beads follow the plan’s execution order:
   `dt-t7oj`, `dt-vot2`, and the cache-correctness beads below.
 - [x] `dt-bqft`: Publish the reviewed SNL Hotel Check-In README showcase; blocked by `dt-ifou` and
   `dt-g641`.
-- [ ] `dt-7res`: Validate the hard cut and prepare the pull request; blocked by `dt-bqft`.
+- [x] `dt-7res`: Validate the hard cut and prepare the pull request; blocked by `dt-bqft`.
 - [x] `dt-i9l1`: Add Tryscript golden coverage for the unified CLI.
 - [x] `dt-v40u`: Keep synopsis and outline instructions stage-specific.
 - [x] `dt-o0wa`: Canonicalize Kash operation option order for durable cache hits.
@@ -358,6 +358,7 @@ Its implementation beads follow the plan’s execution order:
 - [x] `dt-q794`: Declare Kash Docs’ section-heading output contract.
 - [x] `dt-aew1`: Declare Deep Transcribe’s overview output contracts.
 - [x] `dt-fvmm`: Add an instruction-keyed overview cache boundary.
+- [x] `dt-jzc3`: Release Deep Transcribe 0.1.13 and smoke-test the installed package.
 
 ## Testing Strategy
 
@@ -399,8 +400,8 @@ timestamps, frame placement, page breaks, and footer.
 The reviewed PDF and its first-page preview replace the previous example artifacts, and the README
 links the preview to the PDF and the official thumbnail to the video.
 
-Before handoff, run `make lint-check`, `make test`, `make build`, the generated-skill drift checks,
-and the relevant release smoke tests.
+The final local gate passed `make lint-check`, 75 pytest tests, all three Tryscript goldens,
+`make build`, generated-skill drift checks, and the tagged package smoke tests below.
 
 ## Rollout Plan
 
@@ -411,11 +412,11 @@ These are first-party packages, so the normal dependency cool-off does not apply
 Each upstream repository received its normal review, quality gate, pull request, CI verification,
 merge, tag-driven patch release, and installed-artifact smoke test.
 
-Land the Deep Transcribe hard cut and public fixture in one pull request after the dependency
-releases and existing README showcase work are incorporated or superseded.
-Because this is pre-alpha, publish the next patch release with no deprecation period.
-Smoke-test the installed release with direct transcription help, model listing, workspace model
-selection, built-in docs, skill installation, and the public SNL example command.
+Deep Transcribe PR #14 merged the hard cut and public fixture after the dependency releases.
+Release v0.1.13 passed the tag-triggered trusted-publishing workflow and appeared on PyPI. The exact
+installed artifact passed direct transcription help, model listing, workspace model selection,
+built-in docs, skill rendering, project-local skill installation, and a cache-aware rerun of the
+public SNL example with no additional Deepgram request.
 
 ## Open Questions
 
