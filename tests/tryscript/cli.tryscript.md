@@ -5,7 +5,7 @@ env:
 path:
   - ../../.venv/bin
 patterns:
-  VERSION: '\d+\.\d+\.\d+(?:\.dev\d+\+g[0-9a-f]+)?'
+  VERSION: '\d+\.\d+\.\d+(?:\.dev\d+\+g?[0-9a-f]+)?'
 ---
 # Deep Transcribe CLI Golden Tests
 
