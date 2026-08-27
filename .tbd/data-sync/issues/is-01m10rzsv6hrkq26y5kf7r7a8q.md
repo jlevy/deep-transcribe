@@ -3,9 +3,9 @@ type: is
 id: is-01m10rzsv6hrkq26y5kf7r7a8q
 title: Run the SNL fixture and prove cache-aware refinement
 kind: task
-status: in_progress
+status: closed
 priority: 1
-version: 4
+version: 5
 spec_path: docs/project/specs/active/plan-2026-08-26-snl-example-single-command-cli.md
 labels: []
 dependencies:
@@ -13,7 +13,11 @@ dependencies:
     target: is-01kxj4zkw8vp8g4ebs496hwdgw
 parent_id: is-01m10ryb6ze39bmjjq0chrxpbx
 created_at: 2026-08-27T04:52:25.061Z
-updated_at: 2026-08-27T06:13:20.584Z
+updated_at: 2026-08-27T06:59:06.078Z
+closed_at: 2026-08-27T06:59:06.077Z
+close_reason: Reviewed SNL run distinguishes all five roles, produces the requested synopsis and outline, and reruns against released dependencies without another Deepgram or LLM stage.
+resolution: null
+duplicate_of: null
 ---
 Run the official SNL Hotel Check In video with one reviewed prose context covering all five roles. Inspect title, synopsis, outline, labels, frames, HTML, and caches; refine context or instructions once and prove Deepgram is not called again.
 

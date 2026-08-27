@@ -3,9 +3,9 @@ type: is
 id: is-01m10wnrd9qzrjzp4660pagqbw
 title: Declare section-heading Markdown output contract
 kind: bug
-status: in_progress
+status: closed
 priority: 1
-version: 4
+version: 5
 spec_path: docs/project/specs/active/plan-2026-08-26-snl-example-single-command-cli.md
 labels: []
 dependencies:
@@ -13,7 +13,11 @@ dependencies:
     target: is-01m10rzsv6hrkq26y5kf7r7a8q
 parent_id: is-01m10ryb6ze39bmjjq0chrxpbx
 created_at: 2026-08-27T05:56:50.216Z
-updated_at: 2026-08-27T06:13:36.229Z
+updated_at: 2026-08-27T06:59:05.141Z
+closed_at: 2026-08-27T06:59:05.140Z
+close_reason: Implemented upstream in kash-docs 0.2.7; PR, CI, release, and installed smoke all passed.
+resolution: null
+duplicate_of: null
 ---
 Kash Docs insert_section_headings accepts Markdown-with-HTML but llm_transform_item emits a Markdown document. Declare output_type=doc and output_format=markdown with regression coverage so instruction-only refinements reuse section headings.
 
