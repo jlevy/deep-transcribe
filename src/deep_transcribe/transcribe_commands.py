@@ -621,7 +621,11 @@ def test_format_results_copies_frame_assets() -> None:
             assert (html_assets / "frame.jpg").read_bytes() == b"frame"
             assert "Transcribed by github.com/jlevy/deep-transcribe" in html_text
             assert "font-family: var(--font-sans) !important" in html_text
-            assert html_text.count("font-size: 9pt") == 2
+            assert html_text.count("font-size: 9pt") == 3
+            # The footer note and the page number share a size and alignment so they
+            # print on one baseline.
+            assert html_text.count("vertical-align: bottom") == 2
+            assert "max-width: 45%" in html_text
             assert "color: var(--color-tertiary) !important" in html_text
             assert ".long-text p:has(> .frame-capture)" in html_text
             assert "break-inside: avoid" in html_text

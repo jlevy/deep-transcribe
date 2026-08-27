@@ -19,6 +19,14 @@
   text-decoration: underline;
 }
 
+/* Source thumbnails arrive at their natural size, which is wide enough to push the
+   synopsis off the first page. Cap it so the transcript still leads the document. */
+.thumbnail {
+  display: block;
+  margin-inline: auto;
+  max-width: 45%;
+}
+
 @media print {
   .theme-toggle {
     display: none !important;
@@ -36,10 +44,21 @@
   }
 
   @page {
+    /* Chrome ignores `margin` on page margin boxes, so `vertical-align` plus a tall
+       line box is the only way to place the footer. Both boxes take the same font
+       size so the note and the page number share one baseline. */
     @bottom-left {
       content: "Transcribed by github.com/jlevy/deep-transcribe";
       font-family: var(--font-sans) !important;
       font-size: 9pt;
+      vertical-align: bottom;
+      line-height: 2.6;
+    }
+
+    @bottom-right {
+      font-size: 9pt;
+      vertical-align: bottom;
+      line-height: 2.6;
     }
   }
 }
