@@ -29,14 +29,14 @@ and frame captures in just over four minutes.
 [example-video]: https://www.youtube.com/watch?v=kq9Q9-U0vrc
 [example-pdf]: docs/examples/snl-hotel-check-in-transcript.pdf
 
-Describe what you know in ordinary prose.
-Deep Transcribe gives that context to the speaker-identification and editorial models:
-
 For supported URLs, Deep Transcribe first fetches source metadata through the media
 extractor and automatically gives the models a bounded version of the title,
 description, canonical URL, and available channel and publication fields.
 The context below supplies the complete cast and role relationships that the official
 video description does not contain.
+
+Describe what you know in ordinary prose.
+Deep Transcribe gives that context to the speaker-identification and editorial models:
 
 ```shell
 uvx "deep-transcribe[youtube]" \

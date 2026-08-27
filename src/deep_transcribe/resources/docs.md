@@ -13,8 +13,8 @@ deep-transcribe --help
 deep-transcribe --models
 ```
 
-If Deep Transcribe is not installed, use the simple `uvx "deep-transcribe[youtube]"` form in the
-current README. Automated agent workflows should follow the discovery and
+If Deep Transcribe is not installed, use the simple `uvx "deep-transcribe[youtube]"`
+form in the current README. Automated agent workflows should follow the discovery and
 version-matching guidance in the installed skill.
 
 Deep Transcribe requires `ffmpeg`, `DEEPGRAM_API_KEY`, and the key for the selected LLM
