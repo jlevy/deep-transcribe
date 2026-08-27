@@ -3,9 +3,9 @@ type: is
 id: is-01m10rzrnq9wrzrpwfahq6xz2m
 title: Implement the unified parser and --models flag
 kind: feature
-status: in_progress
+status: closed
 priority: 1
-version: 4
+version: 5
 spec_path: docs/project/specs/active/plan-2026-08-26-snl-example-single-command-cli.md
 labels: []
 dependencies:
@@ -15,7 +15,11 @@ dependencies:
     target: is-01m10rzsv6hrkq26y5kf7r7a8q
 parent_id: is-01m10ryb6ze39bmjjq0chrxpbx
 created_at: 2026-08-27T04:52:23.862Z
-updated_at: 2026-08-27T04:59:08.522Z
+updated_at: 2026-08-27T05:03:55.563Z
+closed_at: 2026-08-27T05:03:55.563Z
+close_reason: Implemented and committed in c3f9217. The CLI now has one direct-source parser and help surface; --models lists, persists, reports, and can continue into transcription. Lint/type checks, 65 tests, and builds pass.
+resolution: null
+duplicate_of: null
 ---
 Remove subparsers, command routing, and the direct-parser fork. Build one parser and dispatch path; implement --models with active workspace reporting, persistent selection, and optional continuation into transcription.
 
