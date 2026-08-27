@@ -3,9 +3,9 @@ type: is
 id: is-01m10ryb6ze39bmjjq0chrxpbx
 title: Unify CLI and publish the SNL Hotel Check-In example
 kind: epic
-status: open
+status: closed
 priority: 1
-version: 24
+version: 25
 spec_path: docs/project/specs/active/plan-2026-08-26-snl-example-single-command-cli.md
 labels: []
 dependencies: []
@@ -30,7 +30,11 @@ child_order_hints:
   - is-01m10wvqgjer8jbhx22ncvbc8r
   - is-01m110ce5yx0f76cycakj7qjaq
 created_at: 2026-08-27T04:51:37.310Z
-updated_at: 2026-08-27T07:01:39.133Z
+updated_at: 2026-08-27T07:10:23.486Z
+closed_at: 2026-08-27T07:10:23.485Z
+close_reason: "Unified CLI, prose context, cache-aware reruns, self-installing skill, public SNL showcase, upstream patch releases, Deep Transcribe PRs #14 and #15, v0.1.13, installed smokes, and final main CI are complete."
+resolution: null
+duplicate_of: null
 ---
 Implement the linked plan as a hard-cut pre-alpha change: one direct-source CLI and help surface, an optional-value --models flag, bounded YouTube metadata in semantic context, and a reviewed public SNL Hotel Check-In transcript showcase.
 
