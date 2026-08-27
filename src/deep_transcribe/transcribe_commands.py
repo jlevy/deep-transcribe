@@ -38,6 +38,21 @@ def _media_source_locator(source: str) -> str:
     return as_file_url(source_path)
 
 
+def _identify_transcript_speakers(result: Item) -> Item:
+    """Choose exact, inferred, or provider-level speaker identification."""
+    from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
+
+    if not get_speaker_roster(result) and result.additional_context:
+        from deep_transcribe.speaker_correction import infer_speaker_roster_from_context
+
+        result = infer_speaker_roster_from_context(result)
+    if get_speaker_roster(result):
+        from deep_transcribe.speaker_correction import correct_speaker_turns
+
+        return correct_speaker_turns(result)
+    return identify_speakers(result)
+
+
 def transcribe_with_options(
     item: Item,
     options: TranscribeOptions,
@@ -85,7 +100,6 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     from kash.kits.docs.actions.text.insert_section_headings import insert_section_headings
     from kash.kits.docs.actions.text.research_paras import research_paras
     from kash.kits.media.actions.transcribe.backfill_timestamps import backfill_timestamps
-    from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
     from kash.kits.media.actions.transcribe.insert_frame_captures import insert_frame_captures
 
     from deep_transcribe.timestamp_citations import normalize_timestamp_citations
@@ -101,12 +115,7 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     if options.format:
         # Speaker identification (if requested)
         if options.identify_speakers:
-            if get_speaker_roster(result):
-                from deep_transcribe.speaker_correction import correct_speaker_turns
-
-                result = correct_speaker_turns(result)
-            else:
-                result = identify_speakers(result)
+            result = _identify_transcript_speakers(result)
 
         result = normalize_transcript_fragments(result)
         result = strip_html(result)
@@ -420,6 +429,65 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
 
 
 ## Tests
+
+
+def test_exact_roster_skips_prose_inference() -> None:
+    from unittest.mock import patch
+
+    from kash.model import ItemType
+
+    item = Item(
+        type=ItemType.doc,
+        body="Transcript.",
+        additional_context="There are two speakers.",
+        extra={"transcription": {"speaker_roster": ["Host", "Guest"]}},
+    )
+
+    with (
+        patch("deep_transcribe.speaker_correction.infer_speaker_roster_from_context") as infer,
+        patch(
+            "deep_transcribe.speaker_correction.correct_speaker_turns",
+            return_value=item,
+        ) as correct,
+        patch("kash.kits.media.actions.transcribe.identify_speakers.identify_speakers") as identify,
+    ):
+        result = _identify_transcript_speakers(item)
+
+    assert result is item
+    infer.assert_not_called()
+    correct.assert_called_once_with(item)
+    identify.assert_not_called()
+
+
+def test_prose_roster_is_inferred_before_boundary_correction() -> None:
+    from unittest.mock import patch
+
+    from kash.model import ItemType
+
+    item = Item(
+        type=ItemType.doc,
+        body="Transcript.",
+        additional_context="There are two speakers: the host and guest.",
+    )
+    inferred = item.new_copy_with(extra={"transcription": {"speaker_roster": ["Host", "Guest"]}})
+
+    with (
+        patch(
+            "deep_transcribe.speaker_correction.infer_speaker_roster_from_context",
+            return_value=inferred,
+        ) as infer,
+        patch(
+            "deep_transcribe.speaker_correction.correct_speaker_turns",
+            return_value=inferred,
+        ) as correct,
+        patch("kash.kits.media.actions.transcribe.identify_speakers.identify_speakers") as identify,
+    ):
+        result = _identify_transcript_speakers(item)
+
+    assert result is inferred
+    infer.assert_called_once_with(item)
+    correct.assert_called_once_with(inferred)
+    identify.assert_not_called()
 
 
 def test_format_results_copies_frame_assets() -> None:

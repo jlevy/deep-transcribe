@@ -66,7 +66,11 @@ paths will be consumed programmatically.
 When names, roles, terminology, or chronology are known, supply them with a private
 metadata file or the context flags documented by `deep-transcribe --help`. Put
 output-shape, emphasis, and level-of-detail requests in `processing_instructions`,
-`--instructions`, or `--instructions-file`. Do not guess unsupported names.
+`--instructions`, or `--instructions-file`. If the prose clearly names every speaking
+role, Deep Transcribe can derive the internal roster needed to correct merged
+diarization boundaries.
+Use exact speaker overrides only after reviewing the result.
+Do not guess unsupported names.
 
 ## Iterate on a Reviewed Result
 

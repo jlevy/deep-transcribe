@@ -8,7 +8,9 @@
 UV_EXCLUDE_NEWER ?= 14 days
 export UV_EXCLUDE_NEWER
 
-.PHONY: default install lint lint-check test upgrade build sync-skill clean
+TRYSCRIPT_VERSION ?= 0.1.7
+
+.PHONY: default install lint lint-check test test-python test-golden upgrade build sync-skill clean
 
 default: install lint test
 
@@ -22,8 +24,13 @@ lint:
 lint-check:
 	uv run python devtools/lint.py --check
 
-test:
+test: test-python test-golden
+
+test-python:
 	uv run pytest
+
+test-golden:
+	NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes tryscript@$(TRYSCRIPT_VERSION) run tests/tryscript/*.tryscript.md
 
 upgrade:
 	uv sync --upgrade --all-extras --all-groups

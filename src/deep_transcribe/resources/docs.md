@@ -69,7 +69,10 @@ deep-transcribe \
 ```
 
 The speaker-identification model uses the context and transcript to produce its internal
-speaker-ID mapping. The user does not need to write that mapping.
+speaker-ID mapping.
+When the prose clearly names the complete set of speaking roles, Deep
+Transcribe also derives the internal roster needed to repair merged diarization
+boundaries. The user does not need to write either structure.
 Use `--context-file` for longer context or notes that will be revised across reruns:
 
 ```text
@@ -86,13 +89,15 @@ Use `--instructions` for trusted requests about the derived output, such as emph
 structure, or level of detail.
 Keeping them separate lets models treat source metadata as evidence without accidentally
 following instructions embedded in fetched metadata.
+For URL inputs, source title, description, canonical URL, and available channel and
+publication fields are included automatically as bounded reference evidence.
 
 `--title`, `--description`, and repeatable `--key-term` flags provide simple exact
 values without a schema.
 `--metadata YAML_OR_JSON` remains available for automation and advanced overrides.
 Use `--speaker ID=NAME` only after verifying that a provider ID consistently belongs to
-one speaker. Use the repeatable `--speaker-role` override only when the diarizer merged
-or split voices and the careful boundary-correction stage needs a complete roster.
+one speaker. Use the repeatable `--speaker-role` override only when the prose is
+ambiguous or the inferred complete roster needs an exact correction.
 Do not guess names that are not supported by the recording context.
 
 ## Iterate Without Repeating Speech-to-Text
@@ -148,9 +153,11 @@ deep-transcribe \
 Ordinary mislabeling should be corrected by adding the participants, roles, chronology,
 or forms of address to the prose context.
 For a true diarization boundary error, where one provider ID contains several people or
-one person has several IDs, also give the complete roster with repeated `--speaker-role`
-flags. Deep Transcribe then corrects timestamped turns with the careful model profile
-while preserving the raw provider transcript for review.
+one person has several IDs, state the complete set of speaking roles in that prose.
+Deep Transcribe derives the roster, then corrects timestamped turns with the careful
+model profile while preserving the raw provider transcript for review.
+Repeated `--speaker-role` flags remain an exact fallback when a reviewed inference needs
+an override.
 
 For an output correction, pass `--instructions`. Annotated output places a short
 two-paragraph synopsis first, then an always-visible sans-serif outline.

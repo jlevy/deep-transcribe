@@ -41,7 +41,7 @@ make lint
 # Linting in check-only mode, matching CI (fails on issues, does not modify files):
 make lint-check
 
-# Run tests:
+# Run Python tests and language-neutral CLI goldens:
 make test
 
 # Delete all the build artifacts:
@@ -51,8 +51,10 @@ make clean
 make upgrade
 
 # To run tests by hand:
-uv run pytest   # all tests
-uv run pytest -s src/module/some_file.py  # one test, showing outputs
+uv run pytest   # all Python tests
+uv run pytest -s src/module/some_file.py  # one Python test, showing outputs
+NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes tryscript@0.1.7 run \
+    tests/tryscript/*.tryscript.md
 
 # Build and install current dev executables, to let you use your dev copies
 # as local tools:
@@ -71,6 +73,15 @@ uv lock --upgrade-package package_name
 # Run a shell within the Python environment:
 uv venv
 source .venv/bin/activate
+```
+
+The Tryscript file executes the development CLI in an isolated workspace and records the
+complete help surface, model-profile state transition, and a representative parser
+error. Update it only after reviewing the full behavioral diff:
+
+```shell
+NPM_CONFIG_IGNORE_SCRIPTS=true npx --yes tryscript@0.1.7 run --update \
+    tests/tryscript/*.tryscript.md
 ```
 
 See [uv docs](https://docs.astral.sh/uv/) for details.

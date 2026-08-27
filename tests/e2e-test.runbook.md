@@ -190,10 +190,14 @@ speaker_hints:
   "1": Tom Sanders
 ```
 
-If Deepgram merged distinct voices under one ID, use a complete roster instead of
-treating that ID as authoritative.
-Describe chronology, forms of address, or exact dialogue transitions in
-`additional_context`, then rerun processing:
+If Deepgram merged distinct voices under one ID, describe the complete speaking roster,
+chronology, forms of address, or exact dialogue transitions in `additional_context`
+instead of treating that ID as authoritative.
+On the normal rerun, verify that Deep Transcribe derives the complete internal roster
+and repairs the boundaries.
+
+Use an exact `speaker_roster` only to test the automation override or to correct a
+reviewed prose inference:
 
 ```yaml
 speaker_roster:

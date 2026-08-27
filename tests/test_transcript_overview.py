@@ -1,4 +1,5 @@
 from kash.model import Item, ItemType
+from kash.utils.common.url import Url
 
 from deep_transcribe.transcript_overview import (
     DESCRIPTION_PROMPT,
@@ -27,6 +28,28 @@ def test_processing_instructions_are_separate_from_transcript_context() -> None:
     assert "<processing_instructions>" in prepared.body
     assert "Emphasize the decisions and open questions." in prepared.body
     assert "<transcript>\nTranscript body.\n</transcript>" in prepared.body
+
+
+def test_overview_model_receives_bounded_source_metadata() -> None:
+    item = Item(
+        type=ItemType.doc,
+        body="Transcript body.",
+        title="Source title",
+        url=Url("https://example.test/watch"),
+        description="Source description.",
+        additional_context="The user supplied the complete speaker roster.",
+        extra={"upload_date": "2026-08-26"},
+    )
+
+    prepared = prepare_transcript_for_model(item)
+
+    assert prepared.title is None
+    assert prepared.description is None
+    assert prepared.additional_context is not None
+    assert "Source title: Source title" in prepared.additional_context
+    assert "Source publication date: 2026-08-26" in prepared.additional_context
+    assert "Canonical source URL: https://example.test/watch" in prepared.additional_context
+    assert "User-provided context: The user supplied" in prepared.additional_context
 
 
 def test_transcript_overview_is_brief_visible_and_section_aligned() -> None:

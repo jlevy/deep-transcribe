@@ -8,7 +8,10 @@ from kash.exec.preconditions import has_simple_text_body
 from kash.llm_utils import LLM, LLMName, Message, MessageTemplate
 from kash.model import Format, Item, ItemType, LLMOptions, common_params
 
-from deep_transcribe.transcription_metadata import get_processing_instructions
+from deep_transcribe.transcription_metadata import (
+    get_processing_instructions,
+    source_prompt_context,
+)
 
 DESCRIPTION_PROMPT = dedent("""
     The input contains an optional trusted processing-instructions block followed by a
@@ -78,23 +81,26 @@ TOP_LEVEL_BULLET = re.compile(r"^[-*+]\s+\S")
 
 
 def prepare_transcript_for_model(item: Item) -> Item:
-    """Put trusted output instructions in a distinct block before the transcript."""
+    """Put source evidence and trusted output instructions in distinct prompt blocks."""
     instructions = get_processing_instructions(item)
-    if not instructions:
-        return item
     assert item.body
-    body = "\n".join(
-        [
-            "<processing_instructions>",
-            instructions,
-            "</processing_instructions>",
-            "",
-            "<transcript>",
-            item.body,
-            "</transcript>",
-        ]
+    body_parts: list[str] = []
+    if instructions:
+        body_parts.extend(
+            [
+                "<processing_instructions>",
+                instructions,
+                "</processing_instructions>",
+                "",
+            ]
+        )
+    body_parts.extend(["<transcript>", item.body, "</transcript>"])
+    return item.new_copy_with(
+        body="\n".join(body_parts),
+        title=None,
+        description=None,
+        additional_context=source_prompt_context(item) or None,
     )
-    return item.new_copy_with(body=body)
 
 
 def wrap_transcript_outline(item: Item, outline: str) -> Item:

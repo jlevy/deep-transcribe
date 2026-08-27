@@ -288,13 +288,15 @@ No checked-in text may continue to teach `deep-transcribe transcribe`,
   duplicated help text as a hard cut.
 - [x] Update all CLI examples, built-in documentation, the canonical skill, generated
   mirrors, and unit tests; assert that legacy syntax has disappeared.
+- [x] Add a language-neutral Tryscript golden for the complete help surface, model-
+  profile state changes, and parser errors.
 
 ### Phase 2: Source context and public fixture
 
-- [ ] Audit YouTube metadata from extraction through cached transcript items and
+- [x] Audit YouTube metadata from extraction through cached transcript items and
   semantic prompts, then add focused tests for the bounded untrusted context that is
   actually missing.
-- [ ] Add conservative structured extraction of a complete speaker roster from explicit
+- [x] Add conservative structured extraction of a complete speaker roster from explicit
   ordinary-prose context, with exact roster and speaker-ID overrides taking precedence.
 - [ ] Verify the SNL cast and character mapping from the official upload and a script or
   transcript source, then write the one-paragraph example context.
@@ -314,9 +316,9 @@ Its implementation beads follow the plan’s execution order:
 
 - [x] `dt-ojgn`: Define the single-command CLI contract with failing tests.
 - [x] `dt-0o6v`: Implement the unified parser and `--models` flag; blocked by `dt-ojgn`.
-- [ ] `dt-t7oj`: Audit and complete YouTube source-context propagation; blocked by
+- [x] `dt-t7oj`: Audit and complete YouTube source-context propagation; blocked by
   `dt-ojgn`.
-- [ ] `dt-vot2`: Infer speaker rosters from ordinary-prose context; blocked by
+- [x] `dt-vot2`: Infer speaker rosters from ordinary-prose context; blocked by
   `dt-ojgn`.
 - [x] `dt-ifou`: Update every help, documentation, and skill surface; blocked by
   `dt-0o6v`.
@@ -326,6 +328,7 @@ Its implementation beads follow the plan’s execution order:
   `dt-ifou` and `dt-g641`.
 - [ ] `dt-7res`: Validate the hard cut and prepare the pull request; blocked by
   `dt-bqft`.
+- [x] `dt-i9l1`: Add Tryscript golden coverage for the unified CLI.
 
 ## Testing Strategy
 
@@ -335,6 +338,8 @@ model-profile inspection, persistent selection, selection plus transcription, in
 profiles, workspace selection, JSON output, no-argument help, and missing-source errors.
 The top-level help test will assert one usage line, the intended option-group ordering,
 incremental-rerun guidance, and the absence of a command directory.
+A language-neutral Tryscript golden captures the complete rendered help page, a
+workspace-persisted model-profile transition, and the full invalid-profile error.
 
 Metadata tests will use synthetic items so they can prove that fetched metadata is
 bounded, delimited, propagated through a raw transcript cache hit, and ignored as
@@ -344,6 +349,13 @@ processing instructions.
 Structured-output tests will prove that explicit complete prose yields the intended
 roster, ambiguous prose yields no roster, fetched cast lists alone do not create a
 roster, and exact CLI overrides take precedence.
+
+The metadata audit found that Kash already retains title, description, canonical URL,
+upload date, and channel URL, but its generic prompt context includes only title,
+description, and additional context.
+Deep Transcribe therefore owns an allow-listed, bounded renderer for its semantic
+stages. This keeps the change local without adding a new Kash release solely for a
+product-specific prompt contract.
 
 The live SNL validation will record the source item, raw transcript item, final
 transcript, HTML, and Deepgram-call count.

@@ -13,12 +13,18 @@ The human CLI is prose-first.
 chronology, terminology, and other source facts.
 The speaker-identification action combines that prose with the transcript and returns a
 structured speaker-ID mapping internally.
+When the prose clearly claims a complete set of speaking roles, Deep Transcribe first
+uses a conservative structured step to derive the internal roster needed for merged-
+boundary correction.
+Incomplete participant descriptions fail closed and continue with the provider-level
+identification path.
 Users provide structured metadata only for automation or exact overrides.
 
 Source items use the existing `title` and `description` fields plus the generic
 `additional_context` field supplied by kash.
-Semantic actions may use those fields as bounded reference material, but must never
-treat fetched metadata as instructions.
+Deep Transcribe renders an allow-listed, bounded source-evidence block that can also
+include the canonical URL and available channel and publication fields retained by the
+extractor. Semantic actions must never treat fetched metadata as instructions.
 
 User-authored `processing_instructions` are a separate trusted channel for requested
 output structure, emphasis, and level of detail.
@@ -59,8 +65,10 @@ Kash-media consumes the fields it understands and ignores unknown fields, so Dee
 Transcribe can add local metadata without changing kash core.
 
 `speaker_hints` rename trustworthy provider IDs directly.
-`speaker_roster` is a complete list of known speaking roles for recordings where
-provider diarization merged distinct voices.
+`speaker_roster` is the internal complete list of known speaking roles for recordings
+where provider diarization merged distinct voices.
+It may come from an exact automation override or from conservative interpretation of
+complete ordinary-prose context.
 Deep Transcribe owns the roster-based boundary-correction stage: it uses the workspace’s
 careful model profile to assign each timestamped utterance to an exact roster label
 without rewriting transcript text, rejects uncertain or unknown assignments, and
@@ -85,9 +93,10 @@ An uncertain adjudication still fails closed instead of choosing a label.
 - **kash-media:** Provide stable transcription and speaker-identification primitives,
   consume recognized `extra.transcription` hints, and include transcription settings in
   cache identity.
-- **Deep Transcribe:** Parse and validate metadata files, enrich source items, correct
-  merged speaker boundaries from a supplied roster, own presets and rerun behavior, and
-  produce the transcript-specific synopsis and structural outline.
+- **Deep Transcribe:** Parse and validate metadata files, render bounded source
+  evidence, derive a complete speaker roster from explicit prose, correct merged speaker
+  boundaries, own presets and rerun behavior, and produce the transcript-specific
+  synopsis and structural outline.
   It exposes the complete workflow through its self-documenting CLI and installable
   skill.
 

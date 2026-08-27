@@ -275,8 +275,8 @@ def _add_transcription_arguments(
         default=[],
         metavar="NAME_OR_ROLE",
         help=(
-            "Known speaker name or role for context-aware boundary correction; "
-            "repeat for the complete roster"
+            "Exact speaker name or role for boundary correction; repeat for a complete "
+            "roster only when prose inference needs an override"
         ),
     )
     execution = parser.add_argument_group("Models, Execution, and Output")
@@ -339,8 +339,10 @@ def _help_epilog() -> str:
 
         **Context:** Start with `--context` or `--context-file` in ordinary prose. The
         speaker-identification LLM uses those facts to produce its structured mapping.
-        Exact speaker IDs and YAML/JSON metadata are optional overrides, not the normal
-        human interface.
+        When the prose clearly names the complete set of speaking roles, Deep Transcribe
+        also derives the roster needed to repair merged diarization boundaries. Exact
+        speaker IDs, repeated `--speaker-role` values, and YAML/JSON metadata are optional
+        overrides, not the normal human interface.
 
         **Iterative reruns:** A normal rerun resumes at the first affected stage and
         reuses compatible cached work. Updating descriptive context or speaker metadata
