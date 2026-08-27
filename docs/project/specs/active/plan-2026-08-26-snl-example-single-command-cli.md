@@ -286,7 +286,7 @@ No checked-in text may continue to teach `deep-transcribe transcribe`,
   persistence before an optional transcription.
 - [x] Remove the old command builders, routing constants, command destination, and
   duplicated help text as a hard cut.
-- [ ] Update all CLI examples, built-in documentation, the canonical skill, generated
+- [x] Update all CLI examples, built-in documentation, the canonical skill, generated
   mirrors, and unit tests; assert that legacy syntax has disappeared.
 
 ### Phase 2: Source context and public fixture
@@ -318,7 +318,7 @@ Its implementation beads follow the plan’s execution order:
   `dt-ojgn`.
 - [ ] `dt-vot2`: Infer speaker rosters from ordinary-prose context; blocked by
   `dt-ojgn`.
-- [ ] `dt-ifou`: Update every help, documentation, and skill surface; blocked by
+- [x] `dt-ifou`: Update every help, documentation, and skill surface; blocked by
   `dt-0o6v`.
 - [ ] `dt-g641`: Run the SNL fixture and prove cache-aware refinement; blocked by
   `dt-0o6v`, `dt-t7oj`, and `dt-vot2`.

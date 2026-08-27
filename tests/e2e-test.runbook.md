@@ -55,8 +55,7 @@ uv lock --check
 uv sync --locked --all-groups
 uv run --locked deep-transcribe --version
 uv run --locked deep-transcribe --help
-uv run --locked deep-transcribe transcribe --help
-uv run --locked deep-transcribe models --help
+uv run --locked deep-transcribe --models
 uv pip show deep-transcribe kash-media kash-docs kash-shell deepgram-sdk litellm
 make lint
 make test
@@ -118,7 +117,7 @@ echo "$DEEP_TRANSCRIBE_E2E_WS"
 Run a fresh basic transcription:
 
 ```shell
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --language en \
@@ -129,7 +128,7 @@ Then exercise HTML stripping, paragraph formatting, timestamp backfilling, and H
 export independently of an LLM:
 
 ```shell
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --with format \
@@ -174,7 +173,7 @@ key_terms:
   - Hotel Receptionist
 YAML
 
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --formatted \
     --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
@@ -217,7 +216,7 @@ A speaker-only or descriptive-context correction must not make another Deepgram 
 DEEPGRAM_COUNT_BEFORE="$(rg -c 'Transcribing via Deepgram' \
     "$DEEP_TRANSCRIBE_E2E_WS/logs/workspace.log")"
 
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
@@ -240,7 +239,7 @@ Finally add a real phrase from the audio, such as `checking into a hotel`, to
 This accuracy-affecting change must make exactly one new Deepgram request:
 
 ```shell
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
@@ -273,7 +272,7 @@ uv run --locked yt-dlp \
 
 test "$PWD" != "$DEEP_TRANSCRIBE_E2E_WS/fixture"
 
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$LOCAL_VIDEO_WS" \
     --annotated \
     --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
@@ -319,11 +318,8 @@ PY
 Configure the workspace and run the default annotated pipeline:
 
 ```shell
-uv run --locked deep-transcribe models \
-    --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
-    --set anthropic
-
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
+    --models anthropic \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun-processing \
@@ -344,11 +340,8 @@ The raw transcript cache prevents another paid transcription request while
 to execute again. Reserve `--rerun` for an intentional fresh Deepgram request.
 
 ```shell
-uv run --locked deep-transcribe models \
-    --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
-    --set openai
-
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
+    --models openai \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun-processing \

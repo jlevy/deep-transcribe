@@ -51,6 +51,25 @@ def test_skill_template_is_concise_and_routes_to_built_in_docs() -> None:
     assert "MCP" not in template
 
 
+def test_public_guidance_uses_only_the_single_command_contract() -> None:
+    repo_root = Path(__file__).parents[1]
+    surfaces = {
+        "README": (repo_root / "README.md").read_text(),
+        "installation guide": (repo_root / "docs/installation.md").read_text(),
+        "E2E runbook": (repo_root / "tests/e2e-test.runbook.md").read_text(),
+        "packaged guide": get_docs_content(),
+        "canonical skill": get_skill_template(),
+    }
+
+    for name, content in surfaces.items():
+        for legacy in (
+            "deep-transcribe transcribe",
+            "deep-transcribe models",
+            "models --set",
+        ):
+            assert legacy not in content, f"{legacy!r} remains in {name}"
+
+
 def test_skill_runner_selection_handles_source_checkouts_and_stale_path_commands() -> None:
     template = get_skill_template()
 

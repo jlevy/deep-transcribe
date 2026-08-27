@@ -10,13 +10,12 @@ Inspect the command surface before running a transcription:
 
 ```shell
 deep-transcribe --help
-deep-transcribe transcribe --help
-deep-transcribe models --help
+deep-transcribe --models
 ```
 
-If Deep Transcribe is not installed, use the exact version-pinned runner shown by the
-installed skill or the current README. Avoid an unpinned `@latest` or unconstrained
-package invocation in agent workflows.
+If Deep Transcribe is not installed, use the `uvx` command in the current README.
+Automated agent workflows should use the exact version-pinned runner shown by the
+installed skill.
 
 Deep Transcribe requires `ffmpeg`, `DEEPGRAM_API_KEY`, and the key for the selected LLM
 profile: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. It reads `.env` and `.env.local` files
@@ -33,17 +32,11 @@ adds headings, a summary and description, captures representative video frames, 
 exports HTML:
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --json \
     INPUT
-```
-
-The direct-source shorthand is also supported:
-
-```shell
-deep-transcribe --workspace ./output --annotated --json INPUT
 ```
 
 `INPUT` may be a YouTube or other media URL, or a local audio or video path.
@@ -60,8 +53,7 @@ Choose the least expensive preset that produces the requested result:
 | `--deep` | Annotated output plus researched paragraph notes |
 
 Use `--with STAGE[,STAGE]` to add individual stages to a preset.
-Run `deep-transcribe transcribe --help` for the current stage list and Deepgram model
-options.
+Run `deep-transcribe --help` for the current stage list and Deepgram model options.
 
 ## Supply Recording Context
 
@@ -69,7 +61,7 @@ Raw media often lacks the names, roles, vocabulary, and chronology needed for ac
 speaker labels. Describe those facts in ordinary prose:
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --title "Hotel check-in dialogue" \
     --context "The receptionist speaks first. The guest is Tom Sanders. He has a three-night reservation and receives a room upgrade." \
     --instructions "Keep the synopsis brief and organize the outline around the phases of check-in." \
@@ -145,7 +137,7 @@ Use `--rerun` only when a fresh Deepgram result is wanted.
 After reviewing the first output, revise the prose context and repeat the command:
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --context-file ./recording.txt \
@@ -166,7 +158,7 @@ The outline follows the transcript’s section headings when they are useful and
 concise key points for each section.
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --context-file ./recording.txt \
@@ -178,7 +170,7 @@ deep-transcribe transcribe \
 For a new feature, extend the existing command instead of starting over:
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --with research_paras \
@@ -190,8 +182,8 @@ deep-transcribe transcribe \
 To compare model providers against the same raw transcript:
 
 ```shell
-deep-transcribe models --workspace ./output --set openai
-deep-transcribe transcribe \
+deep-transcribe \
+    --models openai \
     --workspace ./output \
     --annotated \
     --rerun-processing \
@@ -200,7 +192,7 @@ deep-transcribe transcribe \
     INPUT
 ```
 
-Use `--set anthropic` to switch back.
+Use the same command with `--models anthropic` to switch back.
 
 ### Verify Cache Reuse
 
@@ -288,13 +280,13 @@ repository code, tests, docs, commits, pull requests, or issue records.
 Inspect or change the workspace’s Anthropic/OpenAI role mapping:
 
 ```shell
-deep-transcribe models
-deep-transcribe models --workspace ./output --set anthropic
-deep-transcribe models --workspace ./output --set openai
+deep-transcribe --models
+deep-transcribe --models anthropic --workspace ./output
+deep-transcribe --models openai --workspace ./output
 ```
 
 New workspaces use the Anthropic profile by default.
-`deep-transcribe models --help` prints the exact current models.
+`deep-transcribe --models` prints the exact current models and the active profile.
 
 ## Install the Agent Skill
 
@@ -340,7 +332,7 @@ exact version-pinned `uvx` runner.
 
 ## Troubleshooting
 
-- Run `deep-transcribe transcribe --help` before changing transcription options.
+- Run `deep-transcribe --help` before changing transcription options.
 - Preserve the workspace after a failure so completed work remains reusable.
 - Confirm `ffmpeg` and a JavaScript runtime are on `PATH` when media acquisition fails.
 - Confirm required key names exist without echoing their values.

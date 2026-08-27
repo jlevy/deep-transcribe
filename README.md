@@ -72,38 +72,36 @@ Run `deep-transcribe --docs` for surface selection and explicit global-install o
 
 ## Self-Documenting CLI
 
-Start with the top-level command directory, then open the help page for the relevant
-task:
+Start with the single help page:
 
 ```shell
 deep-transcribe --help
 deep-transcribe --docs
 deep-transcribe --skill
-deep-transcribe transcribe --help
-deep-transcribe models --help
+deep-transcribe --models
 ```
 
-The command pages document all presets, individual processing stages, Deepgram language
-and model selection, natural-language context and exact speaker overrides, caching and
-rerun behavior, JSON output, model profiles, and examples.
+The help page documents all presets, individual processing stages, Deepgram language and
+model selection, natural-language context and exact speaker overrides, caching and rerun
+behavior, JSON output, model profiles, and examples.
 `--docs` prints the complete guide packaged with the installed release, including the
 review-and-rerun workflow and skill installation.
-Both `deep-transcribe transcribe OPTIONS INPUT` and the concise
-`deep-transcribe OPTIONS INPUT` form are supported transcription interfaces.
+The transcription interface is `deep-transcribe OPTIONS INPUT`.
 
 ### Model Provider
 
 Inspect the exact current Anthropic and OpenAI role mappings before selecting one:
 
 ```shell
-deep-transcribe models
-deep-transcribe models --set anthropic
-deep-transcribe models --set openai
+deep-transcribe --models
+deep-transcribe --models anthropic
+deep-transcribe --models openai
 ```
 
 The selection is saved in the chosen workspace.
-Pass `--workspace` to `models` and `transcribe` when using a location other than
-`./transcriptions`.
+Pass `--workspace` when using a location other than `./transcriptions`. Add an input to
+the selection command to save the profile and transcribe in one run:
+`deep-transcribe --models openai INPUT`.
 
 ## Example: A Reservation Glitch and a Free Jacuzzi
 
@@ -123,7 +121,7 @@ Describe what you know in ordinary prose.
 Deep Transcribe gives that context to the speaker-identification and editorial models:
 
 ```shell
-uvx deep-transcribe transcribe \
+uvx deep-transcribe \
     --workspace ./hotel-output \
     --annotated \
     --title "A Reservation Glitch and a Free Jacuzzi" \
