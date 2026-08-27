@@ -5,12 +5,12 @@ title: Create and visually validate the hotel sample PDF
 kind: task
 status: in_progress
 priority: 1
-version: 4
+version: 5
 labels: []
 dependencies: []
 parent_id: is-01m10kjrzedwht5b4mqbmwm3yp
 created_at: 2026-08-27T03:18:40.373Z
-updated_at: 2026-08-27T03:48:02.547Z
+updated_at: 2026-08-27T03:56:08.361Z
 closed_at: null
 close_reason: null
 resolution: null
@@ -20,4 +20,4 @@ Print the public hotel HTML with a real browser, render representative pages, in
 
 ## Notes
 
-Reopened: The Prince-generated draft regressed outline marker layout. Revalidate the sample with Chrome's print engine, matching the supported browser-print workflow.
+Replaced the Prince draft with a PDF generated from the untouched HTML by Chrome/Skia. Visually reviewed all seven rendered pages; outline markers are aligned, frames and timestamps render correctly, controls are absent, and the custom footer appears on all pages. The PDF and preview remain untracked pending user approval.
