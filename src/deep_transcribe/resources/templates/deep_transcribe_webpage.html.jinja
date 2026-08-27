@@ -28,14 +28,18 @@
   .timestamp-link:hover {
     color: var(--color-tertiary) !important;
     font-family: var(--font-sans) !important;
-    font-size: 8pt;
+    font-size: 9pt;
+  }
+
+  .long-text p:has(> .frame-capture) {
+    break-inside: avoid;
   }
 
   @page {
     @bottom-left {
       content: "Transcribed by github.com/jlevy/deep-transcribe";
       font-family: var(--font-sans) !important;
-      font-size: 8pt;
+      font-size: 9pt;
     }
   }
 }

@@ -6,7 +6,14 @@ The kash packages provide stable, reusable primitives.
 This keeps most Deep Transcribe features local and avoids lockstep releases across the
 dependency chain.
 
-## Metadata Model
+## Prose Interface and Metadata Model
+
+The human CLI is prose-first.
+`--context` and `--context-file` accept ordinary descriptions of participants, roles,
+chronology, terminology, and other source facts.
+The speaker-identification action combines that prose with the transcript and returns a
+structured speaker-ID mapping internally.
+Users provide structured metadata only for automation or exact overrides.
 
 Source items use the existing `title` and `description` fields plus the generic
 `additional_context` field supplied by kash.
@@ -22,7 +29,8 @@ section generation, then restores it before the overview actions.
 An instruction-only rerun therefore starts at the synopsis and outline rather than
 invalidating unrelated semantic work.
 
-Transcription-specific data is stored in the existing namespaced `Item.extra` mapping:
+Transcription-specific data is stored internally in the existing namespaced `Item.extra`
+mapping:
 
 ```yaml
 title: Acme weekly product review
@@ -83,8 +91,9 @@ An uncertain adjudication still fails closed instead of choosing a label.
   It exposes the complete workflow through its self-documenting CLI and installable
   skill.
 
-Deep Transcribe accepts a metadata file plus concise context, processing-instruction,
-key-term, and speaker flags.
+Deep Transcribe accepts natural-language context and processing instructions as its
+primary human interface, plus simple title, description, key-term, and speaker override
+flags. A metadata file exposes the same structure for automation.
 Internal preset actions accept the same schema as inline YAML or JSON through
 `metadata_yaml`. A semantic-only correction changes downstream action hashes while
 reusing the cached raw transcript.

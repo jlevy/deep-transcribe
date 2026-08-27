@@ -32,21 +32,15 @@ Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment, a `.
 
 Do not commit API keys.
 
-## Zero-Install CLI
+## Quick Start
 
-Run the pinned release without installing it globally:
+Run Deep Transcribe without installing it:
 
 ```shell
-uvx \
-    --exclude-newer-package yt-dlp=2026-08-20T00:00:00Z \
-    --from deep-transcribe==0.1.11 \
-    deep-transcribe --help
+uvx deep-transcribe --help
 ```
 
-The yt-dlp cutoff carries this release’s reviewed freshness exception through uv
-installations that enforce a global dependency cool-off.
-
-For repeated human use, a persistent tool install is also available:
+For repeated use, install it as a persistent tool:
 
 ```shell
 uv tool install deep-transcribe
@@ -61,12 +55,8 @@ Install the public discovery skill through the cross-agent skills installer:
 npx skills add jlevy/deep-transcribe@deep-transcribe
 ```
 
-In a Deep Transcribe source checkout, the skill uses `uv run deep-transcribe` so an
-older executable on `PATH` cannot override the checkout.
-Elsewhere, it accepts an installed command only after `deep-transcribe --docs` succeeds
-and falls back to the pinned zero-install runner when that capability check fails.
-It routes agents to executable documentation rather than carrying a second command
-manual.
+The skill uses the source checkout or installed CLI when available and reads the guide
+packaged with that executable.
 
 If the CLI is already available, install its complete skill bundle directly from a
 project root:
@@ -94,8 +84,8 @@ deep-transcribe models --help
 ```
 
 The command pages document all presets, individual processing stages, Deepgram language
-and model selection, source metadata and speaker hints, caching and rerun behavior, JSON
-output, model profiles, and examples.
+and model selection, natural-language context and exact speaker overrides, caching and
+rerun behavior, JSON output, model profiles, and examples.
 `--docs` prints the complete guide packaged with the installed release, including the
 review-and-rerun workflow and skill installation.
 Both `deep-transcribe transcribe OPTIONS INPUT` and the concise
@@ -115,125 +105,49 @@ The selection is saved in the chosen workspace.
 Pass `--workspace` to `models` and `transcribe` when using a location other than
 `./transcriptions`.
 
-### End-to-End Example: A Reservation Glitch and a Free Jacuzzi
+## Example: A Reservation Glitch and a Free Jacuzzi
 
-The release test uses a short, two-person
-[hotel check-in video](https://www.youtube.com/watch?v=wyqfYJX23lg). Guest Tom Sanders
-arrives at the Transnational Hotel, where his reservation briefly goes missing.
-The receptionist eventually finds it and offers him a free business-suite upgrade with a
-Jacuzzi.
-It is about 2 minutes 40 seconds long, has two clearly alternating speakers, and
-includes enough names, numbers, and plot details to expose weak transcription or
-summarization.
+The public example uses a [two-person hotel check-in video][video]. It is short enough
+to run quickly but includes speaker names, room numbers, a missing reservation, and a
+suite upgrade.
 
-Create a metadata file with information that is known before transcription:
+| Source Video | Formatted Transcript |
+| :---: | :---: |
+| [![Hotel receptionist and guest in the source video](https://img.youtube.com/vi/wyqfYJX23lg/maxresdefault.jpg)][video] | [![Formatted hotel transcript title, synopsis, and outline](docs/examples/hotel-check-in-transcript-preview.png)][pdf] |
+| [Watch the video][video] | [View the PDF][pdf] |
 
-```shell
-mkdir hotel-transcript
-cd hotel-transcript
+[video]: https://www.youtube.com/watch?v=wyqfYJX23lg
+[pdf]: docs/examples/hotel-check-in-transcript.pdf
 
-cat >hotel.yml <<'YAML'
-title: Hotel check-in dialogue
-description: A receptionist checks guest Tom Sanders into the Transnational Hotel.
-additional_context: |
-  This is a two-person hotel check-in conversation. Speaker 0 is the Hotel Receptionist.
-  Speaker 1 is guest Tom Sanders, who has a three-night reservation and is assigned
-  Room 653.
-processing_instructions: |
-  Keep the synopsis brief. Organize the outline around the main phases of check-in.
-key_terms:
-  - Tom Sanders
-  - Transnational Hotel
-  - Room 653
-speaker_hints:
-  "0": Hotel Receptionist
-  "1": Tom Sanders
-YAML
-```
-
-Run the annotated workflow:
+Describe what you know in ordinary prose.
+Deep Transcribe gives that context to the speaker-identification and editorial models:
 
 ```shell
-deep-transcribe transcribe \
-    --workspace ./output \
+uvx deep-transcribe transcribe \
+    --workspace ./hotel-output \
     --annotated \
-    --language en \
-    --metadata ./hotel.yml \
+    --title "A Reservation Glitch and a Free Jacuzzi" \
+    --context "The receptionist speaks first. The guest is Tom Sanders. He has a three-night reservation and is assigned Room 653 at the Transnational Hotel." \
+    --instructions "Keep the synopsis brief and organize the outline around the phases of check-in." \
+    --key-term "Tom Sanders" \
+    --key-term "Transnational Hotel" \
+    --key-term "Room 653" \
     "https://www.youtube.com/watch?v=wyqfYJX23lg"
 ```
 
-This one command:
+The command produces cached media and intermediate results, a processed Markdown
+transcript, and browser-ready HTML. Review the result, revise the prose, and run the
+same command again to correct context or request a different synopsis or outline.
+Use `--context-file notes.txt` when the context is long or will be edited repeatedly.
+Deep Transcribe reuses the raw transcript and resumes at the first affected stage.
 
-1. downloads and caches the video;
-2. transcribes it with Deepgram Nova-3 and the current diarizer, using the key terms;
-3. saves the descriptive context and speaker hints with the source item;
-4. identifies speakers, formats paragraphs and timestamps, and adds headings, a brief
-   synopsis, and a section-aligned outline using that context; and
-5. captures distinct video frames and exports browser-ready HTML.
+The HTML is also the source for the PDF above.
+Open it in a modern browser, choose **Print → Save as PDF**, disable the browser’s own
+headers and footers, and keep background graphics enabled.
+Deep Transcribe does not require a separate PDF renderer.
 
-The command prints the final Markdown and HTML paths.
-In the `v0.1.8` release test, the transcript contained 550 words in 29 speaker turns and
-the HTML included 19 distinct frame captures.
-Manual review confirmed the two speaker names, Transnational Hotel, Room 653, the
-missing reservation, the free suite upgrade, and the check-in instructions.
-
-#### Correct Context Without Paying for Transcription Again
-
-If a speaker name, descriptive detail, or output emphasis is wrong, edit `hotel.yml` and
-repeat the same command:
-
-```shell
-deep-transcribe transcribe \
-    --workspace ./output \
-    --annotated \
-    --metadata ./hotel.yml \
-    "https://www.youtube.com/watch?v=wyqfYJX23lg"
-```
-
-Changes to `additional_context`, `description`, `processing_instructions`,
-`speaker_hints`, or `speaker_roster` change the semantic action inputs.
-The normal rerun resumes at the first affected stage, reuses the cached raw Deepgram
-transcript and unchanged intermediates, and rebuilds dependent outputs.
-Changing only `processing_instructions` reuses speaker correction, paragraph formatting,
-timestamps, and section headings, then regenerates the synopsis and outline.
-If the diarizer merges or splits voices incorrectly, provide the complete
-`speaker_roster` and describe roles or dialogue transitions in `additional_context`.
-Deep Transcribe then corrects each turn with the careful model profile.
-A `key_terms` change intentionally creates a new transcript because it can affect speech
-recognition. Full `--rerun` also requests fresh speech-to-text.
-Use `--rerun-processing` only when every downstream stage should run again, such as
-after changing the saved model profile or when deliberately regenerating model output.
-
-Use `additional_context` for facts about the recording and `processing_instructions` for
-requested output shape or emphasis.
-The repeatable `--instructions` and `--instructions-file` flags are convenient for
-one-off requests. Annotated output places a short, paragraph-broken synopsis above an
-always-visible sans-serif outline with concise bullets for each section.
-
-New processing features also reuse earlier work.
-For example, add researched paragraph annotations to the existing transcript with
-`--with research_paras`; Deep Transcribe reuses compatible formatting and runs that
-feature plus the stages that depend on its output.
-
-To compare providers on the same transcript, select the OpenAI profile and rerun the
-processing stages:
-
-```shell
-deep-transcribe models --workspace ./output --set openai
-deep-transcribe transcribe \
-    --workspace ./output \
-    --annotated \
-    --rerun-processing \
-    --metadata ./hotel.yml \
-    "https://www.youtube.com/watch?v=wyqfYJX23lg"
-```
-
-Use `--set anthropic` to switch back.
-The same workflow works for a raw `.mp3` or `.mp4`: replace the URL with the local path,
-where the metadata is especially useful because a raw file may have no title,
-description, speaker names, or other source context.
-Run `deep-transcribe transcribe --help` for individual flags and custom processing
-stages.
+Run `deep-transcribe --docs` for speaker rosters, cache behavior, custom stages, model
+profiles, and deliberate full reruns.
 
 ## Output
 
@@ -249,9 +163,9 @@ You can also open the workspace with `kash` to inspect cached and intermediate i
 ## Built-in Guide
 
 Run `deep-transcribe --docs` for the complete operational guide.
-It includes environment setup, context metadata, speaker correction, incremental reruns,
-cache verification, model-profile comparisons, output review, privacy, troubleshooting,
-and agent-skill installation.
+It includes environment setup, natural-language context, speaker correction, incremental
+reruns, cache verification, model-profile comparisons, output review, privacy,
+troubleshooting, and agent-skill installation.
 Because the guide ships inside the package, agents can read documentation that matches
 the executable they are about to use.
 

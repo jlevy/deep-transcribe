@@ -206,40 +206,70 @@ def _add_transcription_arguments(
         help="Skip HTML, CSS, JavaScript, and Tailwind minification",
     )
 
-    context = parser.add_argument_group("Source Metadata and Context")
-    context.add_argument(
-        "--metadata",
-        type=Path,
-        metavar="YAML_OR_JSON",
-        help=(
-            "Metadata file with title, description, additional_context, "
-            "processing_instructions, key_terms, speaker_hints, speaker_roster, "
-            "or extra fields"
-        ),
-    )
-    context.add_argument(
+    guidance = parser.add_argument_group("Natural-Language Guidance")
+    guidance.add_argument(
         "--context",
         action="append",
         default=[],
         metavar="TEXT",
-        help="Additional recording context; repeat to join multiple paragraphs",
+        help=(
+            "Describe participants, roles, chronology, terminology, and source facts in "
+            "ordinary prose; repeat to join paragraphs"
+        ),
     )
-    context.add_argument(
+    guidance.add_argument(
         "--context-file",
         action="append",
         default=[],
         type=Path,
         metavar="PATH",
-        help="UTF-8 text to use as additional context; repeat to join files",
+        help="UTF-8 prose to use as recording context; repeat to join files",
     )
-    context.add_argument(
+    guidance.add_argument(
+        "--instructions",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="Trusted post-transcription processing instructions; repeat to join paragraphs",
+    )
+    guidance.add_argument(
+        "--instructions-file",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="PATH",
+        help="UTF-8 post-transcription processing instructions; repeat to join files",
+    )
+
+    overrides = parser.add_argument_group("Exact and Structured Overrides")
+    overrides.add_argument(
+        "--title",
+        metavar="TEXT",
+        help="Exact title for the transcript and exported HTML",
+    )
+    overrides.add_argument(
+        "--description",
+        metavar="TEXT",
+        help="Concise source description to include with the recording context",
+    )
+    overrides.add_argument(
+        "--metadata",
+        type=Path,
+        metavar="YAML_OR_JSON",
+        help=(
+            "Optional structured overrides for automation: title, description, "
+            "additional_context, processing_instructions, key_terms, speaker_hints, "
+            "speaker_roster, or extra fields"
+        ),
+    )
+    overrides.add_argument(
         "--key-term",
         action="append",
         default=[],
         metavar="TERM",
         help="Term or name Deepgram should recognize accurately; repeat as needed",
     )
-    context.add_argument(
+    overrides.add_argument(
         "--speaker",
         action="append",
         default=[],
@@ -247,7 +277,7 @@ def _add_transcription_arguments(
         metavar="ID=NAME",
         help="Authoritative speaker label, such as 0='Alice Chen'; repeat as needed",
     )
-    context.add_argument(
+    overrides.add_argument(
         "--speaker-role",
         action="append",
         default=[],
@@ -257,22 +287,6 @@ def _add_transcription_arguments(
             "repeat for the complete roster"
         ),
     )
-    context.add_argument(
-        "--instructions",
-        action="append",
-        default=[],
-        metavar="TEXT",
-        help="Trusted post-transcription processing instructions; repeat to join paragraphs",
-    )
-    context.add_argument(
-        "--instructions-file",
-        action="append",
-        default=[],
-        type=Path,
-        metavar="PATH",
-        help="UTF-8 post-transcription processing instructions; repeat to join files",
-    )
-
     execution = parser.add_argument_group("Execution and Output")
     _add_workspace_argument(execution)
     execution.add_argument(
@@ -320,6 +334,11 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
         `deep-transcribe models --set openai` to persist the OpenAI profile in
         this workspace.
 
+        **Context:** Start with `--context` or `--context-file` in ordinary prose. The
+        speaker-identification LLM uses those facts to produce its structured mapping.
+        Exact speaker IDs and YAML/JSON metadata are optional overrides, not the normal
+        human interface.
+
         **Iterative reruns:** A normal rerun resumes at the first affected stage and
         reuses compatible cached work. Updating descriptive context or speaker metadata
         preserves speech-to-text. Updating processing instructions resumes at the
@@ -335,7 +354,8 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
         deep-transcribe transcribe --annotated https://youtu.be/VIDEO_ID
         deep-transcribe transcribe --deep --language multi URL
         deep-transcribe transcribe --basic --with format URL
-        deep-transcribe transcribe --annotated --metadata interview.yml ./interview.mp3
+        deep-transcribe transcribe --context "Alice hosts; Bob presents." URL
+        deep-transcribe transcribe --context-file recording.txt URL
         deep-transcribe transcribe --speaker 0="Alice Chen" --key-term SignalFlow URL
         deep-transcribe transcribe --speaker-role Host --speaker-role Guest URL
         deep-transcribe transcribe --instructions "Keep the outline concise." URL
@@ -580,6 +600,10 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
     context_parts = [value for value in context_parts if value]
 
     inline_data: dict[str, object] = {}
+    if args.title:
+        inline_data["title"] = args.title
+    if args.description:
+        inline_data["description"] = args.description
     if context_parts:
         inline_data["additional_context"] = "\n\n".join(context_parts)
     if args.key_term:
