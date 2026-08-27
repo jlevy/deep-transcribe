@@ -9,7 +9,7 @@ author: Joshua Levy with Codex assistance
 
 **Author:** Joshua Levy with Codex assistance
 
-**Status:** Planned
+**Status:** In Progress
 
 ## Overview
 
@@ -278,13 +278,13 @@ No checked-in text may continue to teach `deep-transcribe transcribe`,
 
 ### Phase 1: Executable contract and focused tests
 
-- [ ] Add failing parser and subprocess tests for the single command, optional target,
+- [x] Add failing parser and subprocess tests for the single command, optional target,
   one-page help, model list/set/continue behavior, JSON behavior, and no-source errors.
-- [ ] Replace the subparser and direct-parser architecture with one parser and one
+- [x] Replace the subparser and direct-parser architecture with one parser and one
   dispatch path.
-- [ ] Implement `--models [PROFILE]`, including active workspace reporting and
+- [x] Implement `--models [PROFILE]`, including active workspace reporting and
   persistence before an optional transcription.
-- [ ] Remove the old command builders, routing constants, command destination, and
+- [x] Remove the old command builders, routing constants, command destination, and
   duplicated help text as a hard cut.
 - [ ] Update all CLI examples, built-in documentation, the canonical skill, generated
   mirrors, and unit tests; assert that legacy syntax has disappeared.
@@ -312,8 +312,8 @@ No checked-in text may continue to teach `deep-transcribe transcribe`,
 Epic `dt-qzym` tracks this spec.
 Its implementation beads follow the plan’s execution order:
 
-- [ ] `dt-ojgn`: Define the single-command CLI contract with failing tests.
-- [ ] `dt-0o6v`: Implement the unified parser and `--models` flag; blocked by `dt-ojgn`.
+- [x] `dt-ojgn`: Define the single-command CLI contract with failing tests.
+- [x] `dt-0o6v`: Implement the unified parser and `--models` flag; blocked by `dt-ojgn`.
 - [ ] `dt-t7oj`: Audit and complete YouTube source-context propagation; blocked by
   `dt-ojgn`.
 - [ ] `dt-vot2`: Infer speaker rosters from ordinary-prose context; blocked by
