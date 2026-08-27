@@ -5,7 +5,7 @@ title: Polish Deep Transcribe for the next release
 kind: epic
 status: open
 priority: 1
-version: 18
+version: 19
 labels: []
 dependencies: []
 child_order_hints:
@@ -26,7 +26,8 @@ child_order_hints:
   - is-01m12rcxajxm418pynrd0nxe86
   - is-01m12rcxnxpan3zqh7jkvccp8m
   - is-01m12rptaag10d96p43h42s324
+  - is-01m12sj419rjqaf8p04r5xxdxx
 created_at: 2026-08-26T18:53:28.187Z
-updated_at: 2026-08-27T23:25:59.489Z
+updated_at: 2026-08-27T23:40:54.176Z
 ---
 Coordinate focused output, printing, timestamp integrity, and local-workspace improvements for the next pre-alpha release. Keep private acceptance fixtures and participant details outside repository records.

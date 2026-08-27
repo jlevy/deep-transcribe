@@ -3,14 +3,18 @@ type: is
 id: is-01m12rcxajxm418pynrd0nxe86
 title: Ship a deno extra so YouTube setup needs no manual JS runtime
 kind: feature
-status: open
+status: closed
 priority: 1
-version: 1
+version: 2
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:20:34.886Z
-updated_at: 2026-08-27T23:20:34.886Z
+updated_at: 2026-08-27T23:44:16.787Z
+closed_at: 2026-08-27T23:44:16.786Z
+close_reason: "Shipped as the youtube extra: deno>=2.9,<3 in [project.optional-dependencies], locked, and documented as uvx \"deep-transcribe[youtube]\" across README, installation guide, packaged docs, the skill runner, and the AGENTS.md block. Verified: wheel metadata declares Provides-Extra: youtube with Requires-Dist: deno<3,>=2.9; extra == 'youtube', and uv export --extra youtube resolves deno==2.9.5 while the default export resolves none. Kept as an extra rather than a default dependency: no wheels for musl or 32-bit Linux and the sdist is an 8 KB stub, so a hard dependency would break installs there."
+resolution: null
+duplicate_of: null
 ---
 yt-dlp[default] brings yt-dlp-ejs, the JavaScript solver source, but executing it still needs a JS engine on PATH. The README currently tells the reader to install deno, Node, or bun by hand, which is the only manual step uv cannot cover.
 
