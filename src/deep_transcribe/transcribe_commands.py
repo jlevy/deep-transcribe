@@ -43,6 +43,17 @@ def _media_source_locator(source: str) -> str:
     return as_file_url(source_path)
 
 
+def _prepare_source_item(source: str) -> Item:
+    """Prepare media after registering Kash's optional service extractors."""
+    from importlib import import_module
+
+    from kash.exec import prepare_action_input
+
+    import_module("kash.kits.media.media_services")
+
+    return prepare_action_input(_media_source_locator(source)).items[0]
+
+
 def _identify_transcript_speakers(result: Item) -> Item:
     """Choose exact, inferred, or provider-level speaker identification."""
     from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
@@ -399,7 +410,7 @@ def run_transcription(
     # Import dynamically for faster startup.
     from kash.config.setup import kash_setup
     from kash.config.unified_live import get_unified_live
-    from kash.exec import kash_runtime, prepare_action_input
+    from kash.exec import kash_runtime
 
     # Set up kash workspace.
     kash_setup(kash_ws_root=ws_root, rich_logging=True)
@@ -411,8 +422,7 @@ def run_transcription(
         runtime.workspace.log_workspace_info()
 
         with get_unified_live().status("Processing…"):
-            action_input = prepare_action_input(_media_source_locator(url))
-            item = action_input.items[0]
+            item = _prepare_source_item(url)
             source_item = item
             source_metadata_changed = False
 
