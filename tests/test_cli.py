@@ -134,6 +134,9 @@ def test_transcribe_help_explains_incremental_and_forced_reruns() -> None:
     assert "including speech-to-text" in help_text
     assert "--instructions" in help_text
     assert "Trusted post-transcription processing instructions" in help_text
+    assert "ordinary prose" in help_text
+    assert "Optional structured overrides for automation" in help_text
+    assert result.stdout.index("--context TEXT") < result.stdout.index("--metadata YAML_OR_JSON")
 
 
 def test_cli_metadata_file_and_inline_values_merge() -> None:
@@ -154,6 +157,10 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
                 "transcribe",
                 "--metadata",
                 str(metadata_path),
+                "--title",
+                "Updated product conversation",
+                "--description",
+                "Alice and Bob discuss the product roadmap.",
                 "--context",
                 "Alice interviews Bob.",
                 "--key-term",
@@ -169,7 +176,8 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
         )
         metadata = build_transcription_metadata(args)
 
-    assert metadata.description == "Product interview"
+    assert metadata.title == "Updated product conversation"
+    assert metadata.description == "Alice and Bob discuss the product roadmap."
     assert metadata.additional_context == "Alice interviews Bob."
     assert metadata.key_terms == ["SignalFlow", "Nova Prime"]
     assert metadata.extra["transcription"]["speaker_hints"] == {
@@ -189,6 +197,12 @@ def test_direct_parser_supports_the_concise_transcription_contract() -> None:
             "--no_minify",
             "--workspace",
             "./custom-workspace",
+            "--title",
+            "Product conversation",
+            "--description",
+            "Alice discusses the roadmap with Bob.",
+            "--context",
+            "Alice hosts and Bob presents.",
             "https://example.com/video",
         ]
     )
@@ -196,6 +210,9 @@ def test_direct_parser_supports_the_concise_transcription_contract() -> None:
     assert args.command == "transcribe"
     assert args.deep
     assert args.no_minify
+    assert args.title == "Product conversation"
+    assert args.description == "Alice discusses the roadmap with Bob."
+    assert args.context == ["Alice hosts and Bob presents."]
     assert args.source == "https://example.com/video"
 
 

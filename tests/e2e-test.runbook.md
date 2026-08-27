@@ -417,6 +417,13 @@ nonzero natural dimensions, the page has no horizontal overflow, and no template
 such as `{{` or `}}` are visible.
 Broken or missing frame captures fail the release gate.
 
+Print the final HTML from that browser to PDF with the browser’s headers and footers
+disabled and background graphics enabled.
+Inspect the title and outline, a transcript page with frame captures, and the final
+page. The outline markers must be aligned, the theme control and table of contents must
+be absent, timestamps and the Deep Transcribe footer must remain muted, and no text or
+frame may be clipped.
+
 Minor punctuation or filler-word differences may pass when meaning is unchanged.
 Any missing phrase, wrong proper noun, mixed-speaker paragraph, shifted timestamp
 series, hallucinated summary claim, or repeated processing artifact is a release blocker

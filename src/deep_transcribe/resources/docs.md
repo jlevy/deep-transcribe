@@ -66,43 +66,42 @@ options.
 ## Supply Recording Context
 
 Raw media often lacks the names, roles, vocabulary, and chronology needed for accurate
-speaker labels. Supply reusable metadata instead of hoping a later model infers it.
+speaker labels. Describe those facts in ordinary prose:
 
-```yaml
-title: Hotel check-in dialogue
-description: A receptionist checks a guest into a hotel.
-additional_context: |
-  This is a two-person hotel check-in conversation. The receptionist speaks first.
-  The guest has a three-night reservation and receives a room upgrade.
-processing_instructions: |
-  Keep the synopsis brief. Organize the outline around the main phases of check-in.
-key_terms:
-  - Transnational Hotel
-speaker_hints:
-  "0": Hotel Receptionist
-  "1": Hotel Guest
-speaker_roster:
-  - Hotel Receptionist
-  - Hotel Guest
+```shell
+deep-transcribe transcribe \
+    --title "Hotel check-in dialogue" \
+    --context "The receptionist speaks first. The guest is Tom Sanders. He has a three-night reservation and receives a room upgrade." \
+    --instructions "Keep the synopsis brief and organize the outline around the phases of check-in." \
+    INPUT
 ```
 
-Pass it with `--metadata recording.yml`. The equivalent repeatable inline options are
-`--context`, `--context-file`, `--instructions`, `--instructions-file`, `--key-term`,
-`--speaker ID=NAME`, and `--speaker-role NAME_OR_ROLE`.
+The speaker-identification model uses the context and transcript to produce its internal
+speaker-ID mapping. The user does not need to write that mapping.
+Use `--context-file` for longer context or notes that will be revised across reruns:
 
-Use `additional_context` for facts about the recording: identities, roles, chronology,
+```text
+This is a two-person hotel check-in conversation.
+The receptionist speaks first. The guest is Tom Sanders.
+Tom has a three-night reservation and receives a room upgrade.
+```
+
+Pass that file with `--context-file recording.txt`.
+
+Use `--context` for facts about the recording: identities, roles, chronology,
 terminology, and subject matter.
-Use `processing_instructions` for trusted requests about the derived output, such as
-emphasis, structure, or level of detail.
+Use `--instructions` for trusted requests about the derived output, such as emphasis,
+structure, or level of detail.
 Keeping them separate lets models treat source metadata as evidence without accidentally
 following instructions embedded in fetched metadata.
 
-Use `speaker_hints` only when one provider speaker ID consistently belongs to one known
-person or role.
-Use a complete `speaker_roster` when the diarizer split one person across
-IDs or merged multiple people under one ID. Describe roles, chronology, forms of
-address, subject matter, or difficult dialogue transitions in `additional_context`. Do
-not guess names that are not supported by the recording context.
+`--title`, `--description`, and repeatable `--key-term` flags provide simple exact
+values without a schema.
+`--metadata YAML_OR_JSON` remains available for automation and advanced overrides.
+Use `--speaker ID=NAME` only after verifying that a provider ID consistently belongs to
+one speaker. Use the repeatable `--speaker-role` override only when the diarizer merged
+or split voices and the careful boundary-correction stage needs a complete roster.
+Do not guess names that are not supported by the recording context.
 
 ## Iterate Without Repeating Speech-to-Text
 
@@ -124,7 +123,7 @@ iterations.
 
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
-| Change `title`, `description`, `additional_context`, `processing_instructions`, `speaker_hints`, or `speaker_roster` | Run the same command normally | Reuses the cached transcript |
+| Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |
@@ -143,25 +142,26 @@ Use `--rerun` only when a fresh Deepgram result is wanted.
 
 ### Correct a Reviewed Result
 
-After reviewing the first output, edit the private metadata file and repeat the command:
+After reviewing the first output, revise the prose context and repeat the command:
 
 ```shell
 deep-transcribe transcribe \
     --workspace ./output \
     --annotated \
-    --metadata ./recording.yml \
+    --context-file ./recording.txt \
     --json \
     INPUT
 ```
 
-For a diarization boundary error, give the complete roster and describe the speakers’
-roles or the ambiguous transition in `additional_context`. Deep Transcribe then corrects
-timestamped turns with the careful model profile while preserving the raw provider
-transcript for review.
+Ordinary mislabeling should be corrected by adding the participants, roles, chronology,
+or forms of address to the prose context.
+For a true diarization boundary error, where one provider ID contains several people or
+one person has several IDs, also give the complete roster with repeated `--speaker-role`
+flags. Deep Transcribe then corrects timestamped turns with the careful model profile
+while preserving the raw provider transcript for review.
 
-For an output correction, add `processing_instructions` to the same metadata file or
-pass `--instructions`. Annotated output places a short two-paragraph synopsis first,
-then an always-visible sans-serif outline.
+For an output correction, pass `--instructions`. Annotated output places a short
+two-paragraph synopsis first, then an always-visible sans-serif outline.
 The outline follows the transcript’s section headings when they are useful and gives
 concise key points for each section.
 
@@ -169,8 +169,8 @@ concise key points for each section.
 deep-transcribe transcribe \
     --workspace ./output \
     --annotated \
+    --context-file ./recording.txt \
     --instructions "Emphasize decisions and unresolved questions." \
-    --metadata ./recording.yml \
     --json \
     INPUT
 ```
@@ -257,6 +257,27 @@ Each successful run reports:
 Use `--json` when another tool or agent needs stable artifact paths.
 Open the workspace with `kash` when intermediate items or action history require deeper
 inspection.
+
+### Save the HTML as a PDF
+
+The HTML export is the presentation source.
+Its print stylesheet switches to a light page, hides interactive controls, keeps
+transcript elements together when practical, and adds the Deep Transcribe footer.
+
+To create a PDF without adding a renderer dependency:
+
+1. Open the final HTML in a modern browser.
+2. Choose **Print → Save as PDF**.
+3. Use 100% scale, disable the browser’s headers and footers, and enable background
+   graphics.
+4. Inspect the title and outline, a transcript page with frame captures, and the final
+   page before sharing the PDF.
+
+An agent should use the same browser-print workflow through its browser controls or an
+installed Chrome or Chromium executable.
+Keep the HTML and its adjacent asset directory together so local frame captures load.
+Do not substitute a non-browser HTML-to-PDF converter: browser CSS, font metrics, and
+list markers can render differently.
 
 Keep private metadata beside the source media or in another private directory.
 Do not copy private paths, participant names, transcript content, or credentials into
