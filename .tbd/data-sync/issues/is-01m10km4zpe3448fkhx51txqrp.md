@@ -5,12 +5,12 @@ title: Create and visually validate the hotel sample PDF
 kind: task
 status: in_progress
 priority: 1
-version: 5
+version: 6
 labels: []
 dependencies: []
 parent_id: is-01m10kjrzedwht5b4mqbmwm3yp
 created_at: 2026-08-27T03:18:40.373Z
-updated_at: 2026-08-27T03:56:08.361Z
+updated_at: 2026-08-27T04:21:19.207Z
 closed_at: null
 close_reason: null
 resolution: null
@@ -20,4 +20,4 @@ Print the public hotel HTML with a real browser, render representative pages, in
 
 ## Notes
 
-Replaced the Prince draft with a PDF generated from the untouched HTML by Chrome/Skia. Visually reviewed all seven rendered pages; outline markers are aligned, frames and timestamps render correctly, controls are absent, and the custom footer appears on all pages. The PDF and preview remain untracked pending user approval.
+Regenerated the proposed public sample from the cached final transcript, not from speech-to-text. Chrome/Skia produced a tagged seven-page Letter PDF with 29 timestamp links and the Deep Transcribe footer on every page. Timestamps and footer are now 9pt in one light gray; frame-bearing turns stay intact at page boundaries. Visually inspected all seven pages. PDF and preview remain untracked pending user approval.
