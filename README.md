@@ -7,101 +7,15 @@ It uses Deepgram Nova-3 with the current batch diarizer, then can identify speak
 format paragraphs and timestamps, add sections, write a brief synopsis and structural
 outline, research key passages, capture video frames, and export browser-ready HTML.
 
+Speaker attribution drives everything downstream.
+Speaker correction, sections, outline, and synopsis all read speaker-labeled text, so
+diarization quality sets the ceiling for every later stage.
+That is why the backend is Deepgram rather than a transcription-only API such as
+OpenAI's `whisper-1`, which returns no speaker labels at all.
+
 LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles.
 New workspaces use the current Anthropic profile by default, and an equivalent OpenAI
 profile is included.
-
-## Requirements
-
-Install [uv](https://docs.astral.sh/uv/) and [ffmpeg](https://ffmpeg.org/). Deep
-Transcribe requires Python 3.13, which uv fetches automatically.
-
-For YouTube sources, also install a JavaScript runtime — [deno](https://deno.com/)
-(preferred), or Node.js or bun if you already have one.
-yt-dlp uses it to solve the JavaScript challenges YouTube now applies to media URLs.
-Audio-only transcription generally still works without a runtime, but yt-dlp warns on
-every fetch and loses access to some formats, so treat it as required in practice.
-Environments without a system runtime (containers, bare CI) can install the
-redistributed binary instead, with `uv pip install deno`.
-
-Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment, a `.env` or
-`.env.local` file in the current directory or one of its parents, or `~/.env.local`:
-
-- `ANTHROPIC_API_KEY` for the default Anthropic profile
-- `OPENAI_API_KEY` for the OpenAI profile
-
-Do not commit API keys.
-
-## Quick Start
-
-Run Deep Transcribe without installing it:
-
-```shell
-uvx deep-transcribe --help
-```
-
-For repeated use, install it as a persistent tool:
-
-```shell
-uv tool install deep-transcribe
-deep-transcribe --help
-```
-
-## Cross-Agent Skill
-
-Install the public discovery skill through the cross-agent skills installer:
-
-```shell
-npx skills add jlevy/deep-transcribe@deep-transcribe
-```
-
-The skill uses the source checkout or installed CLI when available and reads the guide
-packaged with that executable.
-
-If the CLI is already available, install its complete skill bundle directly from a
-project root:
-
-```shell
-deep-transcribe --install-skill
-```
-
-This writes the portable `.agents/skills/deep-transcribe/` bundle, the
-`.claude/skills/deep-transcribe/` mirror, and a marker-bounded project instruction block
-in `AGENTS.md`. The install is idempotent.
-Run `deep-transcribe --docs` for surface selection and explicit global-install options.
-
-## Self-Documenting CLI
-
-Start with the single help page:
-
-```shell
-deep-transcribe --help
-deep-transcribe --docs
-deep-transcribe --skill
-deep-transcribe --models
-```
-
-The help page documents all presets, individual processing stages, Deepgram language and
-model selection, natural-language context and exact speaker overrides, caching and rerun
-behavior, JSON output, model profiles, and examples.
-`--docs` prints the complete guide packaged with the installed release, including the
-review-and-rerun workflow and skill installation.
-The transcription interface is `deep-transcribe OPTIONS INPUT`.
-
-### Model Provider
-
-Inspect the exact current Anthropic and OpenAI role mappings before selecting one:
-
-```shell
-deep-transcribe --models
-deep-transcribe --models anthropic
-deep-transcribe --models openai
-```
-
-The selection is saved in the chosen workspace.
-Pass `--workspace` when using a location other than `./transcriptions`. Add an input to
-the selection command to save the profile and transcribe in one run:
-`deep-transcribe --models openai INPUT`.
 
 ## Example: Hotel Check In — SNL
 
@@ -169,6 +83,113 @@ Deep Transcribe does not require or use a separate PDF renderer.
 
 Run `deep-transcribe --docs` for speaker rosters, cache behavior, custom stages, model
 profiles, and deliberate full reruns.
+
+## Getting Started
+
+Deep Transcribe runs through [uv](https://docs.astral.sh/uv/), which fetches Python and
+Deep Transcribe itself.
+Install uv and [ffmpeg](https://ffmpeg.org/) yourself.
+Nothing else needs a manual install.
+
+Speech-to-text always goes through Deepgram, so a
+[Deepgram API key](https://console.deepgram.com/signup) is required.
+New accounts start with $200 of credit and no credit card.
+Add one LLM provider key for the formatting and analysis stages:
+
+- `DEEPGRAM_API_KEY` for speech-to-text and diarization (required)
+- `ANTHROPIC_API_KEY` for the default Anthropic profile
+- `OPENAI_API_KEY` for the OpenAI profile
+
+Set them in the process environment, a `.env` or `.env.local` file in the current
+directory or one of its parents, or `~/.env.local`.
+Do not commit API keys.
+
+Then run it without installing anything:
+
+```shell
+uvx deep-transcribe --help
+```
+
+YouTube sources need a JavaScript runtime, which yt-dlp uses to solve the signature and
+`n` challenges YouTube applies to media URLs.
+Let uv supply Deno rather than installing a runtime yourself:
+
+```shell
+uvx --with deno deep-transcribe URL
+```
+
+Deno is the runtime to prefer.
+yt-dlp ranks it above Node, QuickJS, and bun, and runs it as the only sandboxed option,
+with no network, npm, or local config access.
+bun is deprecated upstream.
+Deno is also the only one of the four published as an official binary redistribution on
+PyPI, which is what lets uv install it alongside Deep Transcribe.
+Local audio and video files need no runtime at all.
+
+For repeated use, install it as a persistent tool:
+
+```shell
+uv tool install --with deno deep-transcribe
+deep-transcribe --help
+```
+
+Agents should set up through the skill below, which carries these same steps.
+
+## Cross-Agent Skill
+
+Install the public discovery skill through the cross-agent skills installer:
+
+```shell
+npx skills add jlevy/deep-transcribe@deep-transcribe
+```
+
+The skill uses the source checkout or installed CLI when available and reads the guide
+packaged with that executable.
+
+If the CLI is already available, install its complete skill bundle directly from a
+project root:
+
+```shell
+deep-transcribe --install-skill
+```
+
+This writes the portable `.agents/skills/deep-transcribe/` bundle, the
+`.claude/skills/deep-transcribe/` mirror, and a marker-bounded project instruction block
+in `AGENTS.md`. The install is idempotent.
+Run `deep-transcribe --docs` for surface selection and explicit global-install options.
+
+## Self-Documenting CLI
+
+Start with the single help page:
+
+```shell
+deep-transcribe --help
+deep-transcribe --docs
+deep-transcribe --skill
+deep-transcribe --models
+```
+
+The help page documents all presets, individual processing stages, Deepgram language and
+model selection, natural-language context and exact speaker overrides, caching and rerun
+behavior, JSON output, model profiles, and examples.
+`--docs` prints the complete guide packaged with the installed release, including the
+review-and-rerun workflow and skill installation.
+The transcription interface is `deep-transcribe OPTIONS INPUT`.
+
+### Model Provider
+
+Inspect the exact current Anthropic and OpenAI role mappings before selecting one:
+
+```shell
+deep-transcribe --models
+deep-transcribe --models anthropic
+deep-transcribe --models openai
+```
+
+The selection is saved in the chosen workspace.
+Pass `--workspace` when using a location other than `./transcriptions`. Add an input to
+the selection command to save the profile and transcribe in one run:
+`deep-transcribe --models openai INPUT`.
 
 ## Output
 

@@ -28,6 +28,7 @@ runner:
 
 ```shell
 uvx \
+    --with deno \
     --exclude-newer-package yt-dlp=__YTDLP_CUTOFF__ \
     --from deep-transcribe==__DEEP_TRANSCRIBE_VERSION__ \
     deep-transcribe --docs
@@ -54,8 +55,9 @@ the project root by running `deep-transcribe --install-skill` with the chosen pr
 ## Execute Safely
 
 Confirm `ffmpeg`, `DEEPGRAM_API_KEY`, and the key for the selected LLM profile are
-available. For YouTube, also confirm a supported JavaScript runtime is on `PATH`. Verify
-key names without printing values.
+available. Verify key names without printing values.
+YouTube needs a JavaScript runtime for yt-dlp's signature challenges: pass `--with deno`
+as above so uv supplies one, rather than depending on a runtime already being on `PATH`.
 Do not change a workspace’s saved model profile unless the user requests it.
 
 Choose the least expensive preset that meets the request and use `--json` when artifact
