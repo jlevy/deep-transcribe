@@ -121,16 +121,23 @@ and frame captures in just over four minutes.
 Describe what you know in ordinary prose.
 Deep Transcribe gives that context to the speaker-identification and editorial models:
 
+For supported URLs, Deep Transcribe first fetches source metadata through the media
+extractor and automatically gives the models a bounded version of the title,
+description, canonical URL, and available channel and publication fields.
+The context below supplies the complete cast and role relationships that the official
+video description does not contain.
+
 ```shell
 uvx deep-transcribe \
     --workspace ./snl-hotel-output \
     --annotated \
     --title "Hotel Check In — SNL" \
-    --context "This is the Saturday Night Live sketch Hotel Check In. The five speaking roles are Mr. Adams (Mikey Day), the Front Desk Employee (Kumail Nanjiani), the Government Representative (Beck Bennett), and two Room 904 Guests (Chris Redd and Leslie Jones). Use those character or role labels." \
-    --instructions "Write a two-paragraph synopsis that identifies the sketch and cast, then explains how the escalating hotel sales pitches drive the joke. Give every outline section exactly two concise bullets." \
+    --context "This is the Saturday Night Live sketch Hotel Check In. The five speaking roles are Mr. Adams (Mikey Day), the Front Desk Employee (Kumail Nanjiani), the Government Representative (Beck Bennett), and two unnamed Room 904 Guests (Chris Redd and Leslie Jones). Label the unnamed roles Room 904 Guest (Chris Redd) and Room 904 Guest (Leslie Jones)." \
+    --instructions "Write two short synopsis paragraphs. In the first, identify the SNL sketch and name all five performers with their roles. In the second, explain how the escalating hotel sales pitches drive the joke. Give every outline section exactly two concise bullets." \
     --key-term "Mr. Adams" \
     --key-term "Chatsworth Marriott Experience" \
     --key-term "Stargazer Lounge" \
+    --key-term "North Korea" \
     "https://www.youtube.com/watch?v=kq9Q9-U0vrc"
 ```
 
@@ -139,6 +146,8 @@ transcript, and browser-ready HTML. Review the result, revise the prose, and run
 same command again to correct context or request a different synopsis or outline.
 Use `--context-file notes.txt` when the context is long or will be edited repeatedly.
 Deep Transcribe reuses the raw transcript and resumes at the first affected stage.
+A cached URL resource created without extractor metadata is enriched on the next run
+without repeating speech-to-text.
 
 The static HTML is also the source for the PDF above.
 Open it in Chrome or Chromium, choose **Print → Save as PDF**, disable the browser’s own

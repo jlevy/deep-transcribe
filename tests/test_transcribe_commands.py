@@ -46,13 +46,14 @@ def test_local_media_url_registration_does_not_copy_the_source() -> None:
 
 
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnknownMarkWarning")
-def test_remote_media_preparation_uses_extractor_metadata(
+def test_remote_media_preparation_enriches_fresh_and_incomplete_cached_sources(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from kash.exec import kash_runtime
     from kash.kits.media.media_services.youtube import YouTube
     from kash.model import Format
     from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
 
     source_url = "https://www.youtube.com/watch?v=abcdefghijk"
     extractor_result: dict[str, Any] = {
@@ -73,15 +74,23 @@ def test_remote_media_preparation_uses_extractor_metadata(
 
     with TemporaryDirectory() as temp_dir, kash_runtime(Path(temp_dir) / "workspace"):
         item = _prepare_source_item(source_url)
+        assert item.type is ItemType.resource
+        assert item.format is Format.url
+        assert item.title == "Hotel Check In - SNL"
+        assert item.description == "An SNL hotel sketch with two guests."
+        assert item.extra is not None
+        assert item.extra["media_service"] == "youtube"
+        assert str(item.extra["upload_date"]) == "2017-10-15"
+        assert item.extra["channel_url"] == "https://www.youtube.com/channel/example"
 
-    assert item.type is ItemType.resource
-    assert item.format is Format.url
-    assert item.title == "Hotel Check In - SNL"
-    assert item.description == "An SNL hotel sketch with two guests."
-    assert item.extra is not None
-    assert item.extra["media_service"] == "youtube"
-    assert str(item.extra["upload_date"]) == "2017-10-15"
-    assert item.extra["channel_url"] == "https://www.youtube.com/channel/example"
+        item.title = "Cached webpage title"
+        item.extra = {}
+        current_ws().save(item, overwrite=True)
+        enriched_item = _prepare_source_item(source_url)
+
+    assert enriched_item.title == "Hotel Check In - SNL"
+    assert enriched_item.extra is not None
+    assert enriched_item.extra["media_service"] == "youtube"
 
 
 def test_processing_instructions_bypass_raw_and_formatting_cache_identity(

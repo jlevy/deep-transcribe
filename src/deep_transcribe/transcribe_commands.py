@@ -51,7 +51,14 @@ def _prepare_source_item(source: str) -> Item:
 
     import_module("kash.kits.media.media_services")
 
-    return prepare_action_input(_media_source_locator(source)).items[0]
+    locator = _media_source_locator(source)
+    item = prepare_action_input(locator).items[0]
+    if item.url and "media_service" not in (item.extra or {}):
+        from kash.media_base.media_services import get_media_id
+
+        if get_media_id(item.url):
+            item = prepare_action_input(locator, refetch=True).items[0]
+    return item
 
 
 def _identify_transcript_speakers(result: Item) -> Item:

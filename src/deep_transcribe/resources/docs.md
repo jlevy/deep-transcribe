@@ -63,8 +63,8 @@ speaker labels. Describe those facts in ordinary prose:
 ```shell
 deep-transcribe \
     --title "Hotel Check In — SNL" \
-    --context "This is the Saturday Night Live sketch Hotel Check In. The five speaking roles are Mr. Adams (Mikey Day), the Front Desk Employee (Kumail Nanjiani), the Government Representative (Beck Bennett), and two Room 904 Guests (Chris Redd and Leslie Jones). Use those character or role labels." \
-    --instructions "Write a two-paragraph synopsis that identifies the sketch and cast, then explains how the escalating hotel sales pitches drive the joke. Give every outline section exactly two concise bullets." \
+    --context "This is the Saturday Night Live sketch Hotel Check In. The five speaking roles are Mr. Adams (Mikey Day), the Front Desk Employee (Kumail Nanjiani), the Government Representative (Beck Bennett), and two unnamed Room 904 Guests (Chris Redd and Leslie Jones). Label the unnamed roles Room 904 Guest (Chris Redd) and Room 904 Guest (Leslie Jones)." \
+    --instructions "Write two short synopsis paragraphs. In the first, identify the SNL sketch and name all five performers with their roles. In the second, explain how the escalating hotel sales pitches drive the joke. Give every outline section exactly two concise bullets." \
     INPUT
 ```
 
@@ -79,8 +79,8 @@ Use `--context-file` for longer context or notes that will be revised across rer
 This is the Saturday Night Live sketch Hotel Check In.
 Mr. Adams is played by Mikey Day, and the Front Desk Employee is played by Kumail
 Nanjiani. Beck Bennett plays the Government Representative; Chris Redd and Leslie Jones
-play the two Room 904 Guests.
-Use character names or roles as the transcript labels.
+play the two unnamed Room 904 Guests.
+Label the unnamed roles Room 904 Guest (Chris Redd) and Room 904 Guest (Leslie Jones).
 ```
 
 Pass that file with `--context-file recording.txt`.
@@ -91,8 +91,12 @@ Use `--instructions` for trusted requests about the derived output, such as emph
 structure, or level of detail.
 Keeping them separate lets models treat source metadata as evidence without accidentally
 following instructions embedded in fetched metadata.
-For URL inputs, source title, description, canonical URL, and available channel and
-publication fields are included automatically as bounded reference evidence.
+For supported URL inputs, the media extractor fetches the source title, description,
+canonical URL, and available channel and publication fields.
+Deep Transcribe includes a bounded version automatically as reference evidence.
+A cached URL resource created without extractor metadata is enriched once on its next
+run. Use `--context` for relevant facts the publisher did not include or that require
+review, such as a complete cast-to-role mapping.
 
 `--title`, `--description`, and repeatable `--key-term` flags provide simple exact
 values without a schema.

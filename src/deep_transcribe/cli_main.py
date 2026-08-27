@@ -339,10 +339,12 @@ def _help_epilog() -> str:
 
         **Context:** Start with `--context` or `--context-file` in ordinary prose. The
         speaker-identification LLM uses those facts to produce its structured mapping.
-        When the prose clearly names the complete set of speaking roles, Deep Transcribe
-        also derives the roster needed to repair merged diarization boundaries. Exact
-        speaker IDs, repeated `--speaker-role` values, and YAML/JSON metadata are optional
-        overrides, not the normal human interface.
+        Supported media URLs also contribute bounded extractor metadata automatically;
+        use context for relevant facts the source does not publish. When the prose clearly
+        names the complete set of speaking roles, Deep Transcribe also derives the roster
+        needed to repair merged diarization boundaries. Exact speaker IDs, repeated
+        `--speaker-role` values, and YAML/JSON metadata are optional overrides, not the
+        normal human interface.
 
         **Iterative reruns:** A normal rerun resumes at the first affected stage and
         reuses compatible cached work. Updating descriptive context or speaker metadata
