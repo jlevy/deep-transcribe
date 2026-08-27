@@ -328,10 +328,10 @@ No checked-in text may continue to teach `deep-transcribe transcribe`, `deep-tra
   speaker labels, timestamps, frames, HTML, and cache records.
 - [x] Make one context or editorial-instruction refinement and prove the rerun reuses the extraction
   and raw Deepgram transcript.
-- [ ] Browser-print the final HTML, inspect the rendered PDF, capture the README preview, and
+- [x] Browser-print the final HTML, inspect the rendered PDF, capture the README preview, and
   replace the old public example only after review.
 - [ ] Run focused tests, the full quality gate, package builds, skill drift validation, and the
-  public end-to-end runbook before opening the pull request.
+  installed-release smoke checks before completing the release.
 
 ## Implementation Beads
 
@@ -343,21 +343,21 @@ Its implementation beads follow the plan’s execution order:
 - [x] `dt-t7oj`: Audit and complete YouTube source-context propagation; blocked by `dt-ojgn`.
 - [x] `dt-vot2`: Infer speaker rosters from ordinary-prose context; blocked by `dt-ojgn`.
 - [x] `dt-ifou`: Update every help, documentation, and skill surface; blocked by `dt-0o6v`.
-- [ ] `dt-g641`: Run the SNL fixture and prove cache-aware refinement; blocked by `dt-0o6v`,
+- [x] `dt-g641`: Run the SNL fixture and prove cache-aware refinement; blocked by `dt-0o6v`,
   `dt-t7oj`, `dt-vot2`, and the cache-correctness beads below.
-- [ ] `dt-bqft`: Publish the reviewed SNL Hotel Check-In README showcase; blocked by `dt-ifou` and
+- [x] `dt-bqft`: Publish the reviewed SNL Hotel Check-In README showcase; blocked by `dt-ifou` and
   `dt-g641`.
 - [ ] `dt-7res`: Validate the hard cut and prepare the pull request; blocked by `dt-bqft`.
 - [x] `dt-i9l1`: Add Tryscript golden coverage for the unified CLI.
-- [ ] `dt-v40u`: Keep synopsis and outline instructions stage-specific.
-- [ ] `dt-o0wa`: Canonicalize Kash operation option order for durable cache hits.
-- [ ] `dt-ks97`: Declare Kash Media’s raw-transcription output contract.
-- [ ] `dt-89d3`: Declare Kash’s `strip_html` Markdown output contract.
-- [ ] `dt-ceik`: Preserve upstream lineage when Kash skips a per-item action.
-- [ ] `dt-jk12`: Declare Kash Media’s timestamp-backfill output contract.
-- [ ] `dt-q794`: Declare Kash Docs’ section-heading output contract.
-- [ ] `dt-aew1`: Declare Deep Transcribe’s overview output contracts.
-- [ ] `dt-fvmm`: Add an instruction-keyed overview cache boundary.
+- [x] `dt-v40u`: Keep synopsis and outline instructions stage-specific.
+- [x] `dt-o0wa`: Canonicalize Kash operation option order for durable cache hits.
+- [x] `dt-ks97`: Declare Kash Media’s raw-transcription output contract.
+- [x] `dt-89d3`: Declare Kash’s `strip_html` Markdown output contract.
+- [x] `dt-ceik`: Preserve upstream lineage when Kash skips a per-item action.
+- [x] `dt-jk12`: Declare Kash Media’s timestamp-backfill output contract.
+- [x] `dt-q794`: Declare Kash Docs’ section-heading output contract.
+- [x] `dt-aew1`: Declare Deep Transcribe’s overview output contracts.
+- [x] `dt-fvmm`: Add an instruction-keyed overview cache boundary.
 
 ## Testing Strategy
 
@@ -393,20 +393,22 @@ Sixteen representative frames and 46 paragraph-level timestamps are present.
 An instruction-only refinement produced one total Deepgram call across both runs and skipped every
 transcript-processing stage before the new overview boundary.
 
-Visual validation will use Chrome or Chromium print-to-PDF, render every PDF page to an image, and
-inspect the title block, synopsis paragraphs, outline bullets, timestamps, frame placement, page
-breaks, and footer. The README thumbnail and PDF links must resolve from GitHub’s rendered README.
+Chrome 151 produced an eight-page letter-sized PDF from the final static HTML. Every page was
+rendered to an image and inspected for the title block, synopsis paragraphs, outline bullets,
+timestamps, frame placement, page breaks, and footer.
+The reviewed PDF and its first-page preview replace the previous example artifacts, and the README
+links the preview to the PDF and the official thumbnail to the video.
 
 Before handoff, run `make lint-check`, `make test`, `make build`, the generated-skill drift checks,
 and the relevant release smoke tests.
 
 ## Rollout Plan
 
-Land and release the cache fixes in dependency order: Kash (`kash-shell` on PyPI), then Kash Docs
-and Kash Media against that released Kash patch, then Deep Transcribe against the released
-dependency versions.
+The cache fixes were merged and released in dependency order: Kash (`kash-shell` 0.4.9), Kash Docs
+0.2.7, and Kash Media 0.4.7. Deep Transcribe now resolves and passes its local gate against those
+published versions.
 These are first-party packages, so the normal dependency cool-off does not apply.
-Each repository still receives its normal review, quality gate, pull request, CI verification,
+Each upstream repository received its normal review, quality gate, pull request, CI verification,
 merge, tag-driven patch release, and installed-artifact smoke test.
 
 Land the Deep Transcribe hard cut and public fixture in one pull request after the dependency

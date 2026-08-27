@@ -103,34 +103,35 @@ Pass `--workspace` when using a location other than `./transcriptions`. Add an i
 the selection command to save the profile and transcribe in one run:
 `deep-transcribe --models openai INPUT`.
 
-## Example: A Reservation Glitch and a Free Jacuzzi
+## Example: Hotel Check In — SNL
 
-The public example uses a [two-person hotel check-in video][video]. It is short enough
-to run quickly but includes speaker names, room numbers, a missing reservation, and a
-suite upgrade.
+The public example uses the official [Saturday Night Live sketch][example-video]. Its
+five speaking roles, short interjections, repeated hotel terminology, running joke, and
+scene changes exercise speaker correction, key terms, summaries, outlines, timestamps,
+and frame captures in just over four minutes.
 
 | Source Video | Formatted Transcript |
 | :---: | :---: |
-| [![Hotel receptionist and guest in the source video](https://img.youtube.com/vi/wyqfYJX23lg/maxresdefault.jpg)][video] | [![Formatted hotel transcript title, synopsis, and outline](docs/examples/hotel-check-in-transcript-preview.png)][pdf] |
-| [Watch the video][video] | [View the PDF][pdf] |
+| [![Mikey Day and Kumail Nanjiani in the SNL Hotel Check In sketch](https://img.youtube.com/vi/kq9Q9-U0vrc/maxresdefault.jpg)][example-video] | [![Formatted Hotel Check In transcript title, synopsis, and outline](docs/examples/snl-hotel-check-in-transcript-preview.png)][example-pdf] |
+| [Watch the video][example-video] | [View the PDF][example-pdf] |
 
-[video]: https://www.youtube.com/watch?v=wyqfYJX23lg
-[pdf]: docs/examples/hotel-check-in-transcript.pdf
+[example-video]: https://www.youtube.com/watch?v=kq9Q9-U0vrc
+[example-pdf]: docs/examples/snl-hotel-check-in-transcript.pdf
 
 Describe what you know in ordinary prose.
 Deep Transcribe gives that context to the speaker-identification and editorial models:
 
 ```shell
 uvx deep-transcribe \
-    --workspace ./hotel-output \
+    --workspace ./snl-hotel-output \
     --annotated \
-    --title "A Reservation Glitch and a Free Jacuzzi" \
-    --context "The receptionist speaks first. The guest is Tom Sanders. He has a three-night reservation and is assigned Room 653 at the Transnational Hotel." \
-    --instructions "Keep the synopsis brief and organize the outline around the phases of check-in." \
-    --key-term "Tom Sanders" \
-    --key-term "Transnational Hotel" \
-    --key-term "Room 653" \
-    "https://www.youtube.com/watch?v=wyqfYJX23lg"
+    --title "Hotel Check In — SNL" \
+    --context "This is the Saturday Night Live sketch Hotel Check In. The five speaking roles are Mr. Adams (Mikey Day), the Front Desk Employee (Kumail Nanjiani), the Government Representative (Beck Bennett), and two Room 904 Guests (Chris Redd and Leslie Jones). Use those character or role labels." \
+    --instructions "Write a two-paragraph synopsis that identifies the sketch and cast, then explains how the escalating hotel sales pitches drive the joke. Give every outline section exactly two concise bullets." \
+    --key-term "Mr. Adams" \
+    --key-term "Chatsworth Marriott Experience" \
+    --key-term "Stargazer Lounge" \
+    "https://www.youtube.com/watch?v=kq9Q9-U0vrc"
 ```
 
 The command produces cached media and intermediate results, a processed Markdown
@@ -139,10 +140,23 @@ same command again to correct context or request a different synopsis or outline
 Use `--context-file notes.txt` when the context is long or will be edited repeatedly.
 Deep Transcribe reuses the raw transcript and resumes at the first affected stage.
 
-The HTML is also the source for the PDF above.
-Open it in a modern browser, choose **Print → Save as PDF**, disable the browser’s own
+The static HTML is also the source for the PDF above.
+Open it in Chrome or Chromium, choose **Print → Save as PDF**, disable the browser’s own
 headers and footers, and keep background graphics enabled.
-Deep Transcribe does not require a separate PDF renderer.
+For an automated, reproducible print on macOS, substitute the absolute HTML path that
+Deep Transcribe reports:
+
+```shell
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    --headless=new \
+    --disable-background-networking \
+    --no-pdf-header-footer \
+    --print-to-pdf=transcript.pdf \
+    "file:///absolute/path/to/transcript.html"
+```
+
+Use `google-chrome` or `chromium` as the executable on other platforms.
+Deep Transcribe does not require or use a separate PDF renderer.
 
 Run `deep-transcribe --docs` for speaker rosters, cache behavior, custom stages, model
 profiles, and deliberate full reruns.

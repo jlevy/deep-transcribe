@@ -13,9 +13,9 @@ deep-transcribe --help
 deep-transcribe --models
 ```
 
-If Deep Transcribe is not installed, use the `uvx` command in the current README.
-Automated agent workflows should use the exact version-pinned runner shown by the
-installed skill.
+If Deep Transcribe is not installed, use the simple `uvx deep-transcribe` form in the
+current README. Automated agent workflows should follow the discovery and
+version-matching guidance in the installed skill.
 
 Deep Transcribe requires `ffmpeg`, `DEEPGRAM_API_KEY`, and the key for the selected LLM
 profile: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. It reads `.env` and `.env.local` files
@@ -62,9 +62,9 @@ speaker labels. Describe those facts in ordinary prose:
 
 ```shell
 deep-transcribe \
-    --title "Hotel check-in dialogue" \
-    --context "The receptionist speaks first. The guest is Tom Sanders. He has a three-night reservation and receives a room upgrade." \
-    --instructions "Keep the synopsis brief and organize the outline around the phases of check-in." \
+    --title "Hotel Check In — SNL" \
+    --context "This is the Saturday Night Live sketch Hotel Check In. The five speaking roles are Mr. Adams (Mikey Day), the Front Desk Employee (Kumail Nanjiani), the Government Representative (Beck Bennett), and two Room 904 Guests (Chris Redd and Leslie Jones). Use those character or role labels." \
+    --instructions "Write a two-paragraph synopsis that identifies the sketch and cast, then explains how the escalating hotel sales pitches drive the joke. Give every outline section exactly two concise bullets." \
     INPUT
 ```
 
@@ -76,9 +76,11 @@ boundaries. The user does not need to write either structure.
 Use `--context-file` for longer context or notes that will be revised across reruns:
 
 ```text
-This is a two-person hotel check-in conversation.
-The receptionist speaks first. The guest is Tom Sanders.
-Tom has a three-night reservation and receives a room upgrade.
+This is the Saturday Night Live sketch Hotel Check In.
+Mr. Adams is played by Mikey Day, and the Front Desk Employee is played by Kumail
+Nanjiani. Beck Bennett plays the Government Representative; Chris Redd and Leslie Jones
+play the two Room 904 Guests.
+Use character names or roles as the transcript labels.
 ```
 
 Pass that file with `--context-file recording.txt`.
@@ -271,6 +273,20 @@ To create a PDF without adding a renderer dependency:
    graphics.
 4. Inspect the title and outline, a transcript page with frame captures, and the final
    page before sharing the PDF.
+
+An installed Chrome or Chromium executable can make the same browser print reproducible.
+Replace the placeholder with the absolute path Deep Transcribe reports:
+
+```shell
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    --headless=new \
+    --disable-background-networking \
+    --no-pdf-header-footer \
+    --print-to-pdf=transcript.pdf \
+    "file:///absolute/path/to/transcript.html"
+```
+
+Use `google-chrome` or `chromium` as the executable on other platforms.
 
 An agent should use the same browser-print workflow through its browser controls or an
 installed Chrome or Chromium executable.
