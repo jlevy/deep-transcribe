@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import sys
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,7 +13,6 @@ from textwrap import dedent
 import pytest
 
 from deep_transcribe.cli_main import (
-    build_direct_parser,
     build_parser,
     build_transcription_metadata,
     configure_kash_workspace,
@@ -77,7 +76,6 @@ def test_keyboard_interrupt_exits_without_traceback() -> None:
 def test_parser_accepts_canonical_transcription_contract() -> None:
     args = build_parser().parse_args(
         [
-            "transcribe",
             "--deep",
             "--no-minify",
             "--workspace",
@@ -101,7 +99,6 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
         ]
     )
 
-    assert args.command == "transcribe"
     assert args.deep
     assert args.no_minify
     assert args.workspace == "./custom-workspace"
@@ -118,9 +115,9 @@ def test_parser_accepts_canonical_transcription_contract() -> None:
     assert args.source == "https://example.com/video"
 
 
-def test_transcribe_help_explains_incremental_and_forced_reruns() -> None:
+def test_single_help_page_explains_incremental_and_forced_reruns() -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "deep_transcribe", "transcribe", "--help"],
+        [sys.executable, "-m", "deep_transcribe", "--help"],
         check=True,
         capture_output=True,
         text=True,
@@ -136,6 +133,10 @@ def test_transcribe_help_explains_incremental_and_forced_reruns() -> None:
     assert "Trusted post-transcription processing instructions" in help_text
     assert "ordinary prose" in help_text
     assert "Optional structured overrides for automation" in help_text
+    assert "Commands:" not in result.stdout
+    assert "deep-transcribe transcribe" not in result.stdout
+    assert "deep-transcribe models" not in result.stdout
+    assert "--models [PROFILE]" in result.stdout
     assert result.stdout.index("--context TEXT") < result.stdout.index("--metadata YAML_OR_JSON")
 
 
@@ -154,7 +155,6 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
         )
         args = build_parser().parse_args(
             [
-                "transcribe",
                 "--metadata",
                 str(metadata_path),
                 "--title",
@@ -190,8 +190,8 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
     )
 
 
-def test_direct_parser_supports_the_concise_transcription_contract() -> None:
-    args = build_direct_parser().parse_args(
+def test_parser_supports_the_direct_transcription_contract() -> None:
+    args = build_parser().parse_args(
         [
             "--deep",
             "--no_minify",
@@ -207,7 +207,6 @@ def test_direct_parser_supports_the_concise_transcription_contract() -> None:
         ]
     )
 
-    assert args.command == "transcribe"
     assert args.deep
     assert args.no_minify
     assert args.title == "Product conversation"
@@ -227,23 +226,24 @@ def test_kash_workspace_is_configured_before_runtime_imports(
     assert workspace == Path(os.environ["KASH_WS_ROOT"])
 
 
-def test_help_and_model_directory_expose_all_command_surfaces() -> None:
+def test_help_and_models_flag_expose_all_surfaces(tmp_path: Path) -> None:
     help_text = build_parser().format_help()
 
-    assert all(command in help_text for command in ("transcribe", "models"))
     assert "mcp" not in help_text.lower()
     assert "logs" not in help_text.lower()
     assert "--docs" in help_text
     assert "--skill" in help_text
     assert "--install-skill" in help_text
-    assert "IMPORTANT" in help_text
+    assert "--models [PROFILE]" in help_text
 
     output = StringIO()
     with redirect_stdout(output):
-        main(["models", "--json"])
+        main(["--models", "--json", "--workspace", str(tmp_path)])
 
     model_data = json.loads(output.getvalue())
     assert model_data["default"] == "anthropic"
+    assert model_data["active"] == "anthropic"
+    assert model_data["workspace"] == str((tmp_path / "workspace").resolve())
     assert (
         model_data["profiles"]["anthropic"] == MODEL_PROFILES[ModelProvider.anthropic].as_params()
     )
@@ -258,8 +258,7 @@ def test_model_profile_selection_persists_in_transcription_workspace() -> None:
         with redirect_stdout(output):
             main(
                 [
-                    "models",
-                    "--set",
+                    "--models",
                     "openai",
                     "--json",
                     "--workspace",
@@ -277,6 +276,79 @@ def test_model_profile_selection_persists_in_transcription_workspace() -> None:
     assert f"structured_llm: {profile.structured_llm}" in params_text
     assert f"standard_llm: {profile.standard_llm}" in params_text
     assert f"fast_llm: {profile.fast_llm}" in params_text
+
+
+def test_models_profile_can_be_selected_before_transcription(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from kash.config import setup
+
+    from deep_transcribe import transcribe_commands
+
+    source = "https://example.com/video"
+    observed: dict[str, object] = {}
+
+    def fake_kash_setup(**_kwargs: object) -> None:
+        pass
+
+    def fake_run_transcription(
+        base_dir: Path,
+        source_arg: str,
+        *_args: object,
+        **_kwargs: object,
+    ) -> tuple[Path, Path]:
+        profile = MODEL_PROFILES[ModelProvider.openai]
+        params_text = (base_dir / "workspace/.kash/settings/params.yml").read_text(encoding="utf-8")
+        observed["source"] = source_arg
+        observed["profile_saved"] = f"careful_llm: {profile.careful_llm}" in params_text
+        return base_dir / "transcript.md", base_dir / "transcript.html"
+
+    monkeypatch.setattr(transcribe_commands, "run_transcription", fake_run_transcription)
+    monkeypatch.setattr(setup, "kash_setup", fake_kash_setup)
+
+    output = StringIO()
+    with redirect_stdout(output):
+        main(
+            [
+                "--models",
+                "openai",
+                "--workspace",
+                str(tmp_path),
+                "--json",
+                source,
+            ]
+        )
+
+    assert observed == {"source": source, "profile_saved": True}
+    assert json.loads(output.getvalue())["html"].endswith("transcript.html")
+
+
+def test_models_flag_reports_invalid_workspace_settings_without_a_traceback(
+    tmp_path: Path,
+) -> None:
+    params_path = tmp_path / "workspace/.kash/settings/params.yml"
+    params_path.parent.mkdir(parents=True)
+    params_path.write_text("- not-a-settings-mapping\n", encoding="utf-8")
+
+    errors = StringIO()
+    with redirect_stderr(errors), pytest.raises(SystemExit) as error:
+        main(["--models", "--workspace", str(tmp_path)])
+
+    assert error.value.code == 2
+    assert "Invalid workspace model settings" in errors.getvalue()
+    assert "Traceback" not in errors.getvalue()
+
+
+def test_source_is_required_unless_an_early_action_was_requested(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as error:
+        main(["--deep"])
+    assert error.value.code == 2
+
+    with pytest.raises(SystemExit) as error:
+        main(["https://example.com/video", "--models"])
+    assert error.value.code == 2
+
+    assert main(["--models", "--workspace", str(tmp_path)]) is None
 
 
 def test_docs_and_skill_cli_paths_avoid_the_runtime_stack() -> None:
@@ -315,9 +387,14 @@ def test_install_skill_cli_validates_surface_arguments(tmp_path: Path) -> None:
     assert error.value.code == 2
 
 
-@pytest.mark.parametrize("arguments", [["mcp"], ["logs"], ["--mcp"], ["--sse"], ["--logs"]])
-def test_removed_mcp_surfaces_are_rejected(arguments: list[str]) -> None:
+@pytest.mark.parametrize("arguments", [["--mcp"], ["--sse"], ["--logs"]])
+def test_removed_mcp_options_are_rejected(arguments: list[str]) -> None:
     with pytest.raises(SystemExit) as error:
         main(arguments)
 
     assert error.value.code == 2
+
+
+@pytest.mark.parametrize("source", ["transcribe", "models", "mcp", "logs"])
+def test_former_command_names_are_plain_sources(source: str) -> None:
+    assert build_parser().parse_args([source]).source == source

@@ -1,8 +1,7 @@
 """
 Take a video or audio URL or local file, cache it, and produce a transcript source and
 browser-ready HTML. Run `deep-transcribe --docs` for the complete operational guide,
-`deep-transcribe transcribe --help` for processing choices, and
-`deep-transcribe models --help` for Anthropic and OpenAI profiles.
+or `deep-transcribe --help` for every processing choice and model profile action.
 
 More information: https://github.com/jlevy/deep-transcribe
 """
@@ -18,7 +17,12 @@ from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Protocol
 
-from deep_transcribe.model_profiles import MODEL_PROFILES, ModelProvider, set_model_profile
+from deep_transcribe.model_profiles import (
+    MODEL_PROFILES,
+    ModelProvider,
+    get_model_profile,
+    set_model_profile,
+)
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 if TYPE_CHECKING:
@@ -32,15 +36,7 @@ DESCRIPTION = "High-quality transcription, formatting, and analysis of videos an
 
 DEFAULT_WS = "./transcriptions"
 
-COMMANDS = {"transcribe", "models"}
-REMOVED_COMMANDS = {"mcp", "logs"}
-ROOT_OPTIONS = {
-    "--docs",
-    "--skill",
-    "--install-skill",
-    "--surfaces",
-    "--agent-base",
-}
+MODELS_LIST = object()
 
 # Conventional shell status for a process interrupted by SIGINT.
 INTERRUPTED_EXIT_CODE = 130
@@ -55,10 +51,6 @@ def configure_kash_workspace(workspace: str | Path) -> Path:
 
 class _ArgumentContainer(Protocol):
     def add_argument(self, *args: str, **kwargs: Any) -> argparse.Action: ...
-
-
-class _SubparserCollection(Protocol):
-    def add_parser(self, name: str, **kwargs: Any) -> argparse.ArgumentParser: ...
 
 
 def get_app_version() -> str:
@@ -155,13 +147,13 @@ def _processing_stage_help() -> str:
 
 def _add_transcription_arguments(
     parser: argparse.ArgumentParser,
-    *,
-    source_required: bool,
 ) -> None:
-    parser.add_argument(
+    source = parser.add_argument_group("Source")
+    source.add_argument(
         "source",
         type=str,
-        nargs=None if source_required else "?",
+        nargs="?",
+        metavar="SOURCE",
         help="YouTube or other media URL, or a local audio or video file",
     )
 
@@ -283,12 +275,23 @@ def _add_transcription_arguments(
         default=[],
         metavar="NAME_OR_ROLE",
         help=(
-            "Known speaker name or role for context-aware boundary correction; "
-            "repeat for the complete roster"
+            "Exact speaker name or role for boundary correction; repeat for a complete "
+            "roster only when prose inference needs an override"
         ),
     )
-    execution = parser.add_argument_group("Execution and Output")
+    execution = parser.add_argument_group("Models, Execution, and Output")
     _add_workspace_argument(execution)
+    execution.add_argument(
+        "--models",
+        nargs="?",
+        const=MODELS_LIST,
+        type=ModelProvider,
+        metavar="PROFILE",
+        help=(
+            "List model profiles with no value, or persist anthropic/openai before an "
+            "optional transcription"
+        ),
+    )
     execution.add_argument(
         "--language",
         type=str,
@@ -324,20 +327,22 @@ def _add_transcription_arguments(
     )
 
 
-def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
-    epilog = (
+def _help_epilog() -> str:
+    return (
         _processing_stage_help()
         + "\n\n"
         + dedent("""
         **Model provider:** New workspaces use the Anthropic profile. Run
-        `deep-transcribe models` to inspect both profiles or
-        `deep-transcribe models --set openai` to persist the OpenAI profile in
-        this workspace.
+        `deep-transcribe --models` to inspect both profiles or
+        `deep-transcribe --models openai` to persist the OpenAI profile in this
+        workspace. Add a source to select the profile and transcribe in one invocation.
 
         **Context:** Start with `--context` or `--context-file` in ordinary prose. The
         speaker-identification LLM uses those facts to produce its structured mapping.
-        Exact speaker IDs and YAML/JSON metadata are optional overrides, not the normal
-        human interface.
+        When the prose clearly names the complete set of speaking roles, Deep Transcribe
+        also derives the roster needed to repair merged diarization boundaries. Exact
+        speaker IDs, repeated `--speaker-role` values, and YAML/JSON metadata are optional
+        overrides, not the normal human interface.
 
         **Iterative reruns:** A normal rerun resumes at the first affected stage and
         reuses compatible cached work. Updating descriptive context or speaker metadata
@@ -350,27 +355,19 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
         Examples:
 
         ```shell
-        deep-transcribe transcribe --basic ./interview.mp3
-        deep-transcribe transcribe --annotated https://youtu.be/VIDEO_ID
-        deep-transcribe transcribe --deep --language multi URL
-        deep-transcribe transcribe --basic --with format URL
-        deep-transcribe transcribe --context "Alice hosts; Bob presents." URL
-        deep-transcribe transcribe --context-file recording.txt URL
-        deep-transcribe transcribe --speaker 0="Alice Chen" --key-term SignalFlow URL
-        deep-transcribe transcribe --speaker-role Host --speaker-role Guest URL
-        deep-transcribe transcribe --instructions "Keep the outline concise." URL
+        deep-transcribe --basic ./interview.mp3
+        deep-transcribe --annotated https://youtu.be/VIDEO_ID
+        deep-transcribe --deep --language multi URL
+        deep-transcribe --basic --with format URL
+        deep-transcribe --context "Alice hosts; Bob presents." URL
+        deep-transcribe --context-file recording.txt URL
+        deep-transcribe --speaker 0="Alice Chen" --key-term SignalFlow URL
+        deep-transcribe --instructions "Keep the outline concise." URL
+        deep-transcribe --models
+        deep-transcribe --models openai URL
         ```
         """).strip()
     )
-    parser = subparsers.add_parser(
-        "transcribe",
-        help="Transcribe and process a URL or local media file",
-        description="Transcribe and process a URL or local media file.",
-        formatter_class=_formatter_class(),
-        epilog=epilog,
-    )
-    parser.set_defaults(command="transcribe")
-    _add_transcription_arguments(parser, source_required=True)
 
 
 def _profile_help() -> str:
@@ -389,115 +386,22 @@ def _profile_help() -> str:
     return "\n".join(lines)
 
 
-def _profile_markdown() -> str:
-    lines: list[str] = []
-    for provider, profile in MODEL_PROFILES.items():
-        suffix = " (default)" if provider is ModelProvider.anthropic else ""
-        lines.append(
-            f"- **`{provider.value}`{suffix}:** careful `{profile.careful_llm}`; "
-            f"structured `{profile.structured_llm}`; standard `{profile.standard_llm}`; "
-            f"fast `{profile.fast_llm}`."
-        )
-    return "\n".join(lines)
-
-
-def _build_models_parser(subparsers: _SubparserCollection) -> None:
-    epilog = (
-        "Current profiles:\n\n"
-        + _profile_markdown()
-        + "\n\n"
-        + dedent("""
-        Examples:
-
-        ```shell
-        deep-transcribe models
-        deep-transcribe models --json
-        deep-transcribe models --set openai
-        deep-transcribe models --workspace ./other-output --set anthropic
-        ```
-        """).strip()
-    )
-    parser = subparsers.add_parser(
-        "models",
-        help="Inspect or select Anthropic and OpenAI model profiles",
-        description="Inspect or persist the LLM role profile used by transcription processing.",
-        formatter_class=_formatter_class(),
-        epilog=epilog,
-    )
-    parser.set_defaults(command="models")
-    parser.add_argument(
-        "--set",
-        dest="provider",
-        choices=tuple(ModelProvider),
-        type=ModelProvider,
-        help="Persist a provider profile in the selected workspace",
-    )
-    _add_workspace_argument(parser)
-    parser.add_argument("--json", action="store_true", help="Print profile data as JSON")
-
-
 def build_parser() -> argparse.ArgumentParser:
     """Build the canonical, self-documenting command parser."""
     parser = argparse.ArgumentParser(
         prog=APP_NAME,
         formatter_class=_formatter_class(),
         description=DESCRIPTION,
-        epilog=dedent(f"""
-            **Getting started:** `{APP_NAME} --docs`
-
-            **IMPORTANT:** Run `{APP_NAME} <command> --help` before using a command.
-            A direct source without the `transcribe` command is also supported.
-
-            {APP_NAME} {get_app_version()}
-            """),
+        epilog=_help_epilog() + f"\n\n{APP_NAME} {get_app_version()}",
     )
     _add_version_argument(parser)
+    _add_transcription_arguments(parser)
     _add_agent_arguments(parser)
-    subparsers = parser.add_subparsers(dest="command", title="Commands", metavar="COMMAND")
-    _build_transcribe_parser(subparsers)
-    _build_models_parser(subparsers)
     return parser
-
-
-def build_direct_parser() -> argparse.ArgumentParser:
-    """Build the concise parser for `deep-transcribe [OPTIONS] SOURCE`."""
-    parser = argparse.ArgumentParser(
-        prog=APP_NAME,
-        formatter_class=_formatter_class(),
-        description=DESCRIPTION,
-        epilog=dedent(f"""
-            This concise form is equivalent to the `transcribe` command.
-            For task-oriented help, use:
-
-            - `{APP_NAME} transcribe --help`
-            - `{APP_NAME} models --help`
-            - `{APP_NAME} --docs`
-
-            {APP_NAME} {get_app_version()}
-            """),
-    )
-    parser.set_defaults(command="transcribe")
-    _add_version_argument(parser)
-    _add_transcription_arguments(parser, source_required=True)
-    return parser
-
-
-def _is_root_option(argument: str) -> bool:
-    option = argument.split("=", 1)[0]
-    return option in ROOT_OPTIONS
 
 
 def _parse_args(argv: Sequence[str]) -> tuple[argparse.ArgumentParser, argparse.Namespace]:
-    if (
-        not argv
-        or argv[0] in COMMANDS
-        or argv[0] in REMOVED_COMMANDS
-        or argv[0] in {"-h", "--help", "--version"}
-        or _is_root_option(argv[0])
-    ):
-        parser = build_parser()
-    else:
-        parser = build_direct_parser()
+    parser = build_parser()
     return parser, parser.parse_args(argv)
 
 
@@ -551,30 +455,32 @@ def display_results(
 def _display_model_profiles(
     *,
     as_json: bool,
+    active: ModelProvider | None,
+    workspace_path: Path,
     selected: ModelProvider | None = None,
-    workspace_path: Path | None = None,
 ) -> None:
     profile_data = {
         provider.value: profile.as_params() for provider, profile in MODEL_PROFILES.items()
     }
     if as_json:
         output: dict[str, object] = {
+            "active": active.value if active is not None else "custom",
             "default": ModelProvider.anthropic.value,
             "profiles": profile_data,
+            "workspace": str(workspace_path),
         }
         if selected:
             output["selected"] = selected.value
-        if workspace_path:
-            output["workspace"] = str(workspace_path)
         print(json.dumps(output, sort_keys=True))
         return
 
     print("Model profiles:\n")
     print(_profile_help())
+    print(f"\nActive in {workspace_path}: {active.value if active else 'custom'}.")
     if selected:
         print(f"\nSaved the {selected.value} profile in {workspace_path}.")
     else:
-        print("\nUse `deep-transcribe models --set PROVIDER` to save a profile.")
+        print("\nUse `deep-transcribe --models PROFILE` to save a profile.")
 
 
 def _speaker_hint(value: str) -> tuple[str, str]:
@@ -685,9 +591,14 @@ def _handle_documentation_and_skill_options(
     install = bool(getattr(args, "install_skill", False))
     surfaces_value = getattr(args, "surfaces", None)
     agent_base = getattr(args, "agent_base", None)
+    action_requested = docs or skill or install
 
     if not install and (surfaces_value is not None or agent_base is not None):
         parser.error("--surfaces and --agent-base require --install-skill")
+    if action_requested and args.models is not None:
+        parser.error("--models cannot be combined with documentation or skill actions")
+    if action_requested and args.source is not None:
+        parser.error("a source cannot be combined with documentation or skill actions")
 
     if docs:
         from deep_transcribe.skill_support import get_docs_content
@@ -726,16 +637,33 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
     if _handle_documentation_and_skill_options(parser, args):
         return
 
-    if args.command == "models":
-        workspace_path = None
-        if args.provider:
-            workspace_path = set_model_profile(Path(args.workspace), args.provider)
-        _display_model_profiles(
-            as_json=args.json,
-            selected=args.provider,
-            workspace_path=workspace_path,
-        )
-        return
+    try:
+        if args.models is MODELS_LIST:
+            if args.source is not None:
+                parser.error("--models without a profile cannot be combined with a source")
+            active, workspace_path = get_model_profile(Path(args.workspace))
+            _display_model_profiles(
+                as_json=args.json,
+                active=active,
+                workspace_path=workspace_path,
+            )
+            return
+
+        if isinstance(args.models, ModelProvider):
+            workspace_path = set_model_profile(Path(args.workspace), args.models)
+            if args.source is None:
+                _display_model_profiles(
+                    as_json=args.json,
+                    active=args.models,
+                    selected=args.models,
+                    workspace_path=workspace_path,
+                )
+                return
+    except ValueError as error:
+        parser.error(str(error))
+
+    if args.source is None:
+        parser.error("a source is required unless an action such as --models or --docs is used")
 
     workspace = configure_kash_workspace(args.workspace)
 

@@ -10,13 +10,12 @@ Inspect the command surface before running a transcription:
 
 ```shell
 deep-transcribe --help
-deep-transcribe transcribe --help
-deep-transcribe models --help
+deep-transcribe --models
 ```
 
-If Deep Transcribe is not installed, use the exact version-pinned runner shown by the
-installed skill or the current README. Avoid an unpinned `@latest` or unconstrained
-package invocation in agent workflows.
+If Deep Transcribe is not installed, use the simple `uvx deep-transcribe` form in the
+current README. Automated agent workflows should follow the discovery and
+version-matching guidance in the installed skill.
 
 Deep Transcribe requires `ffmpeg`, `DEEPGRAM_API_KEY`, and the key for the selected LLM
 profile: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. It reads `.env` and `.env.local` files
@@ -33,17 +32,11 @@ adds headings, a summary and description, captures representative video frames, 
 exports HTML:
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --json \
     INPUT
-```
-
-The direct-source shorthand is also supported:
-
-```shell
-deep-transcribe --workspace ./output --annotated --json INPUT
 ```
 
 `INPUT` may be a YouTube or other media URL, or a local audio or video path.
@@ -60,8 +53,7 @@ Choose the least expensive preset that produces the requested result:
 | `--deep` | Annotated output plus researched paragraph notes |
 
 Use `--with STAGE[,STAGE]` to add individual stages to a preset.
-Run `deep-transcribe transcribe --help` for the current stage list and Deepgram model
-options.
+Run `deep-transcribe --help` for the current stage list and Deepgram model options.
 
 ## Supply Recording Context
 
@@ -69,21 +61,26 @@ Raw media often lacks the names, roles, vocabulary, and chronology needed for ac
 speaker labels. Describe those facts in ordinary prose:
 
 ```shell
-deep-transcribe transcribe \
-    --title "Hotel check-in dialogue" \
-    --context "The receptionist speaks first. The guest is Tom Sanders. He has a three-night reservation and receives a room upgrade." \
-    --instructions "Keep the synopsis brief and organize the outline around the phases of check-in." \
+deep-transcribe \
+    --title "Hotel Check In — SNL" \
+    --context "This is the Saturday Night Live sketch Hotel Check In. The five speaking roles are Mr. Adams (Mikey Day), the Front Desk Employee (Kumail Nanjiani), the Government Representative (Beck Bennett), and two Room 904 Guests (Chris Redd and Leslie Jones). Use those character or role labels." \
+    --instructions "Write a two-paragraph synopsis that identifies the sketch and cast, then explains how the escalating hotel sales pitches drive the joke. Give every outline section exactly two concise bullets." \
     INPUT
 ```
 
 The speaker-identification model uses the context and transcript to produce its internal
-speaker-ID mapping. The user does not need to write that mapping.
+speaker-ID mapping.
+When the prose clearly names the complete set of speaking roles, Deep
+Transcribe also derives the internal roster needed to repair merged diarization
+boundaries. The user does not need to write either structure.
 Use `--context-file` for longer context or notes that will be revised across reruns:
 
 ```text
-This is a two-person hotel check-in conversation.
-The receptionist speaks first. The guest is Tom Sanders.
-Tom has a three-night reservation and receives a room upgrade.
+This is the Saturday Night Live sketch Hotel Check In.
+Mr. Adams is played by Mikey Day, and the Front Desk Employee is played by Kumail
+Nanjiani. Beck Bennett plays the Government Representative; Chris Redd and Leslie Jones
+play the two Room 904 Guests.
+Use character names or roles as the transcript labels.
 ```
 
 Pass that file with `--context-file recording.txt`.
@@ -94,13 +91,15 @@ Use `--instructions` for trusted requests about the derived output, such as emph
 structure, or level of detail.
 Keeping them separate lets models treat source metadata as evidence without accidentally
 following instructions embedded in fetched metadata.
+For URL inputs, source title, description, canonical URL, and available channel and
+publication fields are included automatically as bounded reference evidence.
 
 `--title`, `--description`, and repeatable `--key-term` flags provide simple exact
 values without a schema.
 `--metadata YAML_OR_JSON` remains available for automation and advanced overrides.
 Use `--speaker ID=NAME` only after verifying that a provider ID consistently belongs to
-one speaker. Use the repeatable `--speaker-role` override only when the diarizer merged
-or split voices and the careful boundary-correction stage needs a complete roster.
+one speaker. Use the repeatable `--speaker-role` override only when the prose is
+ambiguous or the inferred complete roster needs an exact correction.
 Do not guess names that are not supported by the recording context.
 
 ## Iterate Without Repeating Speech-to-Text
@@ -145,7 +144,7 @@ Use `--rerun` only when a fresh Deepgram result is wanted.
 After reviewing the first output, revise the prose context and repeat the command:
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --context-file ./recording.txt \
@@ -156,9 +155,11 @@ deep-transcribe transcribe \
 Ordinary mislabeling should be corrected by adding the participants, roles, chronology,
 or forms of address to the prose context.
 For a true diarization boundary error, where one provider ID contains several people or
-one person has several IDs, also give the complete roster with repeated `--speaker-role`
-flags. Deep Transcribe then corrects timestamped turns with the careful model profile
-while preserving the raw provider transcript for review.
+one person has several IDs, state the complete set of speaking roles in that prose.
+Deep Transcribe derives the roster, then corrects timestamped turns with the careful
+model profile while preserving the raw provider transcript for review.
+Repeated `--speaker-role` flags remain an exact fallback when a reviewed inference needs
+an override.
 
 For an output correction, pass `--instructions`. Annotated output places a short
 two-paragraph synopsis first, then an always-visible sans-serif outline.
@@ -166,7 +167,7 @@ The outline follows the transcript’s section headings when they are useful and
 concise key points for each section.
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --context-file ./recording.txt \
@@ -178,7 +179,7 @@ deep-transcribe transcribe \
 For a new feature, extend the existing command instead of starting over:
 
 ```shell
-deep-transcribe transcribe \
+deep-transcribe \
     --workspace ./output \
     --annotated \
     --with research_paras \
@@ -190,8 +191,8 @@ deep-transcribe transcribe \
 To compare model providers against the same raw transcript:
 
 ```shell
-deep-transcribe models --workspace ./output --set openai
-deep-transcribe transcribe \
+deep-transcribe \
+    --models openai \
     --workspace ./output \
     --annotated \
     --rerun-processing \
@@ -200,7 +201,7 @@ deep-transcribe transcribe \
     INPUT
 ```
 
-Use `--set anthropic` to switch back.
+Use the same command with `--models anthropic` to switch back.
 
 ### Verify Cache Reuse
 
@@ -273,6 +274,20 @@ To create a PDF without adding a renderer dependency:
 4. Inspect the title and outline, a transcript page with frame captures, and the final
    page before sharing the PDF.
 
+An installed Chrome or Chromium executable can make the same browser print reproducible.
+Replace the placeholder with the absolute path Deep Transcribe reports:
+
+```shell
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    --headless=new \
+    --disable-background-networking \
+    --no-pdf-header-footer \
+    --print-to-pdf=transcript.pdf \
+    "file:///absolute/path/to/transcript.html"
+```
+
+Use `google-chrome` or `chromium` as the executable on other platforms.
+
 An agent should use the same browser-print workflow through its browser controls or an
 installed Chrome or Chromium executable.
 Keep the HTML and its adjacent asset directory together so local frame captures load.
@@ -288,13 +303,13 @@ repository code, tests, docs, commits, pull requests, or issue records.
 Inspect or change the workspace’s Anthropic/OpenAI role mapping:
 
 ```shell
-deep-transcribe models
-deep-transcribe models --workspace ./output --set anthropic
-deep-transcribe models --workspace ./output --set openai
+deep-transcribe --models
+deep-transcribe --models anthropic --workspace ./output
+deep-transcribe --models openai --workspace ./output
 ```
 
 New workspaces use the Anthropic profile by default.
-`deep-transcribe models --help` prints the exact current models.
+`deep-transcribe --models` prints the exact current models and the active profile.
 
 ## Install the Agent Skill
 
@@ -340,7 +355,7 @@ exact version-pinned `uvx` runner.
 
 ## Troubleshooting
 
-- Run `deep-transcribe transcribe --help` before changing transcription options.
+- Run `deep-transcribe --help` before changing transcription options.
 - Preserve the workspace after a failure so completed work remains reusable.
 - Confirm `ffmpeg` and a JavaScript runtime are on `PATH` when media acquisition fails.
 - Confirm required key names exist without echoing their values.

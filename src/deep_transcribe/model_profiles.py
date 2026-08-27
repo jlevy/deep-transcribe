@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import cast
 
 
 class ModelProvider(StrEnum):
@@ -48,6 +49,35 @@ MODEL_PROFILES = {
     ),
 }
 
+MODEL_SETTING_KEYS = frozenset(MODEL_PROFILES[ModelProvider.anthropic].as_params())
+
+
+def model_workspace_path(workspace_root: Path) -> Path:
+    """Return the Kash workspace nested inside a Deep Transcribe output root."""
+    return workspace_root.expanduser().resolve() / "workspace"
+
+
+def get_model_profile(workspace_root: Path) -> tuple[ModelProvider | None, Path]:
+    """Return the active built-in profile, or ``None`` for custom model settings."""
+    from frontmatter_format import from_yaml_string
+
+    workspace_path = model_workspace_path(workspace_root)
+    params_path = workspace_path / ".kash/settings/params.yml"
+    if not params_path.is_file():
+        return ModelProvider.anthropic, workspace_path
+
+    raw_params = from_yaml_string(params_path.read_text(encoding="utf-8"))
+    if not isinstance(raw_params, dict):
+        raise ValueError(f"Invalid workspace model settings: {params_path}")
+    params = cast(dict[object, object], raw_params)
+    if not MODEL_SETTING_KEYS.intersection(params):
+        return ModelProvider.anthropic, workspace_path
+
+    for provider, profile in MODEL_PROFILES.items():
+        if all(params.get(key) == value for key, value in profile.as_params().items()):
+            return provider, workspace_path
+    return None, workspace_path
+
 
 def set_model_profile(workspace_root: Path, provider: ModelProvider) -> Path:
     """
@@ -57,8 +87,7 @@ def set_model_profile(workspace_root: Path, provider: ModelProvider) -> Path:
     """
     from kash.file_storage.persisted_yaml import PersistedYaml
 
-    workspace_root = workspace_root.expanduser().resolve()
-    workspace_path = workspace_root / "workspace"
+    workspace_path = model_workspace_path(workspace_root)
     params_path = workspace_path / ".kash/settings/params.yml"
     params_path.parent.mkdir(parents=True, exist_ok=True)
 

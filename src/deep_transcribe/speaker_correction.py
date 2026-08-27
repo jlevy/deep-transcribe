@@ -20,7 +20,10 @@ from kash.model.params_model import common_params
 from kash.utils.errors import ApiResultError, InvalidInput
 from strif import StringTemplate
 
-from deep_transcribe.transcription_metadata import normalize_speaker_roster
+from deep_transcribe.transcription_metadata import (
+    normalize_speaker_roster,
+    source_prompt_context,
+)
 
 log = get_logger(__name__)
 
@@ -37,6 +40,29 @@ TIMESTAMP_SPAN_PATTERN = re.compile(
     re.DOTALL,
 )
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
+
+ROSTER_INFERENCE_PROMPT = StringTemplate(
+    """
+    Read only the user-provided context below and decide whether it clearly describes the
+    complete set of people or character roles who actually speak in the recording. A cast
+    list, examples of possible speakers, or a partial list is not a complete speaker roster.
+    Do not use fetched source metadata or outside knowledge.
+
+    When the set is clearly complete, return concise, distinct labels that will make sense
+    beside transcript dialogue. Prefer character names or functional roles over actor names,
+    while preserving a person's name when that is how the context identifies them. Exclude
+    audiences, music, narration mentioned only as subject matter, and non-speaking people.
+
+    Return only JSON in exactly one of these forms:
+    {{"complete": true, "speaker_roster": ["Speaker One", "Speaker Two"]}}
+    {{"complete": false, "speaker_roster": []}}
+
+    <user_context>
+    {user_context}
+    </user_context>
+    """,
+    allowed_fields=["user_context"],
+)
 
 
 @dataclass(frozen=True)
@@ -60,6 +86,61 @@ class _TranscriptEvent:
 
 def _label_key(label: str) -> str:
     return re.sub(r"[\W_]+", "", label.casefold())
+
+
+def _parse_inferred_roster(response: str) -> list[str]:
+    """Parse a fail-closed complete-roster decision from a structured model response."""
+    try:
+        parsed = fuzzy_parse_json(response)
+    except json.JSONDecodeError as error:
+        raise ApiResultError(f"Could not parse inferred speaker roster: {error}") from error
+    if not isinstance(parsed, dict):
+        raise ApiResultError("Speaker roster inference must return a JSON object")
+    response_data = cast(dict[object, object], parsed)
+    if response_data.get("complete") is not True:
+        return []
+    raw_roster = response_data.get("speaker_roster")
+    try:
+        return normalize_speaker_roster(raw_roster)
+    except ValueError as error:
+        raise ApiResultError(f"Invalid inferred speaker roster: {error}") from error
+
+
+@kash_action(
+    precondition=has_simple_text_body | has_html_body,
+    params=common_params("model"),
+)
+def infer_speaker_roster_from_context(
+    item: Item,
+    model: LLMName = LLM.default_structured,
+) -> Item:
+    """Infer a complete internal speaker roster from ordinary user-authored context."""
+    if not item.additional_context:
+        return item.derived_copy(type=ItemType.doc)
+    prompt = ROSTER_INFERENCE_PROMPT.format(user_context=item.additional_context)
+    escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
+    response = llm_template_completion(
+        model=model,
+        system_message=Message(
+            "You conservatively structure user-authored speaker context without adding facts."
+        ),
+        input="Determine whether the supplied context gives a complete speaker roster.",
+        body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
+    ).content
+    roster = _parse_inferred_roster(response)
+    if not roster:
+        return item.derived_copy(type=ItemType.doc)
+
+    item_extra = cast(dict[str, object], item.extra or {}).copy()
+    raw_transcription = item_extra.get("transcription")
+    transcription = (
+        cast(dict[str, object], raw_transcription).copy()
+        if isinstance(raw_transcription, dict)
+        else {}
+    )
+    transcription["speaker_roster"] = roster
+    item_extra["transcription"] = transcription
+    return item.derived_copy(type=ItemType.doc, extra=item_extra)
 
 
 def _extract_utterances(body: str) -> list[TranscriptUtterance]:
@@ -163,7 +244,7 @@ def _assign_window(
     roster: list[str],
     model: LLMName,
 ) -> dict[int, str]:
-    source_context = item.prompt_context() or "(No source metadata provided.)"
+    source_context = source_prompt_context(item) or "(No source metadata provided.)"
     transcription_metadata = get_transcription_metadata(item)
     speaker_hints = transcription_metadata.get("speaker_hints", {})
     hints_text = (
@@ -250,7 +331,7 @@ def _adjudicate_conflicts(
     roster: list[str],
     model: LLMName,
 ) -> dict[int, str]:
-    source_context = item.prompt_context() or "(No source metadata provided.)"
+    source_context = source_prompt_context(item) or "(No source metadata provided.)"
     roster_text = "\n".join(f"- {label}" for label in roster)
     assignments: dict[int, str] = {}
 
@@ -559,3 +640,65 @@ def test_conflicting_overlap_assignments_are_adjudicated() -> None:
     )
     assert "DISPUTED" in prompt
     assert "Utterance 2" in prompt
+
+
+def test_infer_speaker_roster_structures_complete_prose_context() -> None:
+    from inspect import unwrap
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    item = Item(
+        type=ItemType.doc,
+        body="Transcript body.",
+        additional_context=(
+            "There are three speaking roles: the returning guest, the front desk clerk, "
+            "and the officer who escorts the guest into the hotel."
+        ),
+    )
+    response = SimpleNamespace(
+        content=(
+            '{"complete":true,"speaker_roster":'
+            '["Returning Guest","Front Desk Clerk","Escorting Officer"]}'
+        )
+    )
+
+    with patch(
+        "deep_transcribe.speaker_correction.llm_template_completion",
+        return_value=response,
+    ) as completion:
+        result = unwrap(infer_speaker_roster_from_context)(item)
+
+    assert result is not item
+    assert result.extra == {
+        "transcription": {
+            "speaker_roster": ["Returning Guest", "Front Desk Clerk", "Escorting Officer"]
+        }
+    }
+    prompt = completion.call_args.kwargs["body_template"].format(
+        body=completion.call_args.kwargs["input"]
+    )
+    assert "There are three speaking roles" in prompt
+    assert "Do not use fetched source metadata" in prompt
+
+
+def test_infer_speaker_roster_fails_closed_for_partial_context() -> None:
+    from inspect import unwrap
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    item = Item(
+        type=ItemType.doc,
+        body="Transcript body.",
+        additional_context="The host may be joined by several guests.",
+    )
+
+    with patch(
+        "deep_transcribe.speaker_correction.llm_template_completion",
+        return_value=SimpleNamespace(
+            content=('{"complete":false,"speaker_roster":["Possible Host","Possible Guest"]}')
+        ),
+    ):
+        result = unwrap(infer_speaker_roster_from_context)(item)
+
+    assert result is not item
+    assert result.extra == item.extra

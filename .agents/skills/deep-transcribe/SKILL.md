@@ -32,7 +32,7 @@ runner:
 ```shell
 uvx \
     --exclude-newer-package yt-dlp=2026-08-20T00:00:00Z \
-    --from deep-transcribe==0.1.12 \
+    --from deep-transcribe==0.1.13 \
     deep-transcribe --docs
 ```
 
@@ -48,9 +48,8 @@ Before acting, run:
 
 - `deep-transcribe --docs` for setup, presets, metadata, iterative reruns, cache reuse,
   output review, privacy, troubleshooting, and skill installation;
-- `deep-transcribe transcribe --help` for every current transcription option and stage;
-  and
-- `deep-transcribe models --help` for Anthropic and OpenAI model profiles.
+- `deep-transcribe --help` for every current transcription option and stage; and
+- `deep-transcribe --models` for Anthropic and OpenAI model profiles.
 
 If this skill came from `deep-transcribe --skill`, materialize the complete bundle from
 the project root by running `deep-transcribe --install-skill` with the chosen prefix.
@@ -65,9 +64,13 @@ Do not change a workspace’s saved model profile unless the user requests it.
 Choose the least expensive preset that meets the request and use `--json` when artifact
 paths will be consumed programmatically.
 When names, roles, terminology, or chronology are known, supply them with a private
-metadata file or the context flags documented by `transcribe --help`. Put output-shape,
-emphasis, and level-of-detail requests in `processing_instructions`, `--instructions`,
-or `--instructions-file`. Do not guess unsupported names.
+metadata file or the context flags documented by `deep-transcribe --help`. Put
+output-shape, emphasis, and level-of-detail requests in `processing_instructions`,
+`--instructions`, or `--instructions-file`. If the prose clearly names every speaking
+role, Deep Transcribe can derive the internal roster needed to correct merged
+diarization boundaries.
+Use exact speaker overrides only after reviewing the result.
+Do not guess unsupported names.
 
 ## Iterate on a Reviewed Result
 

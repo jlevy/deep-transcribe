@@ -8,11 +8,15 @@ from kash.exec.preconditions import has_simple_text_body
 from kash.llm_utils import LLM, LLMName, Message, MessageTemplate
 from kash.model import Format, Item, ItemType, LLMOptions, common_params
 
-from deep_transcribe.transcription_metadata import get_processing_instructions
+from deep_transcribe.transcription_metadata import (
+    get_processing_instructions,
+    source_prompt_context,
+)
 
 DESCRIPTION_PROMPT = dedent("""
     The input contains an optional trusted processing-instructions block followed by a
-    transcript. Follow those instructions when they apply to this synopsis.
+    transcript. Apply only instructions relevant to the synopsis. Instructions about an
+    outline or another stage must not change the output form requested here.
 
     Write a brief synopsis of the whole conversation in two short paragraphs. Each
     paragraph should contain one or two sentences. Identify the participants and their
@@ -28,7 +32,8 @@ DESCRIPTION_PROMPT = dedent("""
 
 OUTLINE_PROMPT = dedent("""
     The input contains an optional trusted processing-instructions block followed by a
-    transcript. Follow those instructions when they apply to this outline.
+    transcript. Apply only instructions relevant to the outline. Instructions about a
+    synopsis or another stage must not change the output form requested here.
 
     Create a concise structural outline of the whole conversation:
 
@@ -78,23 +83,26 @@ TOP_LEVEL_BULLET = re.compile(r"^[-*+]\s+\S")
 
 
 def prepare_transcript_for_model(item: Item) -> Item:
-    """Put trusted output instructions in a distinct block before the transcript."""
+    """Put source evidence and trusted output instructions in distinct prompt blocks."""
     instructions = get_processing_instructions(item)
-    if not instructions:
-        return item
     assert item.body
-    body = "\n".join(
-        [
-            "<processing_instructions>",
-            instructions,
-            "</processing_instructions>",
-            "",
-            "<transcript>",
-            item.body,
-            "</transcript>",
-        ]
+    body_parts: list[str] = []
+    if instructions:
+        body_parts.extend(
+            [
+                "<processing_instructions>",
+                instructions,
+                "</processing_instructions>",
+                "",
+            ]
+        )
+    body_parts.extend(["<transcript>", item.body, "</transcript>"])
+    return item.new_copy_with(
+        body="\n".join(body_parts),
+        title=None,
+        description=None,
+        additional_context=source_prompt_context(item) or None,
     )
-    return item.new_copy_with(body=body)
 
 
 def wrap_transcript_outline(item: Item, outline: str) -> Item:
@@ -144,23 +152,35 @@ def wrap_transcript_description(item: Item, description: str) -> Item:
 
 @kash_action(
     precondition=has_simple_text_body,
+    output_type=ItemType.doc,
+    output_format=Format.md_html,
     llm_options=OUTLINE_OPTIONS,
     params=common_params("model"),
 )
 def add_transcript_outline(item: Item, model: LLMName = LLM.default_standard) -> Item:
     """Add a concise, section-aligned outline above a transcript."""
-    outline_item = llm_transform_item(prepare_transcript_for_model(item), model=model)
+    outline_item = llm_transform_item(
+        prepare_transcript_for_model(item),
+        model=model,
+        format=Format.md_html,
+    )
     assert outline_item.body
     return wrap_transcript_outline(item, normalize_transcript_outline(outline_item.body))
 
 
 @kash_action(
     precondition=has_simple_text_body,
+    output_type=ItemType.doc,
+    output_format=Format.md_html,
     llm_options=DESCRIPTION_OPTIONS,
     params=common_params("model"),
 )
 def add_transcript_description(item: Item, model: LLMName = LLM.default_standard) -> Item:
     """Add a short, paragraph-broken synopsis above a transcript."""
-    description_item = llm_transform_item(prepare_transcript_for_model(item), model=model)
+    description_item = llm_transform_item(
+        prepare_transcript_for_model(item),
+        model=model,
+        format=Format.md_html,
+    )
     assert description_item.body
     return wrap_transcript_description(item, description_item.body)

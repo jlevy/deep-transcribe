@@ -33,23 +33,18 @@ Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment, a `.
 `ANTHROPIC_API_KEY` for the default profile or `OPENAI_API_KEY` for the OpenAI profile.
 Do not commit the file.
 
-Run `deep-transcribe models --help` for the current model mappings and workspace
-configuration command.
+Run `deep-transcribe --models` for the current model mappings and
+`deep-transcribe --help` for workspace configuration.
 
 ## Install the CLI or Agent Skill
 
-Run an exact release without a persistent install:
+Run Deep Transcribe without a persistent install:
 
 ```shell
-uvx \
-    --exclude-newer-package yt-dlp=2026-08-20T00:00:00Z \
-    --from deep-transcribe==0.1.11 \
-    deep-transcribe --docs
+uvx deep-transcribe --help
 ```
 
-The per-package cutoff matches the reviewed yt-dlp exception in `pyproject.toml` and
-keeps this command resolvable when a user-level uv configuration enforces the project’s
-default dependency cool-off.
+Users who enforce their own uv supply-chain policy can apply it to this command.
 
 For repeated use, install the CLI and let it materialize its own agent skill from the
 project where the skill should be available:

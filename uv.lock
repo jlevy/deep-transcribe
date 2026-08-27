@@ -507,7 +507,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "frontmatter-format", specifier = ">=0.4.0,<0.5" },
-    { name = "kash-media", specifier = ">=0.4.6,<0.5" },
+    { name = "kash-media", specifier = ">=0.4.7,<0.5" },
     { name = "prettyfmt", specifier = ">=0.4.1" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "sidematter-format", specifier = ">=0.1.0,<0.2" },
@@ -1039,7 +1039,7 @@ wheels = [
 
 [[package]]
 name = "kash-docs"
-version = "0.2.6"
+version = "0.2.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1058,14 +1058,14 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "wikipedia-api" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/57/9aa8c405c83d11ad91aaf5c34c7d61c423e347dfaa68d3ed7b15cc5cf0b0/kash_docs-0.2.6.tar.gz", hash = "sha256:5c5bacdaf4f4991acf6fb09a4063ac337866ab2841db3c9659dd16833ae80906", size = 2933679, upload-time = "2026-08-27T00:49:51.804Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/08/98151ba5e2d504fe34715ec800cb09f64da1b069ca6433001858a3a7838a/kash_docs-0.2.7.tar.gz", hash = "sha256:320530eb9cbfbed8b192796de463421279e7f803cb238d256461dd262b2b6f4e", size = 2933768, upload-time = "2026-08-27T06:31:23.681Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/84/9f96e726d0c8825538bfc70c798bd11d7f642913e6fa3afe797c800a5ba6/kash_docs-0.2.6-py3-none-any.whl", hash = "sha256:6351128fd041d81549af6131207236196978b3f3d504820bc6c40ceb29061db3", size = 1431253, upload-time = "2026-08-27T00:49:50.279Z" },
+    { url = "https://files.pythonhosted.org/packages/49/00/a9e58e62f88b7e30f688e0eb74b4b24410a03204d3c7efc7916522020d03/kash_docs-0.2.7-py3-none-any.whl", hash = "sha256:b1a6b5b624ca9f27511bc2c7c4afa0f486460c5fe26379cd9850a0da68fad531", size = 1431394, upload-time = "2026-08-27T06:31:22.129Z" },
 ]
 
 [[package]]
 name = "kash-media"
-version = "0.4.6"
+version = "0.4.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chopdiff" },
@@ -1079,14 +1079,14 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "yt-dlp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/31/ef/e31bc941cd02da65802e243682ce20ff012c070b8e5097521c78cf1cf19e/kash_media-0.4.6.tar.gz", hash = "sha256:ec34ffd830e21dfd00628b6d3e3db4c3e54878298f99196d9622c12c6446c954", size = 166377, upload-time = "2026-08-27T00:56:10.901Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/15/d1e402c1404db11f083b7894aa7cc48cd4da2d8278ce3ea2287c5f26265a/kash_media-0.4.7.tar.gz", hash = "sha256:151b31a62b3b3e47d0295a40ebfd6cdf7dff01e9dfa5d41e5320f86d5d140fda", size = 166532, upload-time = "2026-08-27T06:36:24.32Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/ee/9ddc5be0cc279e0bcb32c9ac9708f8f3ab5bdf6e7dfe768f5fc3c24fd707/kash_media-0.4.6-py3-none-any.whl", hash = "sha256:a9277c1e059ceab616b12c9cb064bac19819a5350512085fb53b1b227ccc9801", size = 46371, upload-time = "2026-08-27T00:56:09.849Z" },
+    { url = "https://files.pythonhosted.org/packages/60/66/c267fb06d161d6d5a7e2af7f11782aca3938d4ad841f18090b77b62b5ae0/kash_media-0.4.7-py3-none-any.whl", hash = "sha256:07c161862a024986d77f64358cc70216206f12dcf96fc5722d33067622a92ecc", size = 46580, upload-time = "2026-08-27T06:36:23.048Z" },
 ]
 
 [[package]]
 name = "kash-shell"
-version = "0.4.8"
+version = "0.4.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiolimiter" },
@@ -1145,9 +1145,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "xonsh" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/27/ba/4d13a07263ad44316ba6a94751ed39c6cb565209dd7ea0aae26428ca069e/kash_shell-0.4.8.tar.gz", hash = "sha256:c8fe1da38fa14abf22904949503ddb96c4e777a3c54f5fc42ec7d69e3c81db6e", size = 827231, upload-time = "2026-08-27T00:41:43.251Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/16/1f3eba8c74ecbc1b992454370add238a354cc21b8da53dcc75340260791c/kash_shell-0.4.9.tar.gz", hash = "sha256:37892c3a13481d8e77d499f254c46a68d79020f588492316178caea27b9a95bb", size = 828034, upload-time = "2026-08-27T06:22:15.135Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/08/fd3c13169a78eca63a07dbd5d99a85f10f3af5343972f6278014b93d0533/kash_shell-0.4.8-py3-none-any.whl", hash = "sha256:785ba2a436bdea8d02b40df46088e48465f4d987778d6d7061d2043cfd4ee1a9", size = 595990, upload-time = "2026-08-27T00:41:41.196Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/f4/ce7aecffe51c9f1ead46f52cf634970d0224cde345f9ac5063dfa5feea69/kash_shell-0.4.9-py3-none-any.whl", hash = "sha256:c2e973d1ca34f260ba079f94db8c7be434f4f17719da7f9e5dab29f48c5f3323", size = 596239, upload-time = "2026-08-27T06:22:13.333Z" },
 ]
 
 [[package]]

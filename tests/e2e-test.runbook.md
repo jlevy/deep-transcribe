@@ -15,8 +15,8 @@ The release passes only when:
 - the environment excludes optional document/AWS runtimes and Torch;
 - a fresh workspace completes the basic and annotated runs below;
 - the log proves Deepgram used `nova-3` with `diarize_model=latest`;
-- a raw-file run preserves YAML context, applies explicit speaker corrections, and
-  reuses Deepgram unless key terms change;
+- a raw-file run preserves recording context, corrects a five-role speaker roster, and
+  reuses Deepgram unless recognition inputs change;
 - the careful-role smoke checks and both provider profiles exercise all six configured
   LLM models successfully;
 - Markdown and HTML artifacts pass the transcript, speaker, timestamp, annotation, and
@@ -27,22 +27,23 @@ quality regression. Record it as a blocked or failed release test.
 
 ## Test Fixture
 
-Use this 2 minute 40 second two-speaker hotel dialogue:
+Use this 4 minute 13 second Saturday Night Live sketch:
 
 ```text
-https://www.youtube.com/watch?v=wyqfYJX23lg
+https://www.youtube.com/watch?v=kq9Q9-U0vrc
 ```
 
-The title begins `English for Hotel and Tourism: "Checking into a hotel"`. The video has
-clear English audio, two alternating speakers, an explicit guest name, room number,
-hotel terminology, and YouTube auto captions.
-It provides compact coverage of transcription, diarization, role naming, timestamps,
-summaries, and frame captures.
+The official title is `Hotel Check In - SNL`. The video has clear English audio, five
+speaking roles, short interjections, an explicit guest name and room number, repeated
+hotel terminology, and scene changes.
+It provides compact coverage of transcription, multi-speaker diarization, prose-based
+role naming and boundary repair, timestamps, summaries, outlines, and frame captures.
 The audio is authoritative; auto captions are only a navigation and comparison aid.
 
-Expected labels are `Hotel Receptionist` and `Tom Sanders`. If the video becomes
-unavailable, replace it in this runbook with another public, captioned, two-speaker
-video under three minutes before continuing.
+Expected labels are `Mr. Adams`, `Front Desk Employee`, `Government Representative`,
+`Room 904 Guest (Chris Redd)`, and `Room 904 Guest (Leslie Jones)`. If the video becomes
+unavailable, replace it in this runbook with another public, captioned, short video that
+has at least three distinct speaking roles before continuing.
 
 ## Preflight
 
@@ -55,8 +56,7 @@ uv lock --check
 uv sync --locked --all-groups
 uv run --locked deep-transcribe --version
 uv run --locked deep-transcribe --help
-uv run --locked deep-transcribe transcribe --help
-uv run --locked deep-transcribe models --help
+uv run --locked deep-transcribe --models
 uv pip show deep-transcribe kash-media kash-docs kash-shell deepgram-sdk litellm
 make lint
 make test
@@ -108,7 +108,7 @@ PY
 Create an isolated workspace and retain it until review is complete:
 
 ```shell
-export DEEP_TRANSCRIBE_E2E_URL='https://www.youtube.com/watch?v=wyqfYJX23lg'
+export DEEP_TRANSCRIBE_E2E_URL='https://www.youtube.com/watch?v=kq9Q9-U0vrc'
 export DEEP_TRANSCRIBE_E2E_WS="$(mktemp -d)/deep-transcribe-e2e"
 echo "$DEEP_TRANSCRIBE_E2E_WS"
 ```
@@ -118,7 +118,7 @@ echo "$DEEP_TRANSCRIBE_E2E_WS"
 Run a fresh basic transcription:
 
 ```shell
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --language en \
@@ -129,7 +129,7 @@ Then exercise HTML stripping, paragraph formatting, timestamp backfilling, and H
 export independently of an LLM:
 
 ```shell
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
     --with format \
@@ -158,48 +158,63 @@ mkdir -p "$DEEP_TRANSCRIBE_E2E_WS/fixture"
 uv run --locked yt-dlp \
     --extract-audio \
     --audio-format mp3 \
-    --output "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.%(ext)s" \
+    --output "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.%(ext)s" \
     "$DEEP_TRANSCRIBE_E2E_URL"
 
-cat >"$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" <<'YAML'
-title: Hotel check-in dialogue
-description: A receptionist checks Tom Sanders into a hotel.
+cat >"$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.yml" <<'YAML'
+title: Hotel Check In — SNL
+description: An SNL sketch about an increasingly frustrating hotel check-in.
 additional_context: |
-  The two roles are Hotel Receptionist and guest Tom Sanders. Review names and room
-  details carefully.
+  This is the Saturday Night Live sketch Hotel Check In. There are five speaking roles:
+  Mr. Adams, played by Mikey Day; the Front Desk Employee, played by Kumail Nanjiani;
+  the Government Representative, played by Beck Bennett; and two Room 904 Guests,
+  played by Chris Redd and Leslie Jones. Use character names or roles as transcript
+  labels, disambiguating the unnamed guests by performer.
 processing_instructions: |
-  Keep the synopsis brief. Organize the outline around the phases of check-in.
+  Write exactly two compact synopsis paragraphs. Identify the sketch and all five
+  performers with their roles, then explain how the escalating hotel sales pitches
+  drive the joke. Give every outline section exactly two concise bullets.
 key_terms:
-  - Tom Sanders
-  - Hotel Receptionist
+  - Mr. Adams
+  - Chatsworth Marriott Experience
+  - North Korea
 YAML
 
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --formatted \
-    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
-    "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp3"
+    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.yml" \
+    "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.mp3"
 ```
 
-Inspect the raw transcript to determine which Deepgram speaker ID is the receptionist
-and which is Tom. Add an authoritative `speaker_hints` mapping to `hotel.yml`; for
-example, use the following mapping only if it matches the raw transcript:
+Inspect the raw transcript before adding exact speaker IDs.
+The prose context should be enough for Deep Transcribe to infer the complete five-role
+roster and repair boundaries.
+Add a `speaker_hints` entry to `snl-hotel.yml` only when one Deepgram ID consistently
+belongs to one verified role; for example, use this mapping only if it matches the raw
+transcript:
 
 ```yaml
 speaker_hints:
-  "0": Hotel Receptionist
-  "1": Tom Sanders
+  "0": Mr. Adams
 ```
 
-If Deepgram merged distinct voices under one ID, use a complete roster instead of
-treating that ID as authoritative.
-Describe chronology, forms of address, or exact dialogue transitions in
-`additional_context`, then rerun processing:
+If Deepgram merged distinct voices under one ID, describe the complete speaking roster,
+chronology, forms of address, or exact dialogue transitions in `additional_context`
+instead of treating that ID as authoritative.
+On the normal rerun, verify that Deep Transcribe derives the complete internal roster
+and repairs the boundaries.
+
+Use an exact `speaker_roster` only to test the automation override or to correct a
+reviewed prose inference:
 
 ```yaml
 speaker_roster:
-  - Hotel Receptionist
-  - Tom Sanders
+  - Mr. Adams
+  - Front Desk Employee
+  - Government Representative
+  - Room 904 Guest (Chris Redd)
+  - Room 904 Guest (Leslie Jones)
 ```
 
 The corrected intermediate transcript must use every roster label, preserve every
@@ -217,11 +232,11 @@ A speaker-only or descriptive-context correction must not make another Deepgram 
 DEEPGRAM_COUNT_BEFORE="$(rg -c 'Transcribing via Deepgram' \
     "$DEEP_TRANSCRIBE_E2E_WS/logs/workspace.log")"
 
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
-    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
-    "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp3"
+    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.yml" \
+    "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.mp3"
 
 test "$(rg -c 'Transcribing via Deepgram' \
     "$DEEP_TRANSCRIBE_E2E_WS/logs/workspace.log")" = "$DEEPGRAM_COUNT_BEFORE"
@@ -235,16 +250,15 @@ the first affected semantic action and its dependents without forcing unrelated 
 Reserve `--rerun-processing` for a deliberate refresh of every post-transcription stage,
 such as a model-profile comparison.
 
-Finally add a real phrase from the audio, such as `checking into a hotel`, to
-`key_terms` and run `--basic` again.
+Finally add the real phrase `Stargazer Lounge` to `key_terms` and run `--basic` again.
 This accuracy-affecting change must make exactly one new Deepgram request:
 
 ```shell
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --basic \
-    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
-    "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp3"
+    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.yml" \
+    "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.mp3"
 
 test "$(rg -c 'Transcribing via Deepgram' \
     "$DEEP_TRANSCRIBE_E2E_WS/logs/workspace.log")" = "$((DEEPGRAM_COUNT_BEFORE + 1))"
@@ -268,19 +282,19 @@ LOCAL_VIDEO_WS="$DEEP_TRANSCRIBE_E2E_WS/local-video"
 uv run --locked yt-dlp \
     --format 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]' \
     --merge-output-format mp4 \
-    --output "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp4" \
+    --output "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.mp4" \
     "$DEEP_TRANSCRIBE_E2E_URL"
 
 test "$PWD" != "$DEEP_TRANSCRIBE_E2E_WS/fixture"
 
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
     --workspace "$LOCAL_VIDEO_WS" \
     --annotated \
-    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.yml" \
-    "$DEEP_TRANSCRIBE_E2E_WS/fixture/hotel.mp4"
+    --metadata "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.yml" \
+    "$DEEP_TRANSCRIBE_E2E_WS/fixture/snl-hotel.mp4"
 
 test -z "$(find "$LOCAL_VIDEO_WS/workspace" -type f \
-    -name 'hotel.mp4' -print -quit)"
+    -name 'snl-hotel.mp4' -print -quit)"
 test -n "$(find "$LOCAL_VIDEO_WS/workspace/docs" -type f \
     \( -name '*.jpg' -o -name '*.png' \) -print -quit)"
 ```
@@ -319,11 +333,8 @@ PY
 Configure the workspace and run the default annotated pipeline:
 
 ```shell
-uv run --locked deep-transcribe models \
-    --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
-    --set anthropic
-
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
+    --models anthropic \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun-processing \
@@ -344,11 +355,8 @@ The raw transcript cache prevents another paid transcription request while
 to execute again. Reserve `--rerun` for an intentional fresh Deepgram request.
 
 ```shell
-uv run --locked deep-transcribe models \
-    --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
-    --set openai
-
-uv run --locked deep-transcribe transcribe \
+uv run --locked deep-transcribe \
+    --models openai \
     --workspace "$DEEP_TRANSCRIBE_E2E_WS" \
     --annotated \
     --rerun-processing \
@@ -389,12 +397,13 @@ The transcript passes when:
 - all statements are present in the right order with no invented content;
 - names, job terms, times, and other meaning-bearing words match the audio;
 - punctuation and paragraph boundaries are readable;
-- the receptionist and Tom remain consistently labeled across long turns;
+- Mr. Adams and the Front Desk Employee remain consistently labeled across long turns,
+  and the three shorter roles are correctly distinguished;
 - no paragraph combines a question and answer from different speakers, except a genuine
   overlap or an isolated brief interjection noted in the report;
 - every transcript paragraph has a timestamp near its first spoken word, including the
   first and last paragraphs, and sampled links land within about two seconds;
-- speaker identification consistently uses `Hotel Receptionist` and `Tom Sanders`;
+- speaker identification consistently uses all five expected role labels;
 - the annotated output has an accurate description and summary, useful section headings,
   relevant frame captures, and no unsupported claims;
 - every exported frame asset is referenced by the HTML, with no rejected
@@ -419,6 +428,18 @@ Broken or missing frame captures fail the release gate.
 
 Print the final HTML from that browser to PDF with the browser’s headers and footers
 disabled and background graphics enabled.
+For a reproducible macOS print, use the final absolute HTML path reported by the CLI:
+
+```shell
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    --headless=new \
+    --disable-background-networking \
+    --no-pdf-header-footer \
+    --print-to-pdf="$DEEP_TRANSCRIBE_E2E_WS/transcript.pdf" \
+    "file:///absolute/path/to/final-transcript.html"
+```
+
+Use `google-chrome` or `chromium` as the executable on other platforms.
 Inspect the title and outline, a transcript page with frame captures, and the final
 page. The outline markers must be aligned, the theme control and table of contents must
 be absent, timestamps and the Deep Transcribe footer must remain muted, and no text or
