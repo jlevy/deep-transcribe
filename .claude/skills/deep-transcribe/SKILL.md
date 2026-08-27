@@ -32,7 +32,7 @@ runner:
 ```shell
 uvx \
     --exclude-newer-package yt-dlp=2026-08-20T00:00:00Z \
-    --from deep-transcribe==0.1.11 \
+    --from deep-transcribe==0.1.12 \
     deep-transcribe --docs
 ```
 
