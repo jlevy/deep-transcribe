@@ -5,7 +5,7 @@ title: Unify CLI and publish the SNL Hotel Check-In example
 kind: epic
 status: open
 priority: 1
-version: 13
+version: 23
 spec_path: docs/project/specs/active/plan-2026-08-26-snl-example-single-command-cli.md
 labels: []
 dependencies: []
@@ -19,11 +19,20 @@ child_order_hints:
   - is-01kxj4zkw8vp8g4ebs496hwdgw
   - is-01m10rztw6g59n0kjd73rzvgxf
   - is-01m10tcjrjp61h2qdkn0vqpnp2
+  - is-01m10v3kvfn09bvkxf65kzmzj8
+  - is-01m10vy9q46584rk97aa5s8fdb
+  - is-01m10vzjncar8rvyy09zn10n69
+  - is-01m10wh80jfcybq1jsn699kqqv
+  - is-01m10wjnjn89mhyndnkk1d48an
+  - is-01m10wnk8b69y5h4vpvydj5mrc
+  - is-01m10wnrd9qzrjzp4660pagqbw
+  - is-01m10wnxavh33kzbzms1qne5bb
+  - is-01m10wvqgjer8jbhx22ncvbc8r
 created_at: 2026-08-27T04:51:37.310Z
-updated_at: 2026-08-27T05:16:52.368Z
+updated_at: 2026-08-27T06:13:36.463Z
 ---
 Implement the linked plan as a hard-cut pre-alpha change: one direct-source CLI and help surface, an optional-value --models flag, bounded YouTube metadata in semantic context, and a reviewed public SNL Hotel Check-In transcript showcase.
 
 ## Notes
 
-Plan spec committed as c2c917c on codex/snl-hotel-single-command and pushed. The pre-commit review added dt-vot2 so ordinary prose can produce the internal five-speaker roster without structured CLI input. Full lint/type checks, 60 tests, and wheel/sdist builds passed. Next ready implementation bead: dt-ojgn.
+Unified CLI, source-aware context, prose roster inference, Tryscript goldens, stage-specific overview prompts, and cache-boundary fixes are implemented locally. The public SNL run is content-reviewed and proves instruction-only cache reuse. Pre-commit review found and fixed source-metadata restoration and moved generic SkipItem lineage handling upstream to Kash. Next: commit, PR, CI, and patch releases in dependency order; then generate and visually approve the public PDF/preview.
