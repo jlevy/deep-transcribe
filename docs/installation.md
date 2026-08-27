@@ -41,8 +41,11 @@ Run `deep-transcribe --models` for the current model mappings and
 Run Deep Transcribe without a persistent install:
 
 ```shell
-uvx deep-transcribe --help
+uvx "deep-transcribe[youtube]" --help
 ```
+
+The `youtube` extra supplies the Deno runtime yt-dlp needs for YouTube sources.
+Plain `uvx deep-transcribe` is enough for local audio and video files.
 
 Users who enforce their own uv supply-chain policy can apply it to this command.
 
@@ -50,7 +53,7 @@ For repeated use, install the CLI and let it materialize its own agent skill fro
 project where the skill should be available:
 
 ```shell
-uv tool install deep-transcribe
+uv tool install "deep-transcribe[youtube]"
 deep-transcribe --install-skill
 ```
 

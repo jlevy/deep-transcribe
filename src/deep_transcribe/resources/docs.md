@@ -13,7 +13,7 @@ deep-transcribe --help
 deep-transcribe --models
 ```
 
-If Deep Transcribe is not installed, use the simple `uvx deep-transcribe` form in the
+If Deep Transcribe is not installed, use the simple `uvx "deep-transcribe[youtube]"` form in the
 current README. Automated agent workflows should follow the discovery and
 version-matching guidance in the installed skill.
 
@@ -22,8 +22,8 @@ profile: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. It reads `.env` and `.env.loca
 from the working-directory hierarchy and the user’s home directory.
 Verify that key names exist without printing their values.
 
-For YouTube sources, install a JavaScript runtime such as Deno, Node.js, or Bun so
-yt-dlp can solve current media challenges.
+For YouTube sources, use the `youtube` extra, which supplies the Deno runtime yt-dlp
+needs to solve current media challenges.
 
 ## Run a Transcription
 
@@ -361,7 +361,8 @@ exact version-pinned `uvx` runner.
 
 - Run `deep-transcribe --help` before changing transcription options.
 - Preserve the workspace after a failure so completed work remains reusable.
-- Confirm `ffmpeg` and a JavaScript runtime are on `PATH` when media acquisition fails.
+- Confirm `ffmpeg` is on `PATH` and that the `youtube` extra is installed when media
+  acquisition fails.
 - Confirm required key names exist without echoing their values.
 - Use `--json` for machine-readable artifact paths and errors.
 - Inspect the workspace log before deciding that a paid stage must be repeated.

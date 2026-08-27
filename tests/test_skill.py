@@ -81,7 +81,7 @@ def test_skill_runner_selection_handles_source_checkouts_and_stale_path_commands
 def test_compose_skill_substitutes_an_exact_release_pin() -> None:
     rendered = compose_skill("1.2.3")
 
-    assert "deep-transcribe==1.2.3" in rendered
+    assert "deep-transcribe[youtube]==1.2.3" in rendered
     assert "__DEEP_TRANSCRIBE_VERSION__" not in rendered
     assert "__YTDLP_CUTOFF__" not in rendered
     assert f"--exclude-newer-package yt-dlp={YTDLP_DISCOVERY_CUTOFF}" in rendered
@@ -116,7 +116,7 @@ def test_development_install_uses_the_reviewed_discovery_pin(
     monkeypatch.setattr(importlib.metadata, "version", development_version)
 
     assert deep_transcribe_version() == DISCOVERY_VERSION
-    assert f"deep-transcribe=={DISCOVERY_VERSION}" in compose_skill()
+    assert f"deep-transcribe[youtube]=={DISCOVERY_VERSION}" in compose_skill()
 
 
 def test_release_install_uses_its_own_version(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -126,7 +126,7 @@ def test_release_install_uses_its_own_version(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(importlib.metadata, "version", release_version)
 
     assert deep_transcribe_version() == "2.3.4"
-    assert "deep-transcribe==2.3.4" in compose_skill()
+    assert "deep-transcribe[youtube]==2.3.4" in compose_skill()
 
 
 def test_rendered_bundle_is_complete_and_stamped() -> None:
@@ -135,7 +135,7 @@ def test_rendered_bundle_is_complete_and_stamped() -> None:
     assert set(bundle) == {Path("SKILL.md"), Path("agents/openai.yaml")}
     assert bundle[Path("SKILL.md")].startswith("---\nname: deep-transcribe\n")
     assert f"format={SKILL_FORMAT} surface=skill-md" in bundle[Path("SKILL.md")]
-    assert "deep-transcribe==1.2.3" in bundle[Path("SKILL.md")]
+    assert "deep-transcribe[youtube]==1.2.3" in bundle[Path("SKILL.md")]
     assert f"format={SKILL_FORMAT} surface=openai-yaml" in bundle[Path("agents/openai.yaml")]
     assert "display_name" in get_openai_metadata()
 
@@ -227,7 +227,7 @@ def test_agents_md_update_preserves_unmarked_content_and_is_idempotent(tmp_path:
     assert "Keep this guidance." in content
     assert content.count(AGENTS_BEGIN_PREFIX) == 1
     assert content.count(AGENTS_END_MARKER) == 1
-    assert "deep-transcribe==1.2.3" in content
+    assert "deep-transcribe[youtube]==1.2.3" in content
 
 
 def test_agents_md_forward_guard_preserves_a_newer_block(tmp_path: Path) -> None:
@@ -255,7 +255,7 @@ def test_agents_md_block_routes_agents_to_executable_documentation() -> None:
     assert "- Run `deep-transcribe --skill`" not in block
     assert "uv run deep-transcribe --docs" in block
     assert "only if `deep-transcribe --docs` succeeds" in block
-    assert "deep-transcribe==1.2.3" in block
+    assert "deep-transcribe[youtube]==1.2.3" in block
     assert f"--exclude-newer-package yt-dlp={YTDLP_DISCOVERY_CUTOFF}" in block
 
 

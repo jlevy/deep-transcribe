@@ -489,6 +489,11 @@ dependencies = [
     { name = "yt-dlp", extra = ["default"] },
 ]
 
+[package.optional-dependencies]
+youtube = [
+    { name = "deno" },
+]
+
 [package.dev-dependencies]
 build = [
     { name = "hatchling" },
@@ -506,6 +511,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "deno", marker = "extra == 'youtube'", specifier = ">=2.9,<3" },
     { name = "frontmatter-format", specifier = ">=0.4.0,<0.5" },
     { name = "kash-media", specifier = ">=0.4.7,<0.5" },
     { name = "prettyfmt", specifier = ">=0.4.1" },
@@ -513,6 +519,7 @@ requires-dist = [
     { name = "sidematter-format", specifier = ">=0.1.0,<0.2" },
     { name = "yt-dlp", extras = ["default"], specifier = ">=2026.8.19" },
 ]
+provides-extras = ["youtube"]
 
 [package.metadata.requires-dev]
 build = [
@@ -543,6 +550,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b4/10/35a13dabd910604da4e47d4f29d45531d5536bf22110ebcc952142cc07e9/deepgram_sdk-7.6.0.tar.gz", hash = "sha256:e35b67e79f3d5e37e2384350ddfec30b5d086f80eaed0e71f9540e0ecec60a11", size = 228515, upload-time = "2026-07-22T13:30:55.999Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2f/4f/c8a5e6aae60f67e1580697936933e94396d0007b22bea45153083995a010/deepgram_sdk-7.6.0-py3-none-any.whl", hash = "sha256:3edcf491168819a516fc45042e31dbc8212a47f48b283b7116248a41dd7fffde", size = 605727, upload-time = "2026-07-22T13:30:54.467Z" },
+]
+
+[[package]]
+name = "deno"
+version = "2.9.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/27/06ad530f3be68dafdfae57457c534d5bb014cd6da58c2bd0f5b28f9ab8fa/deno-2.9.5.tar.gz", hash = "sha256:2f9681d7d2118a5e92e18915d1d88a6966fd6173ba4a8fb772f04080057e5a6a", size = 8166, upload-time = "2026-08-06T15:08:32.319Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/99/1a1ff9e40e82d857b426a86d2159e3560000c2f98edb0f63170256582067/deno-2.9.5-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:d321f54f82cb535904a108afd970c1c3e1db23716db1ab0cda5e0ca993dbf824", size = 42353187, upload-time = "2026-08-06T15:08:10.431Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/3a/d60dac70124d045dfc6f01bbd181e2865904ecca5710b2d319869ff59727/deno-2.9.5-py3-none-macosx_11_0_arm64.whl", hash = "sha256:696dffb666d6336a3527857b2f9b665db33b07883bb6adc3595dbb3b78748cf1", size = 38520058, upload-time = "2026-08-06T15:08:14.978Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/b4/5d462bc738b2172043a470ab97d7b6f3e7a287fa1916065e777e034ef1b1/deno-2.9.5-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:bccec0965917b6daa323f9ce6ad8e884e0854506b0cdaec9de41bdac7620109a", size = 39908447, upload-time = "2026-08-06T15:08:19.751Z" },
+    { url = "https://files.pythonhosted.org/packages/60/54/c6e0fb4b5e96dd7611bc75c8137046d7436666bd2e278f686e36d6a805af/deno-2.9.5-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:e5aec0419739fd0359663a78765d4feda19d1d0b60a682d25add9b78e19f95b4", size = 41642333, upload-time = "2026-08-06T15:08:24.965Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/0b/3ca6468ec928d817ce6ef062ddfa11e71a3c68035c3401057d7cb33845f6/deno-2.9.5-py3-none-win_amd64.whl", hash = "sha256:570d4ee6f1ddb16d14848d36dac6cd2f586d8a0c94cf9c3e6b5da130da2597d5", size = 41615800, upload-time = "2026-08-06T15:08:30.015Z" },
 ]
 
 [[package]]

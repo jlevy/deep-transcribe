@@ -7,11 +7,8 @@ It uses Deepgram Nova-3 with the current batch diarizer, then can identify speak
 format paragraphs and timestamps, add sections, write a brief synopsis and structural
 outline, research key passages, capture video frames, and export browser-ready HTML.
 
-Speaker attribution drives everything downstream.
-Speaker correction, sections, outline, and synopsis all read speaker-labeled text, so
-diarization quality sets the ceiling for every later stage.
-That is why the backend is Deepgram rather than a transcription-only API such as
-OpenAI's `whisper-1`, which returns no speaker labels at all.
+Speech-to-text goes through Deepgram, chosen for its speaker diarization.
+Speaker correction, sections, outline, and synopsis all read speaker-labeled text.
 
 LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles.
 New workspaces use the current Anthropic profile by default, and an equivalent OpenAI
@@ -42,7 +39,7 @@ The context below supplies the complete cast and role relationships that the off
 video description does not contain.
 
 ```shell
-uvx deep-transcribe \
+uvx "deep-transcribe[youtube]" \
     --workspace ./snl-hotel-output \
     --annotated \
     --title "Hotel Check In — SNL" \
@@ -107,33 +104,19 @@ Do not commit API keys.
 Then run it without installing anything:
 
 ```shell
-uvx deep-transcribe --help
+uvx "deep-transcribe[youtube]" --help
 ```
 
-YouTube sources need a JavaScript runtime, which yt-dlp uses to solve the signature and
-`n` challenges YouTube applies to media URLs.
-Let uv supply Deno rather than installing a runtime yourself:
-
-```shell
-uvx --with deno deep-transcribe URL
-```
-
-Deno is the runtime to prefer.
-yt-dlp ranks it above Node, QuickJS, and bun, and runs it as the only sandboxed option,
-with no network, npm, or local config access.
-bun is deprecated upstream.
-Deno is also the only one of the four published as an official binary redistribution on
-PyPI, which is what lets uv install it alongside Deep Transcribe.
-Local audio and video files need no runtime at all.
+The `youtube` extra supplies Deno, which yt-dlp needs to solve the JavaScript challenges
+YouTube applies to media URLs.
+Plain `uvx deep-transcribe` is enough for local audio and video files.
 
 For repeated use, install it as a persistent tool:
 
 ```shell
-uv tool install --with deno deep-transcribe
+uv tool install "deep-transcribe[youtube]"
 deep-transcribe --help
 ```
-
-Agents should set up through the skill below, which carries these same steps.
 
 ## Cross-Agent Skill
 
