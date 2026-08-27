@@ -1,18 +1,21 @@
 ---
 type: is
 id: is-01kxj4zkw8vp8g4ebs496hwdgw
-title: Document an approved entertaining README end-to-end fixture
+title: Publish the reviewed SNL Hotel Check-In README showcase
 kind: task
 status: open
-priority: 2
-version: 3
+priority: 1
+version: 5
+spec_path: docs/project/specs/active/plan-2026-08-26-snl-example-single-command-cli.md
 labels: []
-dependencies: []
-parent_id: is-01kxj4xxyfwmxmk3z9mebcf92x
+dependencies:
+  - type: blocks
+    target: is-01m10rztw6g59n0kjd73rzvgxf
+parent_id: is-01m10ryb6ze39bmjjq0chrxpbx
 created_at: 2026-07-15T05:46:19.911Z
-updated_at: 2026-07-15T06:50:48.724Z
+updated_at: 2026-08-27T04:52:26.117Z
 ---
-After user approval, replace the draft hotel training example with the approved short SNL Hotel Check In fixture, including reusable metadata context and five-speaker correction workflow. Do not merge the README change before approval.
+Replace the previous hotel walkthrough with the approved SNL fixture. Browser-print and inspect the final HTML, capture the transcript preview, add clickable video and PDF links, remove superseded artifacts, and commit only the reviewed public outputs.
 
 ## Notes
 
