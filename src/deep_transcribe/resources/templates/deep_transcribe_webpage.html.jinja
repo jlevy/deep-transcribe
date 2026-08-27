@@ -1,0 +1,43 @@
+{% extends "youtube_webpage.html.jinja" %}
+
+{% block custom_styles %}
+{{ super() }}
+<style>
+.timestamp-link,
+.timestamp-link:hover {
+  background-color: transparent !important;
+  color: var(--color-secondary) !important;
+}
+
+.timestamp-link a,
+.timestamp-link a:visited {
+  color: inherit !important;
+  text-decoration: none;
+}
+
+.timestamp-link a:hover {
+  text-decoration: underline;
+}
+
+@media print {
+  .theme-toggle {
+    display: none !important;
+  }
+
+  .timestamp-link,
+  .timestamp-link:hover {
+    color: var(--color-tertiary) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 8pt;
+  }
+
+  @page {
+    @bottom-left {
+      content: "Transcribed by github.com/jlevy/deep-transcribe";
+      font-family: var(--font-sans) !important;
+      font-size: 8pt;
+    }
+  }
+}
+</style>
+{% endblock custom_styles %}

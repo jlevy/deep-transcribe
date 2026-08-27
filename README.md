@@ -4,8 +4,8 @@ High-quality transcription, formatting, and analysis of videos and podcasts.
 
 Deep Transcribe accepts YouTube and other media URLs or local audio and video files.
 It uses Deepgram Nova-3 with the current batch diarizer, then can identify speakers,
-format paragraphs and timestamps, add sections and summaries, research key passages,
-capture video frames, and export browser-ready HTML.
+format paragraphs and timestamps, add sections, write a brief synopsis and structural
+outline, research key passages, capture video frames, and export browser-ready HTML.
 
 LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles.
 New workspaces use the current Anthropic profile by default, and an equivalent OpenAI
@@ -61,8 +61,10 @@ Install the public discovery skill through the cross-agent skills installer:
 npx skills add jlevy/deep-transcribe@deep-transcribe
 ```
 
-The skill uses a local `deep-transcribe` executable when available and otherwise uses
-the pinned zero-install runner.
+In a Deep Transcribe source checkout, the skill uses `uv run deep-transcribe` so an
+older executable on `PATH` cannot override the checkout.
+Elsewhere, it accepts an installed command only after `deep-transcribe --docs` succeeds
+and falls back to the pinned zero-install runner when that capability check fails.
 It routes agents to executable documentation rather than carrying a second command
 manual.
 
@@ -137,6 +139,8 @@ additional_context: |
   This is a two-person hotel check-in conversation. Speaker 0 is the Hotel Receptionist.
   Speaker 1 is guest Tom Sanders, who has a three-night reservation and is assigned
   Room 653.
+processing_instructions: |
+  Keep the synopsis brief. Organize the outline around the main phases of check-in.
 key_terms:
   - Tom Sanders
   - Transnational Hotel
@@ -163,8 +167,8 @@ This one command:
 1. downloads and caches the video;
 2. transcribes it with Deepgram Nova-3 and the current diarizer, using the key terms;
 3. saves the descriptive context and speaker hints with the source item;
-4. identifies speakers, formats paragraphs and timestamps, and adds headings, a summary,
-   and a description using that context; and
+4. identifies speakers, formats paragraphs and timestamps, and adds headings, a brief
+   synopsis, and a section-aligned outline using that context; and
 5. captures distinct video frames and exports browser-ready HTML.
 
 The command prints the final Markdown and HTML paths.
@@ -175,8 +179,8 @@ missing reservation, the free suite upgrade, and the check-in instructions.
 
 #### Correct Context Without Paying for Transcription Again
 
-If a speaker name or descriptive detail is wrong, edit `hotel.yml` and rerun only the
-semantic processing stages:
+If a speaker name, descriptive detail, or output emphasis is wrong, edit `hotel.yml` and
+repeat the same command:
 
 ```shell
 deep-transcribe transcribe \
@@ -186,10 +190,12 @@ deep-transcribe transcribe \
     "https://www.youtube.com/watch?v=wyqfYJX23lg"
 ```
 
-Changes to `additional_context`, `description`, `speaker_hints`, or `speaker_roster`
-change the semantic action inputs.
+Changes to `additional_context`, `description`, `processing_instructions`,
+`speaker_hints`, or `speaker_roster` change the semantic action inputs.
 The normal rerun resumes at the first affected stage, reuses the cached raw Deepgram
 transcript and unchanged intermediates, and rebuilds dependent outputs.
+Changing only `processing_instructions` reuses speaker correction, paragraph formatting,
+timestamps, and section headings, then regenerates the synopsis and outline.
 If the diarizer merges or splits voices incorrectly, provide the complete
 `speaker_roster` and describe roles or dialogue transitions in `additional_context`.
 Deep Transcribe then corrects each turn with the careful model profile.
@@ -197,6 +203,12 @@ A `key_terms` change intentionally creates a new transcript because it can affec
 recognition. Full `--rerun` also requests fresh speech-to-text.
 Use `--rerun-processing` only when every downstream stage should run again, such as
 after changing the saved model profile or when deliberately regenerating model output.
+
+Use `additional_context` for facts about the recording and `processing_instructions` for
+requested output shape or emphasis.
+The repeatable `--instructions` and `--instructions-file` flags are convenient for
+one-off requests. Annotated output places a short, paragraph-broken synopsis above an
+always-visible sans-serif outline with concise bullets for each section.
 
 New processing features also reuse earlier work.
 For example, add researched paragraph annotations to the existing transcript with

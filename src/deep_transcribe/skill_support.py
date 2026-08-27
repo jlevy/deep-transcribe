@@ -13,8 +13,8 @@ from typing import NamedTuple
 
 PACKAGE_NAME = "deep-transcribe"
 SKILL_DIRNAME = "deep-transcribe"
-SKILL_FORMAT = "f01"
-DISCOVERY_VERSION = "0.1.11"
+SKILL_FORMAT = "f02"
+DISCOVERY_VERSION = "0.1.12"
 YTDLP_DISCOVERY_CUTOFF = "2026-08-20T00:00:00Z"
 
 SURFACE_PORTABLE = "portable"
@@ -208,11 +208,12 @@ def agents_md_block(version: str | None = None) -> str:
         f"{AGENTS_BEGIN_PREFIX} format={SKILL_FORMAT} surface=agents-md -->\n"
         "## Deep Transcribe\n\n"
         "Use Deep Transcribe for audio and video transcription and cache-aware refinement.\n\n"
-        "- Run `deep-transcribe --docs` before a non-trivial transcription or rerun.\n"
-        "- Run `deep-transcribe --skill` for the complete agent workflow.\n"
+        "- In a Deep Transcribe source checkout, run `uv run deep-transcribe --docs`.\n"
+        "- Otherwise, use the installed command only if `deep-transcribe --docs` succeeds.\n"
+        "- If the command is missing or rejects `--docs`, use the exact pinned runner below.\n"
+        "- Use the same verified runner with `--skill` for the complete agent workflow.\n"
         "- Preserve the same source and workspace when refining a reviewed result.\n"
-        "- Prefer the installed command; otherwise use the exact pinned runner:\n"
-        "  `uvx --exclude-newer-package "
+        "- Exact pinned runner: `uvx --exclude-newer-package "
         f"yt-dlp={YTDLP_DISCOVERY_CUTOFF} --from deep-transcribe=={pin} deep-transcribe`.\n\n"
         f"{AGENTS_END_MARKER}"
     )

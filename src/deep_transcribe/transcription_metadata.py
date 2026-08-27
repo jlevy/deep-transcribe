@@ -62,6 +62,16 @@ class TranscriptionMetadata:
             return []
         return [label for label in cast(list[object], roster) if isinstance(label, str)]
 
+    @property
+    def processing_instructions(self) -> str | None:
+        transcription = self.extra.get(TRANSCRIPTION_METADATA_KEY)
+        if not isinstance(transcription, dict):
+            return None
+        return _optional_text(
+            cast(dict[str, Any], transcription).get("processing_instructions"),
+            "processing_instructions",
+        )
+
 
 def _deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
     result = deepcopy(base)
@@ -137,6 +147,7 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         "key_terms",
         "speaker_hints",
         "speaker_roster",
+        "processing_instructions",
     }
     unexpected_fields = sorted(str(key) for key in data_dict if key not in allowed_fields)
     if unexpected_fields:
@@ -158,12 +169,20 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         transcription["speaker_hints"] = _normalize_speaker_hints(transcription["speaker_hints"])
     if "speaker_roster" in transcription:
         transcription["speaker_roster"] = normalize_speaker_roster(transcription["speaker_roster"])
+    if "processing_instructions" in transcription:
+        transcription["processing_instructions"] = _optional_text(
+            transcription["processing_instructions"], "processing_instructions"
+        )
     if "key_terms" in data_dict:
         transcription["key_terms"] = _normalize_key_terms(data_dict["key_terms"])
     if "speaker_hints" in data_dict:
         transcription["speaker_hints"] = _normalize_speaker_hints(data_dict["speaker_hints"])
     if "speaker_roster" in data_dict:
         transcription["speaker_roster"] = normalize_speaker_roster(data_dict["speaker_roster"])
+    if "processing_instructions" in data_dict:
+        transcription["processing_instructions"] = _optional_text(
+            data_dict["processing_instructions"], "processing_instructions"
+        )
     if transcription or TRANSCRIPTION_METADATA_KEY in extra:
         extra[TRANSCRIPTION_METADATA_KEY] = transcription
 
@@ -218,6 +237,37 @@ def get_speaker_roster(item: Item) -> list[str]:
     ]
 
 
+def get_processing_instructions(item: Item) -> str | None:
+    """Read trusted post-transcription instructions from item metadata."""
+    return TranscriptionMetadata(extra=item.extra or {}).processing_instructions
+
+
+def remove_processing_instructions(item: Item) -> str | None:
+    """Remove output-only instructions in place and return them for later restoration."""
+    instructions = get_processing_instructions(item)
+    if instructions is None:
+        return None
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    if isinstance(transcription, dict):
+        cast(dict[str, Any], transcription).pop("processing_instructions", None)
+    item.extra = item_extra
+    return instructions
+
+
+def set_processing_instructions(item: Item, instructions: str | None) -> Item:
+    """Attach trusted output-only instructions immediately before semantic output stages."""
+    if instructions is None:
+        return item
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.setdefault(TRANSCRIPTION_METADATA_KEY, {})
+    if not isinstance(transcription, dict):
+        raise ValueError("`extra.transcription` must be a mapping")
+    cast(dict[str, Any], transcription)["processing_instructions"] = instructions
+    item.extra = item_extra
+    return item
+
+
 def copy_source_metadata(source: Item, target: Item) -> Item:
     """Copy descriptive source metadata to another item without losing target metadata."""
     if source.title is not None:
@@ -255,6 +305,7 @@ def test_transcription_metadata_normalizes_merges_and_applies() -> None:
         dedent("""
             title: Product interview
             additional_context: Alice is the host.
+            processing_instructions: Keep the overview concise.
             key_terms: [SignalFlow, SignalFlow, Nova Prime]
             speaker_hints:
               0: Alice Chen
@@ -276,11 +327,13 @@ def test_transcription_metadata_normalizes_merges_and_applies() -> None:
 
     assert item.title == "Product interview"
     assert item.additional_context == "Alice Chen interviews Bob Diaz."
+    assert parsed.processing_instructions == "Keep the overview concise."
     assert item.extra == {
         "transcription": {
             "existing_option": True,
             "future_option": True,
             "key_terms": ["SignalFlow", "Nova Prime"],
+            "processing_instructions": "Keep the overview concise.",
             "speaker_hints": {"0": "Alice Chen", "1": "Bob Diaz"},
             "speaker_roster": ["Alice Chen", "Bob Diaz"],
         }
@@ -294,3 +347,22 @@ def test_speaker_roster_rejects_ambiguous_duplicate_labels() -> None:
         assert "distinct names or roles" in str(error)
     else:
         raise AssertionError("Equivalent speaker labels must be rejected")
+
+
+def test_processing_instructions_can_be_excluded_from_upstream_cache_identity() -> None:
+    item = Item(
+        type=ItemType.doc,
+        extra={
+            "transcription": {
+                "speaker_roster": ["Host", "Guest"],
+                "processing_instructions": "Emphasize open questions.",
+            }
+        },
+    )
+
+    instructions = remove_processing_instructions(item)
+
+    assert instructions == "Emphasize open questions."
+    assert item.extra == {"transcription": {"speaker_roster": ["Host", "Guest"]}}
+    set_processing_instructions(item, instructions)
+    assert get_processing_instructions(item) == instructions

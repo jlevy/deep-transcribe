@@ -17,6 +17,8 @@ from deep_transcribe.transcription_metadata import (
     get_speaker_roster,
     parse_transcription_metadata,
     persist_item_metadata,
+    remove_processing_instructions,
+    set_processing_instructions,
 )
 
 log = logging.getLogger(__name__)
@@ -79,14 +81,21 @@ def transcribe_with_options(
 def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     # Import dynamically for faster startup.
     from kash.actions.core.strip_html import strip_html
-    from kash.kits.docs.actions.text.add_description import add_description
-    from kash.kits.docs.actions.text.add_summary_bullets import add_summary_bullets
     from kash.kits.docs.actions.text.break_into_paragraphs import break_into_paragraphs
     from kash.kits.docs.actions.text.insert_section_headings import insert_section_headings
     from kash.kits.docs.actions.text.research_paras import research_paras
     from kash.kits.media.actions.transcribe.backfill_timestamps import backfill_timestamps
     from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
     from kash.kits.media.actions.transcribe.insert_frame_captures import insert_frame_captures
+
+    from deep_transcribe.timestamp_citations import normalize_timestamp_citations
+    from deep_transcribe.transcript_overview import (
+        add_transcript_description,
+        add_transcript_outline,
+    )
+    from deep_transcribe.transcript_spacing import normalize_transcript_fragments
+
+    processing_instructions = remove_processing_instructions(result)
 
     # Apply formatting pipeline if requested
     if options.format:
@@ -99,9 +108,11 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
             else:
                 result = identify_speakers(result)
 
+        result = normalize_transcript_fragments(result)
         result = strip_html(result)
         result = break_into_paragraphs(result)
         result = backfill_timestamps(result)
+        result = normalize_timestamp_citations(result)
 
     # Apply annotation pipeline if requested
     if options.insert_section_headings:
@@ -110,14 +121,21 @@ def _process_transcript(result: Item, options: TranscribeOptions) -> Item:
     if options.research_paras:
         result = research_paras(result)
 
+    has_overview_stage = options.add_summary_bullets or options.add_description
+    if has_overview_stage:
+        set_processing_instructions(result, processing_instructions)
+
     if options.add_summary_bullets:
-        result = add_summary_bullets(result)
+        result = add_transcript_outline(result)
 
     if options.add_description:
-        result = add_description(result)
+        result = add_transcript_description(result)
 
     if options.insert_frame_captures:
         result = insert_frame_captures(result)
+
+    if not has_overview_stage:
+        set_processing_instructions(result, processing_instructions)
 
     return result
 
@@ -139,7 +157,8 @@ TRANSCRIPTION_ACTION_PARAMS = common_params("language") + (
         "metadata_yaml",
         (
             "Inline YAML or JSON source metadata. Supports title, description, "
-            "additional_context, key_terms, speaker_hints, speaker_roster, and extra."
+            "additional_context, processing_instructions, key_terms, speaker_hints, "
+            "speaker_roster, and extra."
         ),
         type=str,
         default_value="",
@@ -367,6 +386,7 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
     # Import dynamically for faster startup.
     from kash.actions.core.minify_html import minify_html
     from kash.model import Format, ItemType
+    from kash.web_gen.template_render import additional_template_dirs
     from kash.web_gen.webpage_render import render_item_as_html
     from kash.workspaces.workspaces import current_ws
 
@@ -374,12 +394,14 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
         type=ItemType.export,
         format=Format.html,
     )
-    raw_html_item = render_item_as_html(
-        result_item,
-        raw_html_item,
-        add_title_h1=True,
-        template_filename="simple_webpage.html.jinja",
-    )
+    templates_dir = Path(__file__).parent / "resources" / "templates"
+    with additional_template_dirs(templates_dir):
+        raw_html_item = render_item_as_html(
+            result_item,
+            raw_html_item,
+            add_title_h1=True,
+            template_filename="deep_transcribe_webpage.html.jinja",
+        )
     current_ws().save(raw_html_item)
 
     if not no_minify:
@@ -434,6 +456,17 @@ def test_format_results_copies_frame_assets() -> None:
             )
 
             html_assets = Sidematter(html_path).assets_dir
+            html_text = html_path.read_text()
             assert transcript_path == source_path
-            assert f"{html_assets.name}/frame.jpg" in html_path.read_text()
+            assert f"{html_assets.name}/frame.jpg" in html_text
             assert (html_assets / "frame.jpg").read_bytes() == b"frame"
+            assert "Transcribed by github.com/jlevy/deep-transcribe" in html_text
+            assert "font-family: var(--font-sans) !important" in html_text
+            assert "font-size: 8pt" in html_text
+            assert "color: var(--color-tertiary) !important" in html_text
+            assert ".theme-toggle" in html_text
+            assert ".timestamp-link:hover" in html_text
+            assert ".timestamp-link a" in html_text
+            assert "color: var(--color-secondary) !important" in html_text
+            assert "display: none !important" in html_text
+            assert 'id="yt-popover"' in html_text

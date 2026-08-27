@@ -56,7 +56,7 @@ Choose the least expensive preset that produces the requested result:
 | --- | --- |
 | `--basic` | Raw diarized speech-to-text only |
 | `--formatted` | Speaker names, paragraphs, and timestamps |
-| `--annotated` | Formatting, sections, summary, description, frames, and HTML |
+| `--annotated` | Formatting, sections, a synopsis, a structural outline, frames, and HTML |
 | `--deep` | Annotated output plus researched paragraph notes |
 
 Use `--with STAGE[,STAGE]` to add individual stages to a preset.
@@ -74,6 +74,8 @@ description: A receptionist checks a guest into a hotel.
 additional_context: |
   This is a two-person hotel check-in conversation. The receptionist speaks first.
   The guest has a three-night reservation and receives a room upgrade.
+processing_instructions: |
+  Keep the synopsis brief. Organize the outline around the main phases of check-in.
 key_terms:
   - Transnational Hotel
 speaker_hints:
@@ -85,8 +87,15 @@ speaker_roster:
 ```
 
 Pass it with `--metadata recording.yml`. The equivalent repeatable inline options are
-`--context`, `--context-file`, `--key-term`, `--speaker ID=NAME`, and
-`--speaker-role NAME_OR_ROLE`.
+`--context`, `--context-file`, `--instructions`, `--instructions-file`, `--key-term`,
+`--speaker ID=NAME`, and `--speaker-role NAME_OR_ROLE`.
+
+Use `additional_context` for facts about the recording: identities, roles, chronology,
+terminology, and subject matter.
+Use `processing_instructions` for trusted requests about the derived output, such as
+emphasis, structure, or level of detail.
+Keeping them separate lets models treat source metadata as evidence without accidentally
+following instructions embedded in fetched metadata.
 
 Use `speaker_hints` only when one provider speaker ID consistently belongs to one known
 person or role.
@@ -102,8 +111,8 @@ The useful workflow is:
 
 1. Transcribe once.
 2. Inspect the Markdown and rendered HTML.
-3. Add context, correct speaker evidence, change a model profile, or request another
-   processing feature.
+3. Add context, correct speaker evidence, add processing instructions, change a model
+   profile, or request another processing feature.
 4. Rerun the same source in the same workspace.
 5. Verify both cache reuse and output quality.
 
@@ -115,7 +124,7 @@ iterations.
 
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
-| Change `title`, `description`, `additional_context`, `speaker_hints`, or `speaker_roster` | Run the same command normally | Reuses the cached transcript |
+| Change `title`, `description`, `additional_context`, `processing_instructions`, `speaker_hints`, or `speaker_roster` | Run the same command normally | Reuses the cached transcript |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |
@@ -124,6 +133,9 @@ iterations.
 Do not add `--rerun-processing` merely because metadata changed.
 Metadata participates in semantic cache identity, so a normal rerun already invalidates
 the first affected model stage and everything that depends on it.
+Processing instructions are excluded from speaker correction, paragraph formatting, and
+section-generation cache identity, so changing only those instructions resumes at the
+synopsis and outline stages.
 
 Use `--rerun-processing` when inputs outside the item metadata changed, such as a saved
 model profile, or when a complete semantic regeneration is the actual goal.
@@ -146,6 +158,22 @@ For a diarization boundary error, give the complete roster and describe the spea
 roles or the ambiguous transition in `additional_context`. Deep Transcribe then corrects
 timestamped turns with the careful model profile while preserving the raw provider
 transcript for review.
+
+For an output correction, add `processing_instructions` to the same metadata file or
+pass `--instructions`. Annotated output places a short two-paragraph synopsis first,
+then an always-visible sans-serif outline.
+The outline follows the transcript’s section headings when they are useful and gives
+concise key points for each section.
+
+```shell
+deep-transcribe transcribe \
+    --workspace ./output \
+    --annotated \
+    --instructions "Emphasize decisions and unresolved questions." \
+    --metadata ./recording.yml \
+    --json \
+    INPUT
+```
 
 For a new feature, extend the existing command instead of starting over:
 
@@ -186,8 +214,13 @@ rg -n 'Video transcript already in cache|Transcribing via Deepgram' \
 A semantic-only rerun should report a transcript cache hit, and the Deepgram request
 count should not increase.
 Then inspect the transcript and HTML at the beginning, middle, and end.
-Check speaker continuity, missing speech, timestamp links, headings, summaries,
+Check speaker continuity, missing speech, timestamps, headings, synopsis, outline,
 annotations, and frame captures.
+Timestamps are muted bracketed text.
+Supported web sources receive time-specific links, and YouTube links open an embedded
+player.
+Local audio and video timestamps are intentionally not linked because a `file://`
+URL cannot seek reliably.
 A zero exit status confirms execution, not transcription quality.
 
 ### Recover From a Failed Stage
@@ -202,10 +235,11 @@ Deleting the workspace discards the recovery point.
 An agent can run the review-and-correct loop from this compact request:
 
 > Inspect the existing Deep Transcribe result for `INPUT` in `WORKSPACE`. Update the
-> private metadata file with `CORRECTIONS`, rerun the same preset without
-> `--rerun-processing` or `--rerun`, and verify that the Deepgram request count did not
-> increase. Review the corrected transcript and rendered HTML at the beginning, middle,
-> and end, then report the final artifact paths.
+> private metadata file with `CORRECTIONS` and any requested processing instructions,
+> rerun the same preset without `--rerun-processing` or `--rerun`, and verify that the
+> Deepgram request count did not increase.
+> Review the corrected transcript and rendered HTML at the beginning, middle, and end,
+> then report the final artifact paths.
 > Keep source-specific names, paths, and content out of the repository.
 
 Ask for `--rerun-processing` when the requested change is a model-profile comparison or

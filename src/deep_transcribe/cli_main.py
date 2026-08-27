@@ -10,6 +10,7 @@ More information: https://github.com/jlevy/deep-transcribe
 import argparse
 import json
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
@@ -43,6 +44,13 @@ ROOT_OPTIONS = {
 
 # Conventional shell status for a process interrupted by SIGINT.
 INTERRUPTED_EXIT_CODE = 130
+
+
+def configure_kash_workspace(workspace: str | Path) -> Path:
+    """Resolve the CLI workspace before importing Kash so its state stays local."""
+    workspace_path = Path(workspace).expanduser().resolve()
+    os.environ["KASH_WS_ROOT"] = str(workspace_path)
+    return workspace_path
 
 
 class _ArgumentContainer(Protocol):
@@ -139,8 +147,8 @@ def _processing_stage_help() -> str:
         - `format`: Create paragraphs and backfill timestamps.
         - `insert_section_headings`: Add topic-based section headings.
         - `research_paras`: Add researched paragraph annotations.
-        - `add_summary_bullets`: Add a concise summary.
-        - `add_description`: Add a document description.
+        - `add_summary_bullets`: Add a concise, section-aligned outline.
+        - `add_description`: Add a brief two-paragraph synopsis.
         - `insert_frame_captures`: Add representative frames for video sources.
         """).strip()
 
@@ -204,8 +212,9 @@ def _add_transcription_arguments(
         type=Path,
         metavar="YAML_OR_JSON",
         help=(
-            "Metadata file with title, description, additional_context, key_terms, "
-            "speaker_hints, speaker_roster, or extra fields"
+            "Metadata file with title, description, additional_context, "
+            "processing_instructions, key_terms, speaker_hints, speaker_roster, "
+            "or extra fields"
         ),
     )
     context.add_argument(
@@ -247,6 +256,21 @@ def _add_transcription_arguments(
             "Known speaker name or role for context-aware boundary correction; "
             "repeat for the complete roster"
         ),
+    )
+    context.add_argument(
+        "--instructions",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="Trusted post-transcription processing instructions; repeat to join paragraphs",
+    )
+    context.add_argument(
+        "--instructions-file",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="PATH",
+        help="UTF-8 post-transcription processing instructions; repeat to join files",
     )
 
     execution = parser.add_argument_group("Execution and Output")
@@ -298,10 +322,11 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
 
         **Iterative reruns:** A normal rerun resumes at the first affected stage and
         reuses compatible cached work. Updating descriptive context or speaker metadata
-        preserves speech-to-text; changing key terms, the language, or a Deepgram model
-        creates a new transcription cache entry. `--rerun-processing` forces every
-        post-transcription stage while preserving the raw transcript. `--rerun` forces
-        every stage, including speech-to-text.
+        preserves speech-to-text. Updating processing instructions resumes at the
+        overview stages. Changing key terms, the language, or a Deepgram model creates a
+        new transcription cache entry. `--rerun-processing` forces every post-transcription
+        stage while preserving the raw transcript. `--rerun` forces every stage,
+        including speech-to-text.
 
         Examples:
 
@@ -313,6 +338,7 @@ def _build_transcribe_parser(subparsers: _SubparserCollection) -> None:
         deep-transcribe transcribe --annotated --metadata interview.yml ./interview.mp3
         deep-transcribe transcribe --speaker 0="Alice Chen" --key-term SignalFlow URL
         deep-transcribe transcribe --speaker-role Host --speaker-role Guest URL
+        deep-transcribe transcribe --instructions "Keep the outline concise." URL
         ```
         """).strip()
     )
@@ -564,6 +590,14 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
         inline_data["speaker_roster"] = list(
             dict.fromkeys([*metadata.speaker_roster, *args.speaker_role])
         )
+    instruction_parts = (
+        [metadata.processing_instructions or ""]
+        + [path.read_text(encoding="utf-8").strip() for path in args.instructions_file]
+        + [value.strip() for value in args.instructions]
+    )
+    instruction_parts = [value for value in instruction_parts if value]
+    if instruction_parts:
+        inline_data["processing_instructions"] = "\n\n".join(instruction_parts)
 
     if inline_data:
         metadata = metadata.merged_with(transcription_metadata_from_mapping(inline_data))
@@ -679,10 +713,11 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         )
         return
 
+    workspace = configure_kash_workspace(args.workspace)
+
     from kash.config.settings import LogLevel
     from kash.config.setup import kash_setup
 
-    workspace = Path(args.workspace).expanduser().resolve()
     kash_setup(
         kash_ws_root=workspace,
         rich_logging=True,

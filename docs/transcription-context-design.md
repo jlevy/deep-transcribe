@@ -6,12 +6,21 @@ The kash packages provide stable, reusable primitives.
 This keeps most Deep Transcribe features local and avoids lockstep releases across the
 dependency chain.
 
-## Metadata model
+## Metadata Model
 
 Source items use the existing `title` and `description` fields plus the generic
 `additional_context` field supplied by kash.
 Semantic actions may use those fields as bounded reference material, but must never
 treat fetched metadata as instructions.
+
+User-authored `processing_instructions` are a separate trusted channel for requested
+output structure, emphasis, and level of detail.
+The parser stores this field under `extra.transcription`; only Deep Transcribe actions
+that explicitly support instructions follow it.
+Deep Transcribe removes the field while running speaker correction, formatting, and
+section generation, then restores it before the overview actions.
+An instruction-only rerun therefore starts at the synopsis and outline rather than
+invalidating unrelated semantic work.
 
 Transcription-specific data is stored in the existing namespaced `Item.extra` mapping:
 
@@ -20,6 +29,8 @@ title: Acme weekly product review
 description: Recording of the July product meeting.
 additional_context: |
   Alice Chen facilitates. Bob Diaz presents product metrics.
+processing_instructions: |
+  Keep the synopsis brief. Emphasize decisions and open questions in the outline.
 extra:
   transcription:
     key_terms:
@@ -55,7 +66,7 @@ Stable overlap assignments become consensus; disagreements receive a focused
 adjudication pass with neighboring turns and source context.
 An uncertain adjudication still fails closed instead of choosing a label.
 
-## Package responsibilities
+## Package Responsibilities
 
 - **kash-shell:** Persist generic additional context and provide an opt-in helper for
   adding bounded item metadata to semantic model prompts.
@@ -68,10 +79,13 @@ An uncertain adjudication still fails closed instead of choosing a label.
   cache identity.
 - **Deep Transcribe:** Parse and validate metadata files, enrich source items, correct
   merged speaker boundaries from a supplied roster, own presets and rerun behavior, and
-  expose the complete workflow through its self-documenting CLI and installable skill.
+  produce the transcript-specific synopsis and structural outline.
+  It exposes the complete workflow through its self-documenting CLI and installable
+  skill.
 
-Deep Transcribe accepts a metadata file plus concise context, key-term, and speaker
-flags. Internal preset actions accept the same schema as inline YAML or JSON through
+Deep Transcribe accepts a metadata file plus concise context, processing-instruction,
+key-term, and speaker flags.
+Internal preset actions accept the same schema as inline YAML or JSON through
 `metadata_yaml`. A semantic-only correction changes downstream action hashes while
 reusing the cached raw transcript.
 A key-term change is part of the Deepgram settings cache identity and intentionally
@@ -85,7 +99,7 @@ locally.
 Upstream changes are reserved for reusable primitives, provider integrations, or
 defects in a shared action.
 
-## Dependency policy
+## Dependency Policy
 
 First-party packages use bounded compatible ranges within the current pre-1.0 minor
 line:
@@ -101,7 +115,7 @@ The upper bound prevents accidental adoption of a potentially breaking pre-1.0 m
 release. A new kash-shell patch can therefore flow into downstream lockfiles without
 requiring new kash-docs or kash-media releases unless their own code must change.
 
-## Release gate
+## Release Gate
 
 Changes are tested against local editable dependencies first.
 Publishing happens only after the short-video end-to-end quality gate passes.

@@ -10,19 +10,27 @@ The installed CLI is the source of truth.
 
 ## Choose the Runner
 
-Prefer the local executable:
+In a Deep Transcribe source checkout, prefer the repository environment:
 
 ```shell
-deep-transcribe --help
+uv run deep-transcribe --docs
 ```
 
-If it is unavailable, use this exact version-pinned runner:
+This prevents an unrelated or older executable on `PATH` from overriding the checkout.
+
+Outside a source checkout, probe the installed command with `deep-transcribe --docs`.
+Use it only when that command succeeds.
+A command merely existing on `PATH` is not sufficient because a stale release may have
+an incompatible CLI.
+
+If the installed command is missing or rejects `--docs`, use this exact version-pinned
+runner:
 
 ```shell
 uvx \
     --exclude-newer-package yt-dlp=__YTDLP_CUTOFF__ \
     --from deep-transcribe==__DEEP_TRANSCRIBE_VERSION__ \
-    deep-transcribe --help
+    deep-transcribe --docs
 ```
 
 Use the chosen prefix for every later command.
@@ -54,14 +62,15 @@ Do not change a workspace’s saved model profile unless the user requests it.
 Choose the least expensive preset that meets the request and use `--json` when artifact
 paths will be consumed programmatically.
 When names, roles, terminology, or chronology are known, supply them with a private
-metadata file or the context flags documented by `transcribe --help`. Do not guess
-unsupported names.
+metadata file or the context flags documented by `transcribe --help`. Put output-shape,
+emphasis, and level-of-detail requests in `processing_instructions`, `--instructions`,
+or `--instructions-file`. Do not guess unsupported names.
 
 ## Iterate on a Reviewed Result
 
 Preserve the exact source and workspace.
 Inspect the current transcript and HTML, update the private metadata or add requested
-processing stages, then run the same command normally.
+processing instructions or stages, then run the same command normally.
 That normal rerun resumes at the first affected action and reuses compatible media,
 speech-to-text, and model output.
 
