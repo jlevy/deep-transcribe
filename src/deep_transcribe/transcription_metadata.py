@@ -243,11 +243,35 @@ def get_processing_instructions(item: Item) -> str | None:
     return TranscriptionMetadata(extra=item.extra or {}).processing_instructions
 
 
-def source_prompt_context(item: Item, max_len: int = 4000) -> str:
+# Display names for the extractor services whose metadata we surface to models, so a
+# prompt can say where the evidence came from instead of calling it all "source".
+_SERVICE_NAMES = {
+    "youtube": "YouTube",
+    "vimeo": "Vimeo",
+    "apple_podcasts": "Apple Podcasts",
+}
+
+
+def escape_evidence(value: object) -> str:
+    """Neutralize markup so fetched text cannot close a prompt block or inject tags."""
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def source_service_name(item: Item) -> str | None:
+    """Name the extractor a URL resource came from, for prompt provenance."""
+    service = cast(dict[str, object], item.extra or {}).get("media_service")
+    if not isinstance(service, str) or not service.strip():
+        return None
+    key = service.strip().lower()
+    return _SERVICE_NAMES.get(key, key.replace("_", " ").title())
+
+
+def source_prompt_context(
+    item: Item, max_len: int = 4000, include_user_context: bool = True
+) -> str:
     """Render bounded, allow-listed source evidence for semantic model prompts."""
 
-    def safe(value: object) -> str:
-        return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    safe = escape_evidence
 
     parts: list[str] = []
     if item.title:
@@ -268,7 +292,7 @@ def source_prompt_context(item: Item, max_len: int = 4000) -> str:
 
     # User-authored context is often the most precise evidence and must not be crowded
     # out by a long fetched description.
-    if item.additional_context:
+    if include_user_context and item.additional_context:
         parts.append(f"User-provided context: {safe(item.additional_context)}")
 
     for field_name, label in (("categories", "categories"), ("tags", "tags")):

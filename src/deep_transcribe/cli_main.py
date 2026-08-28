@@ -191,6 +191,16 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--web-search",
+        "--web_search",
+        dest="web_search",
+        action="store_true",
+        help=(
+            "Let the speaker roster step corroborate facts with web search "
+            "(off by default; source metadata and your own context are used either way)"
+        ),
+    )
+    processing.add_argument(
         "--no-minify",
         "--no_minify",
         dest="no_minify",
@@ -552,6 +562,12 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
         options = options.merge_with(TranscribeOptions.deep())
     if args.with_flags:
         options = options.merge_with(TranscribeOptions.from_with_flags(args.with_flags))
+
+    # Presets do not carry this: it is an explicit opt-in that must outlive them.
+    if args.web_search:
+        from dataclasses import replace
+
+        options = replace(options, web_search=True)
 
     return options
 

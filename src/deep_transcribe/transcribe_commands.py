@@ -61,14 +61,15 @@ def _prepare_source_item(source: str) -> Item:
     return item
 
 
-def _identify_transcript_speakers(result: Item) -> Item:
+def _identify_transcript_speakers(result: Item, web_search: bool = False) -> Item:
     """Choose exact, inferred, or provider-level speaker identification."""
     from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
 
-    if not get_speaker_roster(result) and result.additional_context:
+    # Source metadata is evidence on its own, so this runs without user-authored context.
+    if not get_speaker_roster(result):
         from deep_transcribe.speaker_correction import infer_speaker_roster_from_context
 
-        result = infer_speaker_roster_from_context(result)
+        result = infer_speaker_roster_from_context(result, web_search=web_search)
     if get_speaker_roster(result):
         from deep_transcribe.speaker_correction import correct_speaker_turns
 
@@ -204,7 +205,7 @@ def _process_transcript(
     if options.format:
         # Speaker identification (if requested)
         if options.identify_speakers:
-            result = _identify_transcript_speakers(result)
+            result = _identify_transcript_speakers(result, web_search=options.web_search)
 
         result = normalize_transcript_fragments(result)
         result = strip_html(result)
@@ -576,7 +577,7 @@ def test_prose_roster_is_inferred_before_boundary_correction() -> None:
         result = _identify_transcript_speakers(item)
 
     assert result is inferred
-    infer.assert_called_once_with(item)
+    infer.assert_called_once_with(item, web_search=False)
     correct.assert_called_once_with(inferred)
     identify.assert_not_called()
 
