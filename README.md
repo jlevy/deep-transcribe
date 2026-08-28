@@ -23,9 +23,8 @@ Deep Transcribe accepts YouTube and other media URLs or local audio and video fi
 - **Video snapshots:** frames captured at each timestamp and deduplicated by visual
   similarity, so repeated shots of the same scene appear once.
 
-LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles.
-New workspaces use the current Anthropic profile by default, and an equivalent OpenAI
-profile is included.
+Deep Transcribe uses [kash](https://github.com/jlevy/kash) as a library.
+Running it needs a Deepgram API key and an LLM API key, typically Anthropic or OpenAI.
 
 ## Example: Hotel Check In — SNL
 
@@ -168,8 +167,8 @@ See [Deepgram pricing](https://deepgram.com/pricing) for current rates.
 Add one LLM provider key for the formatting and analysis stages:
 
 - `DEEPGRAM_API_KEY` for speech-to-text and diarization (required)
-- `ANTHROPIC_API_KEY` for the default Anthropic profile
-- `OPENAI_API_KEY` for the OpenAI profile
+- `ANTHROPIC_API_KEY` for Anthropic models (the default)
+- `OPENAI_API_KEY` for OpenAI models
 
 Set them in the process environment, a `.env` or `.env.local` file in the current
 directory or one of its parents, or `~/.env.local`.
