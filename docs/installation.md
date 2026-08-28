@@ -33,6 +33,12 @@ Set `DEEPGRAM_API_KEY` and one LLM provider key in the process environment, a `.
 `ANTHROPIC_API_KEY` for the default profile or `OPENAI_API_KEY` for the OpenAI profile.
 Do not commit the file.
 
+Create the Deepgram key in the [Deepgram Console](https://console.deepgram.com/signup)
+under **Settings → API Keys**.
+New accounts start with $200 of credit and no credit card is required.
+See [Creating API Keys](https://developers.deepgram.com/docs/create-additional-api-keys)
+and [Deepgram pricing](https://deepgram.com/pricing).
+
 Run `deep-transcribe --models` for the current model mappings and
 `deep-transcribe --help` for workspace configuration.
 

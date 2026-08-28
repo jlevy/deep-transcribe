@@ -3,23 +3,35 @@
 High-quality transcription, formatting, and analysis of videos and podcasts.
 
 Deep Transcribe accepts YouTube and other media URLs or local audio and video files.
-It uses Deepgram Nova-3 with the current batch diarizer, then can identify speakers,
-format paragraphs and timestamps, add sections, write a brief synopsis and structural
-outline, research key passages, capture video frames, and export browser-ready HTML.
 
-Speech-to-text goes through Deepgram, chosen for its speaker diarization.
-Speaker correction, sections, outline, and synopsis all read speaker-labeled text.
+- **Diarized transcription with [Deepgram](https://deepgram.com/):** speech-to-text
+  through [Nova-3](https://developers.deepgram.com/docs/models-languages-overview) and
+  its current batch diarizer, across 90+ languages.
+  Deepgram is chosen for the quality of that diarization; every later stage reads the
+  speaker-labeled text it produces.
 
-LLM processing uses configurable [kash](https://github.com/jlevy/kash) model roles.
-New workspaces use the current Anthropic profile by default, and an equivalent OpenAI
-profile is included.
+- **Contextual enrichment:** speaker identification from the context you write, from
+  source metadata fetched for the URL (a YouTube title, description, and channel, for
+  example), or from web search with `--web-search`.
+
+- **Summaries and outlines:** a title, a short synopsis, and a structural outline of the
+  recording.
+
+- **Formatted transcripts:** paragraph breaks, section headings, and a timestamp on each
+  paragraph that links back into the source video, as Markdown and browser-ready HTML.
+
+- **Video snapshots:** frames captured at each timestamp and deduplicated by visual
+  similarity, so repeated shots of the same scene appear once.
+
+Deep Transcribe uses [kash](https://github.com/jlevy/kash) as a library.
+Running it needs a Deepgram API key and an LLM API key, typically Anthropic or OpenAI.
 
 ## Example: Hotel Check In — SNL
 
-The public example uses the official [Saturday Night Live sketch][example-video]. Its
-five speaking roles, short interjections, repeated hotel terminology, running joke, and
-scene changes exercise speaker correction, key terms, summaries, outlines, timestamps,
-and frame captures in just over four minutes.
+The example is a [Saturday Night Live sketch][example-video]. Its five speaking roles,
+short interjections, repeated hotel terminology, running joke, and scene changes
+exercise speaker correction, key terms, summaries, outlines, timestamps, and frame
+captures in just over four minutes.
 
 | Source Video | Formatted Transcript |
 | :---: | :---: |
@@ -141,14 +153,22 @@ Deep Transcribe itself.
 Install uv and [ffmpeg](https://ffmpeg.org/) yourself.
 Nothing else needs a manual install.
 
-Speech-to-text always goes through Deepgram, so a
-[Deepgram API key](https://console.deepgram.com/signup) is required.
-New accounts start with $200 of credit and no credit card.
+Speech-to-text always goes through Deepgram, so a Deepgram API key is required.
+Sign up at the [Deepgram Console](https://console.deepgram.com/signup), then create the
+key under **Settings → API Keys → Create a New API Key** and copy the secret.
+[Creating API Keys](https://developers.deepgram.com/docs/create-additional-api-keys) has
+the full walkthrough.
+
+New accounts start with $200 of credit, no credit card, and no expiration.
+Pre-recorded Nova-3 is $0.0043 per minute pay as you go, with speaker diarization
+included at no extra charge, so that credit covers more than 700 hours of audio.
+See [Deepgram pricing](https://deepgram.com/pricing) for current rates.
+
 Add one LLM provider key for the formatting and analysis stages:
 
 - `DEEPGRAM_API_KEY` for speech-to-text and diarization (required)
-- `ANTHROPIC_API_KEY` for the default Anthropic profile
-- `OPENAI_API_KEY` for the OpenAI profile
+- `ANTHROPIC_API_KEY` for Anthropic models (the default)
+- `OPENAI_API_KEY` for OpenAI models
 
 Set them in the process environment, a `.env` or `.env.local` file in the current
 directory or one of its parents, or `~/.env.local`.
