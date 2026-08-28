@@ -5,12 +5,12 @@ title: Derive the example's cast context instead of hand-writing it
 kind: feature
 status: open
 priority: 2
-version: 8
+version: 9
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:40:54.176Z
-updated_at: 2026-08-28T00:53:12.707Z
+updated_at: 2026-08-28T02:05:38.463Z
 ---
 The README example passes a 90-word --context string naming all five performers and their roles, plus four --key-term flags. That is a lot of hand-authored structure for facts the pipeline can mostly reach on its own, and it makes the headline example look harder to use than the tool actually is.
 
@@ -79,20 +79,26 @@ Optional web search:
 - Off by default; opt-in flag. When on, a name may also be included if corroborated by a retrieved source, and the roster should carry the corroborating source so a wrong mapping is traceable.
 - Feasible without new accounts: EXA_API_KEY, PERPLEXITYAI_API_KEY, and FIRECRAWL_API_KEY are already present in the user's environment. Note that kash's research_paras is LLM-only today, so there is no existing web-search path in the pipeline to reuse.
 Scope note: extending roster inference to read metadata under this rule is self-contained and testable against the baselines recorded above (three of five speakers with metadata alone, five of five with one sentence of context). Web search is a separate, larger increment.
-
 WEB SEARCH WORKS, AND THE GUARD I PROPOSED DOES NOT.
-
 Anthropic server-side web search (tool web_search_20250305, claude-opus-4-5) answered the question the metadata cannot: 17.2 seconds, three queries, landed on SNL Transcripts, and returned Beck Bennett as the government representative plus the full five-person cast. So the optional-search branch is viable today with no new provider account. Perplexity was tried first and is out of quota.
-
 Correction to the earlier design note. The proposed code guard, 'every name in a roster label must appear in the supplied evidence', would NOT have caught the observed failure. 'Chris Redd' was present in the tags. The error was attaching a present name to the wrong role. Presence is checkable; the role-to-name mapping is not, and that is where the failure lives.
-
 What is actually mechanically checkable:
 - Association, not presence. Accept a name only when the evidence itself associates it with that role, as the description does for 'front desk employee (Kumail Nanjiani)'. This would have blocked 'Government Representative (Chris Redd)', because nothing in the metadata ties Redd to that role. Stricter than presence and it catches the real failure.
 - Citation required. With search enabled, require a retrieved source per name and store it, so a wrong mapping is traceable rather than anonymous.
 - Review before bake-in. Surface the proposed roster so a wrong mapping is cheap to correct.
 Truth of the mapping is not verifiable in code. Beyond the checks above it is prompt discipline plus residual risk, and that should be stated rather than papered over.
-
 SETTLED SPEC:
 1. Take the fetched metadata by default. Tell the model where it came from, that it is fetched from the video platform, and that odd or hostile metadata is possible. Escaping and length bounds already exist in source_prompt_context.
 2. Never assert anything not present in the source. Unsupported roles stay role-only labels.
 3. No web search unless explicitly enabled, since search can mislead. Default off.
+
+IMPLEMENTED (pending end-to-end validation).
+
+- transcription_metadata.py: escape_evidence and source_service_name helpers; source_prompt_context gained include_user_context so the roster prompt can label the two evidence sources separately.
+- speaker_correction.py: ROSTER_INFERENCE_PROMPT rewritten. It no longer says 'Do not use fetched source metadata'. Each evidence block is labeled with its origin, user-written or 'Fetched automatically from YouTube', with a note that published metadata is often incomplete or unrelated. One prohibition sentence: use only that evidence, do not add any other facts, and name a performer only where the evidence ties that performer to that role.
+- infer_speaker_roster_from_context now runs on metadata alone, not just user context, and takes web_search.
+- transcribe_commands.py: the caller no longer gates on additional_context, so metadata-only sources reach the roster step.
+- CLI: --web-search, off by default, applied after preset resolution so presets cannot clear it. Threaded through TranscribeOptions.web_search to llm_template_completion(enable_web_search=...), which kash already supports.
+- Tests: metadata provenance and search-enabled paths, plus a no-evidence case that must not call the model. 78 pass.
+
+Expectation to check end to end: metadata alone will likely still return complete=false for this video, because four tagged names do not establish the complete speaking set. The win is that the step now sees the metadata at all and can succeed for sources that do list their speakers. Web search is the path that closes the SNL case.
