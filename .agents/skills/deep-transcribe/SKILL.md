@@ -32,7 +32,7 @@ runner:
 ```shell
 uvx \
     --exclude-newer-package yt-dlp=2026-08-20T00:00:00Z \
-    --from deep-transcribe==0.1.13 \
+    --from "deep-transcribe[youtube]==0.1.14" \
     deep-transcribe --docs
 ```
 
@@ -57,8 +57,9 @@ the project root by running `deep-transcribe --install-skill` with the chosen pr
 ## Execute Safely
 
 Confirm `ffmpeg`, `DEEPGRAM_API_KEY`, and the key for the selected LLM profile are
-available. For YouTube, also confirm a supported JavaScript runtime is on `PATH`. Verify
-key names without printing values.
+available. Verify key names without printing values.
+The `youtube` extra supplies the Deno runtime yt-dlp needs for YouTube sources, so no
+system JavaScript runtime is required.
 Do not change a workspace’s saved model profile unless the user requests it.
 
 Choose the least expensive preset that meets the request and use `--json` when artifact

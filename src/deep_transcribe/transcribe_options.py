@@ -42,6 +42,9 @@ class TranscribeOptions:
     insert_frame_captures: bool = False
     """Insert frame captures from video (for video content)."""
 
+    web_search: bool = False
+    """Let the speaker roster step corroborate facts with web search."""
+
     @classmethod
     def basic(cls) -> TranscribeOptions:
         return cls()

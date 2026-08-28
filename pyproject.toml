@@ -38,7 +38,11 @@ classifiers = [
 dependencies = [
     # The media chain no longer pulls PDF/browser ML deps (torch, docling,
     # playwright, marker); keep it that way — deep-transcribe needs none of them.
-    "kash-media>=0.4.7,<0.5",
+    # Imported directly (kash.exec, kash.model, kash.config, kash.web_gen). 0.4.10 is the
+    # first release whose web search reaches Anthropic models rather than silently
+    # dropping the request.
+    "kash-shell>=0.4.10,<0.5",
+    "kash-media>=0.4.8,<0.5",
     # Direct metadata parsing and sidematter persistence imports:
     "frontmatter-format>=0.4.0,<0.5",
     "sidematter-format>=0.1.0,<0.2",
@@ -53,8 +57,21 @@ dependencies = [
     # which fetches JavaScript at run time outside uv.lock and outside the cool-off.
     # Take it as an extra rather than pinning yt-dlp-ejs ourselves: the two are
     # version-coupled (yt-dlp pins an exact ejs), so this keeps the pairing correct
-    # across upgrades. Needs a JS runtime on PATH — deno (preferred), node, or bun.
+    # across upgrades. The runtime that executes it comes from the `youtube` extra below.
     "yt-dlp[default]>=2026.8.19",
+]
+
+
+# ---- Optional dependencies ----
+
+[project.optional-dependencies]
+# yt-dlp enables only deno by default; every other runtime needs an explicit
+# `--js-runtimes` opt-in. The deno PyPI package is an official binary redistribution, so
+# uv can supply the runtime instead of asking for a system install. Keep it an extra:
+# there are no wheels for musl or 32-bit Linux, and the sdist is a stub, so a hard
+# dependency would break installs there. Local files need no runtime at all.
+youtube = [
+    "deno>=2.9,<3",
 ]
 
 
@@ -86,7 +103,6 @@ dev = [
 [project.scripts]
 # Add script entry points here.
 deep-transcribe = "deep_transcribe.cli_main:main"
-
 
 # ---- Build system ----
 

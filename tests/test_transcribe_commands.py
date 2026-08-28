@@ -2,12 +2,13 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 
 import pytest
 from kash.model import Item, ItemType
 
 from deep_transcribe import transcribe_commands
-from deep_transcribe.transcribe_commands import _media_source_locator
+from deep_transcribe.transcribe_commands import _media_source_locator, _prepare_source_item
 from deep_transcribe.transcribe_options import TranscribeOptions
 from deep_transcribe.transcription_metadata import get_processing_instructions
 
@@ -42,6 +43,54 @@ def test_local_media_url_registration_does_not_copy_the_source() -> None:
         assert item.format is Format.url
         assert item.url == f"file://{source_path.resolve()}"
         assert not list(workspace_path.rglob("*.mp4"))
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnknownMarkWarning")
+def test_remote_media_preparation_enriches_fresh_and_incomplete_cached_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kash.exec import kash_runtime
+    from kash.kits.media.media_services.youtube import YouTube
+    from kash.model import Format
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    source_url = "https://www.youtube.com/watch?v=abcdefghijk"
+    extractor_result: dict[str, Any] = {
+        "id": "abcdefghijk",
+        "webpage_url": source_url,
+        "title": "Hotel Check In - SNL",
+        "description": "An SNL hotel sketch with two guests.",
+        "upload_date": "20171015",
+        "channel_url": "https://www.youtube.com/channel/example",
+        "view_count": 100,
+        "duration": 266,
+    }
+
+    def fake_extract_info(_self: YouTube, _url: Url) -> dict[str, Any]:
+        return extractor_result
+
+    monkeypatch.setattr(YouTube, "_extract_info", fake_extract_info)
+
+    with TemporaryDirectory() as temp_dir, kash_runtime(Path(temp_dir) / "workspace"):
+        item = _prepare_source_item(source_url)
+        assert item.type is ItemType.resource
+        assert item.format is Format.url
+        assert item.title == "Hotel Check In - SNL"
+        assert item.description == "An SNL hotel sketch with two guests."
+        assert item.extra is not None
+        assert item.extra["media_service"] == "youtube"
+        assert str(item.extra["upload_date"]) == "2017-10-15"
+        assert item.extra["channel_url"] == "https://www.youtube.com/channel/example"
+
+        item.title = "Cached webpage title"
+        item.extra = {}
+        current_ws().save(item, overwrite=True)
+        enriched_item = _prepare_source_item(source_url)
+
+    assert enriched_item.title == "Hotel Check In - SNL"
+    assert enriched_item.extra is not None
+    assert enriched_item.extra["media_service"] == "youtube"
 
 
 def test_processing_instructions_bypass_raw_and_formatting_cache_identity(

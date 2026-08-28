@@ -243,11 +243,35 @@ def get_processing_instructions(item: Item) -> str | None:
     return TranscriptionMetadata(extra=item.extra or {}).processing_instructions
 
 
-def source_prompt_context(item: Item, max_len: int = 4000) -> str:
+# Display names for the extractor services whose metadata we surface to models, so a
+# prompt can say where the evidence came from instead of calling it all "source".
+_SERVICE_NAMES = {
+    "youtube": "YouTube",
+    "vimeo": "Vimeo",
+    "apple_podcasts": "Apple Podcasts",
+}
+
+
+def escape_evidence(value: object) -> str:
+    """Neutralize markup so fetched text cannot close a prompt block or inject tags."""
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def source_service_name(item: Item) -> str | None:
+    """Name the extractor a URL resource came from, for prompt provenance."""
+    service = cast(dict[str, object], item.extra or {}).get("media_service")
+    if not isinstance(service, str) or not service.strip():
+        return None
+    key = service.strip().lower()
+    return _SERVICE_NAMES.get(key, key.replace("_", " ").title())
+
+
+def source_prompt_context(
+    item: Item, max_len: int = 4000, include_user_context: bool = True
+) -> str:
     """Render bounded, allow-listed source evidence for semantic model prompts."""
 
-    def safe(value: object) -> str:
-        return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    safe = escape_evidence
 
     parts: list[str] = []
     if item.title:
@@ -268,8 +292,20 @@ def source_prompt_context(item: Item, max_len: int = 4000) -> str:
 
     # User-authored context is often the most precise evidence and must not be crowded
     # out by a long fetched description.
-    if item.additional_context:
+    if include_user_context and item.additional_context:
         parts.append(f"User-provided context: {safe(item.additional_context)}")
+
+    for field_name, label in (("categories", "categories"), ("tags", "tags")):
+        values = item_extra.get(field_name)
+        if isinstance(values, list):
+            text_values = [
+                safe(value.strip())
+                for value in cast(list[object], values)
+                if isinstance(value, str) and value.strip()
+            ]
+            if text_values:
+                value_text = abbrev_on_words(", ".join(text_values), max(max_len // 4, 100))
+                parts.append(f"Source {label}: {value_text}")
     if item.description:
         description = abbrev_on_words(safe(item.description), max(max_len // 2, 200))
         parts.append(f"Source description: {description}")
@@ -417,8 +453,11 @@ def test_source_prompt_context_includes_only_bounded_source_evidence() -> None:
         additional_context="There are three speaking roles: the guest, clerk, and officer.",
         thumbnail_url=Url("https://example.test/thumb.jpg"),
         extra={
+            "channel": "Saturday Night Live",
             "upload_date": "2017-10-15",
             "channel_url": "https://www.youtube.com/@SaturdayNightLive",
+            "categories": ["Entertainment"],
+            "tags": ["SNL", "comedy", "hotel check in"],
             "view_count": 123,
             "transcription": {"speaker_roster": ["Guest", "Clerk", "Officer"]},
         },
@@ -427,7 +466,10 @@ def test_source_prompt_context_includes_only_bounded_source_evidence() -> None:
     context = source_prompt_context(item, max_len=600)
 
     assert "Source title: Hotel Check In - SNL" in context
+    assert "Source channel: Saturday Night Live" in context
     assert "Source publication date: 2017-10-15" in context
+    assert "Source categories: Entertainment" in context
+    assert "Source tags: SNL, comedy, hotel check in" in context
     assert "Canonical source URL: https://www.youtube.com/watch?v=example" in context
     assert "User-provided context: There are three speaking roles" in context
     assert "Source description: Official source description" in context

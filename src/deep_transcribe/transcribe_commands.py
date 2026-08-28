@@ -43,14 +43,33 @@ def _media_source_locator(source: str) -> str:
     return as_file_url(source_path)
 
 
-def _identify_transcript_speakers(result: Item) -> Item:
+def _prepare_source_item(source: str) -> Item:
+    """Prepare media after registering Kash's optional service extractors."""
+    from importlib import import_module
+
+    from kash.exec import prepare_action_input
+
+    import_module("kash.kits.media.media_services")
+
+    locator = _media_source_locator(source)
+    item = prepare_action_input(locator).items[0]
+    if item.url and "media_service" not in (item.extra or {}):
+        from kash.media_base.media_services import get_media_id
+
+        if get_media_id(item.url):
+            item = prepare_action_input(locator, refetch=True).items[0]
+    return item
+
+
+def _identify_transcript_speakers(result: Item, web_search: bool = False) -> Item:
     """Choose exact, inferred, or provider-level speaker identification."""
     from kash.kits.media.actions.transcribe.identify_speakers import identify_speakers
 
-    if not get_speaker_roster(result) and result.additional_context:
+    # Source metadata is evidence on its own, so this runs without user-authored context.
+    if not get_speaker_roster(result):
         from deep_transcribe.speaker_correction import infer_speaker_roster_from_context
 
-        result = infer_speaker_roster_from_context(result)
+        result = infer_speaker_roster_from_context(result, web_search=web_search)
     if get_speaker_roster(result):
         from deep_transcribe.speaker_correction import correct_speaker_turns
 
@@ -186,7 +205,7 @@ def _process_transcript(
     if options.format:
         # Speaker identification (if requested)
         if options.identify_speakers:
-            result = _identify_transcript_speakers(result)
+            result = _identify_transcript_speakers(result, web_search=options.web_search)
 
         result = normalize_transcript_fragments(result)
         result = strip_html(result)
@@ -399,7 +418,7 @@ def run_transcription(
     # Import dynamically for faster startup.
     from kash.config.setup import kash_setup
     from kash.config.unified_live import get_unified_live
-    from kash.exec import kash_runtime, prepare_action_input
+    from kash.exec import kash_runtime
 
     # Set up kash workspace.
     kash_setup(kash_ws_root=ws_root, rich_logging=True)
@@ -411,8 +430,7 @@ def run_transcription(
         runtime.workspace.log_workspace_info()
 
         with get_unified_live().status("Processing…"):
-            action_input = prepare_action_input(_media_source_locator(url))
-            item = action_input.items[0]
+            item = _prepare_source_item(url)
             source_item = item
             source_metadata_changed = False
 
@@ -559,7 +577,7 @@ def test_prose_roster_is_inferred_before_boundary_correction() -> None:
         result = _identify_transcript_speakers(item)
 
     assert result is inferred
-    infer.assert_called_once_with(item)
+    infer.assert_called_once_with(item, web_search=False)
     correct.assert_called_once_with(inferred)
     identify.assert_not_called()
 
@@ -604,7 +622,11 @@ def test_format_results_copies_frame_assets() -> None:
             assert (html_assets / "frame.jpg").read_bytes() == b"frame"
             assert "Transcribed by github.com/jlevy/deep-transcribe" in html_text
             assert "font-family: var(--font-sans) !important" in html_text
-            assert html_text.count("font-size: 9pt") == 2
+            assert html_text.count("font-size: 9pt") == 3
+            # The footer note and the page number share a size and alignment so they
+            # print on one baseline.
+            assert html_text.count("vertical-align: bottom") == 2
+            assert "max-width: 45%" in html_text
             assert "color: var(--color-tertiary) !important" in html_text
             assert ".long-text p:has(> .frame-capture)" in html_text
             assert "break-inside: avoid" in html_text

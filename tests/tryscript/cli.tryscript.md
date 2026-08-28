@@ -18,13 +18,14 @@ subcommands, stale examples, and wrapping changes are visible in review.
 ````console
 $ deep-transcribe --help
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
-                       [--deep] [--with STAGES] [--no-minify] [--context TEXT]
-                       [--context-file PATH] [--instructions TEXT]
-                       [--instructions-file PATH] [--title TEXT]
-                       [--description TEXT] [--metadata YAML_OR_JSON]
-                       [--key-term TERM] [--speaker ID=NAME]
-                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
-                       [--models [PROFILE]] [--language LANGUAGE]
+                       [--deep] [--with STAGES] [--web-search] [--no-minify]
+                       [--context TEXT] [--context-file PATH]
+                       [--instructions TEXT] [--instructions-file PATH]
+                       [--title TEXT] [--description TEXT]
+                       [--metadata YAML_OR_JSON] [--key-term TERM]
+                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
+                       [--workspace WORKSPACE] [--models [PROFILE]]
+                       [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |
@@ -59,7 +60,11 @@ Custom Processing:
                         selected preset. Choices: identify_speakers, format,
                         insert_section_headings, research_paras,
                         add_summary_bullets, add_description,
-                        insert_frame_captures
+                        insert_frame_captures, web_search
+  --web-search, --web_search
+                        Let the speaker roster step corroborate facts with web
+                        search (off by default; source metadata and your own
+                        context are used either way)
   --no-minify, --no_minify
                         Skip HTML, CSS, JavaScript, and Tailwind minification
 
@@ -142,10 +147,12 @@ workspace. Add a source to select the profile and transcribe in one invocation.
 
 **Context:** Start with `--context` or `--context-file` in ordinary prose. The
 speaker-identification LLM uses those facts to produce its structured mapping.
-When the prose clearly names the complete set of speaking roles, Deep Transcribe
-also derives the roster needed to repair merged diarization boundaries. Exact
-speaker IDs, repeated `--speaker-role` values, and YAML/JSON metadata are optional
-overrides, not the normal human interface.
+Supported media URLs also contribute bounded extractor metadata automatically;
+use context for relevant facts the source does not publish. When the prose clearly
+names the complete set of speaking roles, Deep Transcribe also derives the roster
+needed to repair merged diarization boundaries. Exact speaker IDs, repeated
+`--speaker-role` values, and YAML/JSON metadata are optional overrides, not the
+normal human interface.
 
 **Iterative reruns:** A normal rerun resumes at the first affected stage and
 reuses compatible cached work. Updating descriptive context or speaker metadata
@@ -191,13 +198,14 @@ $ deep-transcribe --models anthropic --workspace ./output --json && \
 ```console
 $ deep-transcribe --models invalid --workspace ./output 2>&1
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
-                       [--deep] [--with STAGES] [--no-minify] [--context TEXT]
-                       [--context-file PATH] [--instructions TEXT]
-                       [--instructions-file PATH] [--title TEXT]
-                       [--description TEXT] [--metadata YAML_OR_JSON]
-                       [--key-term TERM] [--speaker ID=NAME]
-                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
-                       [--models [PROFILE]] [--language LANGUAGE]
+                       [--deep] [--with STAGES] [--web-search] [--no-minify]
+                       [--context TEXT] [--context-file PATH]
+                       [--instructions TEXT] [--instructions-file PATH]
+                       [--title TEXT] [--description TEXT]
+                       [--metadata YAML_OR_JSON] [--key-term TERM]
+                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
+                       [--workspace WORKSPACE] [--models [PROFILE]]
+                       [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |

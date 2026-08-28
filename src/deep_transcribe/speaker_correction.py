@@ -16,13 +16,15 @@ from kash.llm_utils.fuzzy_parsing import fuzzy_parse_json
 from kash.llm_utils.llm_completion import llm_template_completion
 from kash.media_base.timestamp_citations import html_speaker_id_span
 from kash.model import Item, ItemType
-from kash.model.params_model import common_params
+from kash.model.params_model import Param, common_params
 from kash.utils.errors import ApiResultError, InvalidInput
 from strif import StringTemplate
 
 from deep_transcribe.transcription_metadata import (
+    escape_evidence,
     normalize_speaker_roster,
     source_prompt_context,
+    source_service_name,
 )
 
 log = get_logger(__name__)
@@ -43,26 +45,52 @@ HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
 ROSTER_INFERENCE_PROMPT = StringTemplate(
     """
-    Read only the user-provided context below and decide whether it clearly describes the
-    complete set of people or character roles who actually speak in the recording. A cast
-    list, examples of possible speakers, or a partial list is not a complete speaker roster.
-    Do not use fetched source metadata or outside knowledge.
+    Decide whether the evidence below establishes the complete set of people or character
+    roles who actually speak in the recording. Examples of possible speakers, or a list you
+    cannot tell is complete, are not a roster. A cast or credits list counts only when you
+    can match its members to the speaking turns in the transcript below, since such lists
+    routinely include people who never speak.
+
+    Each block below says where it came from. Use only that evidence{search_clause}. Do not
+    add any other facts. Name a performer only where the evidence ties that performer to
+    that role; otherwise give the role by itself.
 
     When the set is clearly complete, return concise, distinct labels that will make sense
     beside transcript dialogue. Prefer character names or functional roles over actor names,
-    while preserving a person's name when that is how the context identifies them. Exclude
+    while preserving a person's name when that is how the evidence identifies them. Exclude
     audiences, music, narration mentioned only as subject matter, and non-speaking people.
 
     Return only JSON in exactly one of these forms:
     {{"complete": true, "speaker_roster": ["Speaker One", "Speaker Two"]}}
     {{"complete": false, "speaker_roster": []}}
 
-    <user_context>
-    {user_context}
-    </user_context>
+    {evidence}
     """,
-    allowed_fields=["user_context"],
+    allowed_fields=["evidence", "search_clause"],
 )
+
+
+def _roster_evidence(item: Item) -> str:
+    """Assemble labeled roster evidence so the prompt can say where each block came from."""
+    blocks: list[str] = []
+    if item.additional_context:
+        blocks.append(
+            "<user_context>\n"
+            "Written by the user of this tool.\n"
+            f"{escape_evidence(item.additional_context)}\n"
+            "</user_context>"
+        )
+    metadata = source_prompt_context(item, include_user_context=False)
+    if metadata:
+        service = source_service_name(item) or "the media source"
+        blocks.append(
+            "<source_metadata>\n"
+            f"Fetched automatically from {service}. Published metadata is often incomplete "
+            "or unrelated to what is actually said, so weigh it accordingly.\n"
+            f"{metadata}\n"
+            "</source_metadata>"
+        )
+    return "\n\n".join(blocks)
 
 
 @dataclass(frozen=True)
@@ -106,26 +134,40 @@ def _parse_inferred_roster(response: str) -> list[str]:
         raise ApiResultError(f"Invalid inferred speaker roster: {error}") from error
 
 
+WEB_SEARCH_PARAM = Param(
+    name="web_search",
+    description="Allow the roster step to corroborate facts with web search.",
+    type=bool,
+    default_value=False,
+)
+
+
 @kash_action(
     precondition=has_simple_text_body | has_html_body,
-    params=common_params("model"),
+    params=(*common_params("model"), WEB_SEARCH_PARAM),
 )
 def infer_speaker_roster_from_context(
     item: Item,
     model: LLMName = LLM.default_structured,
+    web_search: bool = False,
 ) -> Item:
-    """Infer a complete internal speaker roster from ordinary user-authored context."""
-    if not item.additional_context:
+    """Infer a complete internal speaker roster from labeled user and source evidence."""
+    evidence = _roster_evidence(item)
+    if not evidence:
         return item.derived_copy(type=ItemType.doc)
-    prompt = ROSTER_INFERENCE_PROMPT.format(user_context=item.additional_context)
+    prompt = ROSTER_INFERENCE_PROMPT.format(
+        evidence=evidence,
+        search_clause=" and anything you corroborate with web search" if web_search else "",
+    )
     escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
     response = llm_template_completion(
         model=model,
         system_message=Message(
-            "You conservatively structure user-authored speaker context without adding facts."
+            "You conservatively structure speaker evidence without adding facts of your own."
         ),
-        input="Determine whether the supplied context gives a complete speaker roster.",
+        input="Determine whether the supplied evidence gives a complete speaker roster.",
         body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
+        enable_web_search=web_search,
     ).content
     roster = _parse_inferred_roster(response)
     if not roster:
@@ -678,7 +720,58 @@ def test_infer_speaker_roster_structures_complete_prose_context() -> None:
         body=completion.call_args.kwargs["input"]
     )
     assert "There are three speaking roles" in prompt
-    assert "Do not use fetched source metadata" in prompt
+    assert "Written by the user of this tool." in prompt
+    assert "Do not\n    add any other facts." in prompt
+    assert "web search" not in prompt
+    assert completion.call_args.kwargs["enable_web_search"] is False
+
+
+def test_infer_speaker_roster_labels_fetched_metadata_and_can_search() -> None:
+    from inspect import unwrap
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from kash.utils.common.url import Url
+
+    item = Item(
+        type=ItemType.doc,
+        body="Transcript body.",
+        title="Hotel Check In - SNL",
+        url=Url("https://www.youtube.com/watch?v=example"),
+        description="A front desk employee (Kumail Nanjiani) frustrates a man (Mikey Day).",
+        extra={"media_service": "youtube", "channel": "Saturday Night Live"},
+    )
+    response = SimpleNamespace(content='{"complete":false,"speaker_roster":[]}')
+
+    with patch(
+        "deep_transcribe.speaker_correction.llm_template_completion",
+        return_value=response,
+    ) as completion:
+        unwrap(infer_speaker_roster_from_context)(item, web_search=True)
+
+    prompt = completion.call_args.kwargs["body_template"].format(
+        body=completion.call_args.kwargs["input"]
+    )
+    # Metadata alone is enough evidence to run; it no longer needs user context.
+    assert "Fetched automatically from YouTube." in prompt
+    assert "Source channel: Saturday Night Live" in prompt
+    assert "Kumail Nanjiani" in prompt
+    assert "<user_context>" not in prompt
+    assert "corroborate with web search" in prompt
+    assert completion.call_args.kwargs["enable_web_search"] is True
+
+
+def test_infer_speaker_roster_skips_when_there_is_no_evidence() -> None:
+    from inspect import unwrap
+    from unittest.mock import patch
+
+    item = Item(type=ItemType.doc, body="Transcript body.")
+
+    with patch("deep_transcribe.speaker_correction.llm_template_completion") as completion:
+        result = unwrap(infer_speaker_roster_from_context)(item)
+
+    completion.assert_not_called()
+    assert not cast(dict[str, object], result.extra or {}).get("transcription")
 
 
 def test_infer_speaker_roster_fails_closed_for_partial_context() -> None:

@@ -483,10 +483,16 @@ source = { editable = "." }
 dependencies = [
     { name = "frontmatter-format" },
     { name = "kash-media" },
+    { name = "kash-shell" },
     { name = "prettyfmt" },
     { name = "rich" },
     { name = "sidematter-format" },
     { name = "yt-dlp", extra = ["default"] },
+]
+
+[package.optional-dependencies]
+youtube = [
+    { name = "deno" },
 ]
 
 [package.dev-dependencies]
@@ -506,13 +512,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "deno", marker = "extra == 'youtube'", specifier = ">=2.9,<3" },
     { name = "frontmatter-format", specifier = ">=0.4.0,<0.5" },
-    { name = "kash-media", specifier = ">=0.4.7,<0.5" },
+    { name = "kash-media", specifier = ">=0.4.8,<0.5" },
+    { name = "kash-shell", specifier = ">=0.4.10,<0.5" },
     { name = "prettyfmt", specifier = ">=0.4.1" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "sidematter-format", specifier = ">=0.1.0,<0.2" },
     { name = "yt-dlp", extras = ["default"], specifier = ">=2026.8.19" },
 ]
+provides-extras = ["youtube"]
 
 [package.metadata.requires-dev]
 build = [
@@ -543,6 +552,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b4/10/35a13dabd910604da4e47d4f29d45531d5536bf22110ebcc952142cc07e9/deepgram_sdk-7.6.0.tar.gz", hash = "sha256:e35b67e79f3d5e37e2384350ddfec30b5d086f80eaed0e71f9540e0ecec60a11", size = 228515, upload-time = "2026-07-22T13:30:55.999Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2f/4f/c8a5e6aae60f67e1580697936933e94396d0007b22bea45153083995a010/deepgram_sdk-7.6.0-py3-none-any.whl", hash = "sha256:3edcf491168819a516fc45042e31dbc8212a47f48b283b7116248a41dd7fffde", size = 605727, upload-time = "2026-07-22T13:30:54.467Z" },
+]
+
+[[package]]
+name = "deno"
+version = "2.9.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/27/06ad530f3be68dafdfae57457c534d5bb014cd6da58c2bd0f5b28f9ab8fa/deno-2.9.5.tar.gz", hash = "sha256:2f9681d7d2118a5e92e18915d1d88a6966fd6173ba4a8fb772f04080057e5a6a", size = 8166, upload-time = "2026-08-06T15:08:32.319Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/99/1a1ff9e40e82d857b426a86d2159e3560000c2f98edb0f63170256582067/deno-2.9.5-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:d321f54f82cb535904a108afd970c1c3e1db23716db1ab0cda5e0ca993dbf824", size = 42353187, upload-time = "2026-08-06T15:08:10.431Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/3a/d60dac70124d045dfc6f01bbd181e2865904ecca5710b2d319869ff59727/deno-2.9.5-py3-none-macosx_11_0_arm64.whl", hash = "sha256:696dffb666d6336a3527857b2f9b665db33b07883bb6adc3595dbb3b78748cf1", size = 38520058, upload-time = "2026-08-06T15:08:14.978Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/b4/5d462bc738b2172043a470ab97d7b6f3e7a287fa1916065e777e034ef1b1/deno-2.9.5-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:bccec0965917b6daa323f9ce6ad8e884e0854506b0cdaec9de41bdac7620109a", size = 39908447, upload-time = "2026-08-06T15:08:19.751Z" },
+    { url = "https://files.pythonhosted.org/packages/60/54/c6e0fb4b5e96dd7611bc75c8137046d7436666bd2e278f686e36d6a805af/deno-2.9.5-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:e5aec0419739fd0359663a78765d4feda19d1d0b60a682d25add9b78e19f95b4", size = 41642333, upload-time = "2026-08-06T15:08:24.965Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/0b/3ca6468ec928d817ce6ef062ddfa11e71a3c68035c3401057d7cb33845f6/deno-2.9.5-py3-none-win_amd64.whl", hash = "sha256:570d4ee6f1ddb16d14848d36dac6cd2f586d8a0c94cf9c3e6b5da130da2597d5", size = 41615800, upload-time = "2026-08-06T15:08:30.015Z" },
 ]
 
 [[package]]
@@ -1065,7 +1087,7 @@ wheels = [
 
 [[package]]
 name = "kash-media"
-version = "0.4.7"
+version = "0.4.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chopdiff" },
@@ -1073,20 +1095,21 @@ dependencies = [
     { name = "flexdoc" },
     { name = "flowmark" },
     { name = "kash-docs" },
+    { name = "kash-shell" },
     { name = "opencv-python" },
     { name = "scikit-image" },
     { name = "sidematter-format" },
     { name = "typing-extensions" },
     { name = "yt-dlp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e2/15/d1e402c1404db11f083b7894aa7cc48cd4da2d8278ce3ea2287c5f26265a/kash_media-0.4.7.tar.gz", hash = "sha256:151b31a62b3b3e47d0295a40ebfd6cdf7dff01e9dfa5d41e5320f86d5d140fda", size = 166532, upload-time = "2026-08-27T06:36:24.32Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/80/abe27bf0cf77bd9c915d3268a43e86999f80596c7bddc4fb4ffee1ae0b47/kash_media-0.4.8.tar.gz", hash = "sha256:6e72f62d20cce960a2458f3429b0b015899684b6715e681d2d352012b8f46556", size = 166952, upload-time = "2026-08-28T03:57:18.703Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/66/c267fb06d161d6d5a7e2af7f11782aca3938d4ad841f18090b77b62b5ae0/kash_media-0.4.7-py3-none-any.whl", hash = "sha256:07c161862a024986d77f64358cc70216206f12dcf96fc5722d33067622a92ecc", size = 46580, upload-time = "2026-08-27T06:36:23.048Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/37/f2664d0f499e9cd0192bc612e8f561cd93d9ca9ef0db8d3f9bec1d8ca36d/kash_media-0.4.8-py3-none-any.whl", hash = "sha256:088a62a9307967ad829e183ca62fe19b32825f31f354e8c5ec9b20e587c43de9", size = 46882, upload-time = "2026-08-28T03:57:17.419Z" },
 ]
 
 [[package]]
 name = "kash-shell"
-version = "0.4.9"
+version = "0.4.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiolimiter" },
@@ -1145,9 +1168,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "xonsh" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3e/16/1f3eba8c74ecbc1b992454370add238a354cc21b8da53dcc75340260791c/kash_shell-0.4.9.tar.gz", hash = "sha256:37892c3a13481d8e77d499f254c46a68d79020f588492316178caea27b9a95bb", size = 828034, upload-time = "2026-08-27T06:22:15.135Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/20/477236d2ee2683bdc8a4d2f144f21a5c54fc09d7cb9475b16bc1a630154f/kash_shell-0.4.10.tar.gz", hash = "sha256:dcbbefea33b2d7a3874dc19c55e7eb22a2656bb432a2b11051f8ccc15a0fa2d1", size = 829042, upload-time = "2026-08-28T03:45:32.42Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/f4/ce7aecffe51c9f1ead46f52cf634970d0224cde345f9ac5063dfa5feea69/kash_shell-0.4.9-py3-none-any.whl", hash = "sha256:c2e973d1ca34f260ba079f94db8c7be434f4f17719da7f9e5dab29f48c5f3323", size = 596239, upload-time = "2026-08-27T06:22:13.333Z" },
+    { url = "https://files.pythonhosted.org/packages/68/60/fae64ae555f3b6c58574ef008d4061f95889dfe69f9f25535189091e947f/kash_shell-0.4.10-py3-none-any.whl", hash = "sha256:ce4dabf6f9b755a3a72588cc81d18083d73c0eaf44af4f476b1b03311ff0e6e4", size = 597386, upload-time = "2026-08-28T03:45:30.782Z" },
 ]
 
 [[package]]

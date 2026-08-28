@@ -14,7 +14,7 @@ from typing import NamedTuple
 PACKAGE_NAME = "deep-transcribe"
 SKILL_DIRNAME = "deep-transcribe"
 SKILL_FORMAT = "f02"
-DISCOVERY_VERSION = "0.1.13"
+DISCOVERY_VERSION = "0.1.14"
 YTDLP_DISCOVERY_CUTOFF = "2026-08-20T00:00:00Z"
 
 SURFACE_PORTABLE = "portable"
@@ -214,7 +214,8 @@ def agents_md_block(version: str | None = None) -> str:
         "- Use the same verified runner with `--skill` for the complete agent workflow.\n"
         "- Preserve the same source and workspace when refining a reviewed result.\n"
         "- Exact pinned runner: `uvx --exclude-newer-package "
-        f"yt-dlp={YTDLP_DISCOVERY_CUTOFF} --from deep-transcribe=={pin} deep-transcribe`.\n\n"
+        f'yt-dlp={YTDLP_DISCOVERY_CUTOFF} --from "deep-transcribe[youtube]=={pin}" '
+        "deep-transcribe`.\n\n"
         f"{AGENTS_END_MARKER}"
     )
 

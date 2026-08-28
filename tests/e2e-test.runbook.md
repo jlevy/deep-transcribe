@@ -14,6 +14,7 @@ The release passes only when:
 - warmed `--help` startup remains below 250 ms and does not import the runtime stack;
 - the environment excludes optional document/AWS runtimes and Torch;
 - a fresh workspace completes the basic and annotated runs below;
+- a supported URL resource records yt-dlp metadata before transcription;
 - the log proves Deepgram used `nova-3` with `diarize_model=latest`;
 - a raw-file run preserves recording context, corrects a five-role speaker roster, and
   reuses Deepgram unless recognition inputs change;
@@ -136,6 +137,15 @@ uv run --locked deep-transcribe \
     --rerun-processing \
     --language en \
     "$DEEP_TRANSCRIBE_E2E_URL"
+```
+
+Inspect the saved URL resource.
+It must contain the yt-dlp title and description plus the `media_service`,
+`upload_date`, `channel_url`, and `duration` fields used as bounded semantic context:
+
+```shell
+rg -n '^(title|description):|^  (media_service|upload_date|channel_url|duration):' \
+    "$DEEP_TRANSCRIBE_E2E_WS/workspace/resources"
 ```
 
 Inspect the workspace log.
