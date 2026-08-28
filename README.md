@@ -28,10 +28,10 @@ Running it needs a Deepgram API key and an LLM API key, typically Anthropic or O
 
 ## Example: Hotel Check In — SNL
 
-The public example uses the official [Saturday Night Live sketch][example-video]. Its
-five speaking roles, short interjections, repeated hotel terminology, running joke, and
-scene changes exercise speaker correction, key terms, summaries, outlines, timestamps,
-and frame captures in just over four minutes.
+The example is a [Saturday Night Live sketch][example-video]. Its five speaking roles,
+short interjections, repeated hotel terminology, running joke, and scene changes
+exercise speaker correction, key terms, summaries, outlines, timestamps, and frame
+captures in just over four minutes.
 
 | Source Video | Formatted Transcript |
 | :---: | :---: |
