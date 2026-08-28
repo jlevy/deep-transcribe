@@ -5,12 +5,12 @@ title: Derive the example's cast context instead of hand-writing it
 kind: feature
 status: open
 priority: 2
-version: 9
+version: 10
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:40:54.176Z
-updated_at: 2026-08-28T02:05:38.463Z
+updated_at: 2026-08-28T02:22:43.955Z
 ---
 The README example passes a 90-word --context string naming all five performers and their roles, plus four --key-term flags. That is a lot of hand-authored structure for facts the pipeline can mostly reach on its own, and it makes the headline example look harder to use than the tool actually is.
 
@@ -91,14 +91,27 @@ SETTLED SPEC:
 1. Take the fetched metadata by default. Tell the model where it came from, that it is fetched from the video platform, and that odd or hostile metadata is possible. Escaping and length bounds already exist in source_prompt_context.
 2. Never assert anything not present in the source. Unsupported roles stay role-only labels.
 3. No web search unless explicitly enabled, since search can mislead. Default off.
-
 IMPLEMENTED (pending end-to-end validation).
-
 - transcription_metadata.py: escape_evidence and source_service_name helpers; source_prompt_context gained include_user_context so the roster prompt can label the two evidence sources separately.
 - speaker_correction.py: ROSTER_INFERENCE_PROMPT rewritten. It no longer says 'Do not use fetched source metadata'. Each evidence block is labeled with its origin, user-written or 'Fetched automatically from YouTube', with a note that published metadata is often incomplete or unrelated. One prohibition sentence: use only that evidence, do not add any other facts, and name a performer only where the evidence ties that performer to that role.
 - infer_speaker_roster_from_context now runs on metadata alone, not just user context, and takes web_search.
 - transcribe_commands.py: the caller no longer gates on additional_context, so metadata-only sources reach the roster step.
 - CLI: --web-search, off by default, applied after preset resolution so presets cannot clear it. Threaded through TranscribeOptions.web_search to llm_template_completion(enable_web_search=...), which kash already supports.
 - Tests: metadata provenance and search-enabled paths, plus a no-evidence case that must not call the model. 78 pass.
-
 Expectation to check end to end: metadata alone will likely still return complete=false for this video, because four tagged names do not establish the complete speaking set. The win is that the step now sees the metadata at all and can succeed for sources that do list their speakers. Web search is the path that closes the SNL case.
+
+END-TO-END RESULT. URL plus --web-search, clean workspace, no user context:
+
+  Mr. Adams (guest checking in)  20 turns   (hand-written-context run: 21)
+  Kumail (hotel clerk)           20         (21)
+  Chris (hotel guest)             2         (2)
+  Beck (escorting agent)          2         (2)
+  Leslie (hotel guest)            1         (1)
+
+All five roles, turn counts within one of the reviewed result, derived from metadata plus search plus the transcript with nothing supplied by hand. Baseline for comparison is three speakers from a bare URL.
+
+Two defects were found and fixed while testing, both of which made the feature silently do nothing:
+1. kash gates web search on litellm.supports_web_search, false for claude-sonnet-5, and then sets the OpenAI-style web_search_options that Anthropic ignores. The first end-to-end run logged 'Web search requested but not supported by model claude-sonnet-5' and behaved identically to no search. Fixed by routing on provider and passing Anthropic's server tool through kash's existing tools parameter, verified against litellm directly first.
+2. The completeness test rejected cast lists outright, which is exactly what a search returns, so the step failed closed even once search worked. Loosened to accept a cast list whose members can be matched to speaking turns in the transcript the step already holds.
+
+Remaining, and worth a follow-up rather than blocking: the derived labels use performer first names, 'Kumail (hotel clerk)', 'Beck (escorting agent)', where the curated run uses roles, 'Front Desk Employee', 'Government Representative'. Structure is right, style is not. Also seen in an isolated search probe: the model correctly named Beck Bennett but stated in passing that Mr. Adams was played by Chris Redd. Search lowers the error rate, it does not remove it, which is why it stays opt-in and why the roster remains reviewable.
