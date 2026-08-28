@@ -5,12 +5,12 @@ title: Derive the example's cast context instead of hand-writing it
 kind: feature
 status: open
 priority: 2
-version: 2
+version: 3
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:40:54.176Z
-updated_at: 2026-08-27T23:44:42.014Z
+updated_at: 2026-08-28T00:15:25.546Z
 ---
 The README example passes a 90-word --context string naming all five performers and their roles, plus four --key-term flags. That is a lot of hand-authored structure for facts the pipeline can mostly reach on its own, and it makes the headline example look harder to use than the tool actually is.
 
@@ -32,8 +32,10 @@ Keep --context as the override for facts the source does not publish; the goal i
 ## Notes
 
 Shape agreed with the user: keep two examples rather than one.
-
 - Quick example: effortless for YouTube. A URL, and little or nothing else. It should lean on the extractor metadata the source resource now carries (title, description, channel, uploader, categories, tags) and on the models already in the pipeline, rather than asking the user to hand-assemble a roster.
 - Advanced example: keeps the rich --context and --key-term flags, for videos whose metadata is thin or absent, and for cases where the user wants to steer labels and terminology deliberately.
-
 The current README example is the advanced one wearing the quick one's clothes. It is the first command a reader sees, which makes the tool look harder to use than it is.
+
+Testing note (2026-08-27): rerunning in an existing workspace without --context does NOT test the no-context path. additional_context is persisted on the URL resource item (visible as additional_context: in workspace/resources/watch_1.resource.yml), so a rerun inherits the previously supplied context and reuses the whole cached pipeline, zero Deepgram calls. Measuring what metadata alone can do requires a clean workspace.
+
+That persistence is reasonable for the documented review-and-rerun loop, but it means there is no way to clear stored context by omitting the flag, and it makes it easy to over-estimate how well a simplified command performs. Worth deciding whether an explicit way to clear context is needed.
