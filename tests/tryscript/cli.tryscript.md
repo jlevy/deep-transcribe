@@ -177,7 +177,7 @@ deep-transcribe --models
 deep-transcribe --models openai URL
 ```
 
-deep-transcribe v0.1.14.dev10+b365c2f
+deep-transcribe v[VERSION]
 ? 0
 ````
 
