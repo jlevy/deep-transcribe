@@ -5,12 +5,12 @@ title: Derive the example's cast context instead of hand-writing it
 kind: feature
 status: open
 priority: 2
-version: 5
+version: 6
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:40:54.176Z
-updated_at: 2026-08-28T00:24:52.688Z
+updated_at: 2026-08-28T00:48:37.058Z
 ---
 The README example passes a 90-word --context string naming all five performers and their roles, plus four --key-term flags. That is a lot of hand-authored structure for facts the pipeline can mostly reach on its own, and it makes the headline example look harder to use than the tool actually is.
 
@@ -46,17 +46,30 @@ Zero occurrences of Chris Redd, Leslie Jones, or Beck Bennett in the output. Bot
 The failure propagates into the synopsis, which becomes factually wrong: it reports that the government official 'briefly interrupts the front desk to request towels and make an unrelated flirtatious remark'. Those are the Room 904 Guests' lines, misattributed.
 So the metadata is necessary but not sufficient. The description and tags do supply four of the five performer names and both are already fed to speaker_correction and transcript_overview via source_prompt_context, but nothing recovers the two short-interjection speakers or maps performers to roles. Simply deleting --context from the README example would showcase a worse result, not a simpler one.
 This makes the roster-proposal stage the real work item rather than a documentation change. The pipeline has the raw material and a diarized transcript; what is missing is a step that asks a model to reconcile them into a roster before speaker identification runs.
-
 MEASURED, compact context (same clean workspace, transcript reused, no new Deepgram request). Context reduced to 35 words naming the cast, with no --key-term, --title, or --instructions:
-
   Mr. Adams              20 turns   (reviewed run: 21)
   Front Desk Employee    19         (21)
   Room 904 Guest 1        2         (2, labeled 'Room 904 Guest (Chris Redd)')
   Government Rep          2         (2)
   Room 904 Guest 2        1         (1, labeled 'Room 904 Guest (Leslie Jones)')
-
 All five roles recovered. The synopsis is factually correct, names all five performers, correctly attributes the Room 904 interruption, and picks up 'Chatsworth House, a Marriott experience', the Stargazer Lounge, and the Indulge spa with no --key-term flags. The only loss is cosmetic: unnamed guests come out as 'Room 904 Guest 1/2' rather than carrying the performer name, which is exactly what the dropped labeling instruction bought.
-
 Conclusion, and what shipped in the README: the headline example now passes one --context sentence plus --annotated and the URL. The full command is kept below as a steering example and is the one behind the published PDF.
-
 Remaining work for this bead is the part still not automatic: deriving the role mapping and the short-turn speakers without any human-supplied context. The measurements above are the baseline to beat, three of five speakers with metadata alone.
+
+CAN IT BE DERIVED? Three checks, 2026-08-27.
+
+1. YouTube metadata cannot supply the gap. Dumped all yt-dlp fields for the video (60 non-empty). The string 'Bennett' appears zero times anywhere in the blob. Chris Redd, Leslie Jones, Mikey Day, and Kumail Nanjiani each appear, in tags and description, both of which we already capture in full (547-char description, 38 tags). 'chapters' is null. There is no cast or credits field. Beck Bennett is simply not in the source.
+
+2. Model knowledge does not supply it either. Asked directly about the sketch by name, season, episode, and host, the model declined: 'I don't have confident, specific information about this particular SNL sketch... I cannot reliably list every speaking role and cast member for this specific Hotel Check In sketch without risking inaccuracies.'
+
+3. A single roster call on metadata plus the diarized transcript both helps and hurts.
+   Helps, and this is the important part: it independently identified that the diarizer merged two different roles into SPEAKER 0, the government agent at the open and the Room 904 guest mid-sketch. That merge is the direct cause of the five-to-three collapse measured above, and the model found it from the transcript alone.
+   Hurts: it assigned the government representative to Chris Redd. That is wrong, and it is wrong in a specific way. Beck Bennett is absent from the tags, so the model reached for a name that was present. It anchored on the available options rather than recalling anything.
+
+The control that failed matters for the design. The prompt already said 'If you are unsure of a performer, say unknown rather than guessing', and it guessed anyway. A prompt instruction is not sufficient protection.
+
+Design implication:
+- Derive structure from the transcript. Role count, turn boundaries, and merged-speaker detection are all derivable and are what actually fixes the roster.
+- Do not let the model attach a performer name unless that name appears in source evidence AND the mapping is supported. Names present in tags are candidates, not assignments.
+- Emit 'unknown' or a role-only label as a first-class output rather than a fallback, so a missing name degrades to 'Government Representative' instead of a confident wrong name.
+- Surface the proposed roster for review before it is baked into the transcript, so a wrong guess is cheap to correct.
