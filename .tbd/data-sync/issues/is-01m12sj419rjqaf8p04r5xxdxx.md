@@ -5,12 +5,12 @@ title: Derive the example's cast context instead of hand-writing it
 kind: feature
 status: open
 priority: 2
-version: 3
+version: 4
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:40:54.176Z
-updated_at: 2026-08-28T00:15:25.546Z
+updated_at: 2026-08-28T00:21:15.658Z
 ---
 The README example passes a 90-word --context string naming all five performers and their roles, plus four --key-term flags. That is a lot of hand-authored structure for facts the pipeline can mostly reach on its own, and it makes the headline example look harder to use than the tool actually is.
 
@@ -35,7 +35,19 @@ Shape agreed with the user: keep two examples rather than one.
 - Quick example: effortless for YouTube. A URL, and little or nothing else. It should lean on the extractor metadata the source resource now carries (title, description, channel, uploader, categories, tags) and on the models already in the pipeline, rather than asking the user to hand-assemble a roster.
 - Advanced example: keeps the rich --context and --key-term flags, for videos whose metadata is thin or absent, and for cases where the user wants to steer labels and terminology deliberately.
 The current README example is the advanced one wearing the quick one's clothes. It is the first command a reader sees, which makes the tool look harder to use than it is.
-
 Testing note (2026-08-27): rerunning in an existing workspace without --context does NOT test the no-context path. additional_context is persisted on the URL resource item (visible as additional_context: in workspace/resources/watch_1.resource.yml), so a rerun inherits the previously supplied context and reuses the whole cached pipeline, zero Deepgram calls. Measuring what metadata alone can do requires a clean workspace.
-
 That persistence is reasonable for the documented review-and-rerun loop, but it means there is no way to clear stored context by omitting the flag, and it makes it easy to over-estimate how well a simplified command performs. Worth deciding whether an explicit way to clear context is needed.
+
+MEASURED (2026-08-27, clean workspace snl-quick-test, command: --annotated plus the URL only, no --context, --key-term, --title, or --instructions):
+
+Roster collapses from five speakers to three.
+  Hotel Front Desk Employee  15 turns
+  Mikey Day                  12 turns
+  Government Official        11 turns
+Zero occurrences of Chris Redd, Leslie Jones, or Beck Bennett in the output. Both Room 904 Guests are gone; their lines were absorbed into the three surviving labels. Labeling is also inconsistent, one performer name mixed with two role names.
+
+The failure propagates into the synopsis, which becomes factually wrong: it reports that the government official 'briefly interrupts the front desk to request towels and make an unrelated flirtatious remark'. Those are the Room 904 Guests' lines, misattributed.
+
+So the metadata is necessary but not sufficient. The description and tags do supply four of the five performer names and both are already fed to speaker_correction and transcript_overview via source_prompt_context, but nothing recovers the two short-interjection speakers or maps performers to roles. Simply deleting --context from the README example would showcase a worse result, not a simpler one.
+
+This makes the roster-proposal stage the real work item rather than a documentation change. The pipeline has the raw material and a diarized transcript; what is missing is a step that asks a model to reconcile them into a roster before speaker identification runs.
