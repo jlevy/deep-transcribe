@@ -5,12 +5,12 @@ title: Derive the example's cast context instead of hand-writing it
 kind: feature
 status: open
 priority: 2
-version: 6
+version: 7
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:40:54.176Z
-updated_at: 2026-08-28T00:48:37.058Z
+updated_at: 2026-08-28T00:50:10.598Z
 ---
 The README example passes a 90-word --context string naming all five performers and their roles, plus four --key-term flags. That is a lot of hand-authored structure for facts the pipeline can mostly reach on its own, and it makes the headline example look harder to use than the tool actually is.
 
@@ -55,21 +55,33 @@ MEASURED, compact context (same clean workspace, transcript reused, no new Deepg
 All five roles recovered. The synopsis is factually correct, names all five performers, correctly attributes the Room 904 interruption, and picks up 'Chatsworth House, a Marriott experience', the Stargazer Lounge, and the Indulge spa with no --key-term flags. The only loss is cosmetic: unnamed guests come out as 'Room 904 Guest 1/2' rather than carrying the performer name, which is exactly what the dropped labeling instruction bought.
 Conclusion, and what shipped in the README: the headline example now passes one --context sentence plus --annotated and the URL. The full command is kept below as a steering example and is the one behind the published PDF.
 Remaining work for this bead is the part still not automatic: deriving the role mapping and the short-turn speakers without any human-supplied context. The measurements above are the baseline to beat, three of five speakers with metadata alone.
-
 CAN IT BE DERIVED? Three checks, 2026-08-27.
-
 1. YouTube metadata cannot supply the gap. Dumped all yt-dlp fields for the video (60 non-empty). The string 'Bennett' appears zero times anywhere in the blob. Chris Redd, Leslie Jones, Mikey Day, and Kumail Nanjiani each appear, in tags and description, both of which we already capture in full (547-char description, 38 tags). 'chapters' is null. There is no cast or credits field. Beck Bennett is simply not in the source.
-
 2. Model knowledge does not supply it either. Asked directly about the sketch by name, season, episode, and host, the model declined: 'I don't have confident, specific information about this particular SNL sketch... I cannot reliably list every speaking role and cast member for this specific Hotel Check In sketch without risking inaccuracies.'
-
 3. A single roster call on metadata plus the diarized transcript both helps and hurts.
    Helps, and this is the important part: it independently identified that the diarizer merged two different roles into SPEAKER 0, the government agent at the open and the Room 904 guest mid-sketch. That merge is the direct cause of the five-to-three collapse measured above, and the model found it from the transcript alone.
    Hurts: it assigned the government representative to Chris Redd. That is wrong, and it is wrong in a specific way. Beck Bennett is absent from the tags, so the model reached for a name that was present. It anchored on the available options rather than recalling anything.
-
 The control that failed matters for the design. The prompt already said 'If you are unsure of a performer, say unknown rather than guessing', and it guessed anyway. A prompt instruction is not sufficient protection.
-
 Design implication:
 - Derive structure from the transcript. Role count, turn boundaries, and merged-speaker detection are all derivable and are what actually fixes the roster.
 - Do not let the model attach a performer name unless that name appears in source evidence AND the mapping is supported. Names present in tags are candidates, not assignments.
 - Emit 'unknown' or a role-only label as a first-class output rather than a fallback, so a missing name degrades to 'Government Representative' instead of a confident wrong name.
 - Surface the proposed roster for review before it is baked into the transcript, so a wrong guess is cheap to correct.
+
+MECHANISM, and the agreed grounding rule.
+
+infer_speaker_roster_from_context (src/deep_transcribe/speaker_correction.py:113) reads only item.additional_context and returns early when it is empty. It never sees the extractor metadata. Its system message is 'You conservatively structure user-authored speaker context without adding facts.' So the URL-only run did not produce a bad roster, it produced no roster at all, and speaker assignment ran unanchored. That is the whole five-to-three collapse.
+
+The two downstream prompts, _assign_window and _adjudicate_conflicts, both assign to a fixed roster and both already say to use UNKNOWN rather than guessing. They are not the risk. The risk is entirely in whatever creates the roster.
+
+Grounding rule for the roster prompt, per the user:
+- Include a name only when it is present in data on hand, meaning user-supplied context or YouTube metadata (description, tags, channel, title), or corroborated by web search when that is enabled.
+- Anything not so supported stays a role-only label such as 'Government Representative', or 'unknown'. Role-only is a first-class result, not a degraded one.
+- Tags are a candidate pool, never an assignment. The measured failure was the model taking 'Chris Redd' from the tag list for a role Beck Bennett actually played, purely because Bennett was absent and Redd was present.
+- State the rule as a hard constraint on output, not as advice. The failing control run already carried 'If you are unsure of a performer, say unknown rather than guessing' and guessed regardless, so the instruction must be paired with a check that every emitted name appears in the supplied evidence.
+
+Optional web search:
+- Off by default; opt-in flag. When on, a name may also be included if corroborated by a retrieved source, and the roster should carry the corroborating source so a wrong mapping is traceable.
+- Feasible without new accounts: EXA_API_KEY, PERPLEXITYAI_API_KEY, and FIRECRAWL_API_KEY are already present in the user's environment. Note that kash's research_paras is LLM-only today, so there is no existing web-search path in the pipeline to reuse.
+
+Scope note: extending roster inference to read metadata under this rule is self-contained and testable against the baselines recorded above (three of five speakers with metadata alone, five of five with one sentence of context). Web search is a separate, larger increment.
