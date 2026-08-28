@@ -3,14 +3,21 @@ type: is
 id: is-01m12k2db1dqxc18fmmsjcy70x
 title: Raise the kash-media floor and release deep-transcribe v0.1.14
 kind: task
-status: open
+status: closed
 priority: 1
-version: 2
+version: 3
 labels: []
 dependencies: []
 parent_id: is-01m1118hwdhra16fmaz6jd1smt
 created_at: 2026-08-27T21:47:27.968Z
-updated_at: 2026-08-27T23:51:45.725Z
+updated_at: 2026-08-28T04:21:17.170Z
+closed_at: 2026-08-28T04:21:17.169Z
+close_reason: |-
+  Released deep-transcribe v0.1.14. Floors raised to kash-shell>=0.4.10 and kash-media>=0.4.8, local web-search workaround deleted, DISCOVERY_VERSION moved to 0.1.14.
+
+  Verified from PyPI, not just locally: 'uv run --with deep-transcribe[youtube]==0.1.14' installs 153 packages and resolves deep-transcribe 0.1.14, kash-shell 0.4.10, kash-media 0.4.8, with deno on PATH at ~/.cache/uv/archive-v0/RC2BSmBQQoTLEw4y/bin/deno. The youtube extra delivers the runtime as designed, and the DISCOVERY_VERSION trap is closed since the pinned version now has the extra.
+resolution: null
+duplicate_of: null
 ---
 After kash-media 0.4.8 publishes:
 
