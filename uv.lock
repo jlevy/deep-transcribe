@@ -483,6 +483,7 @@ source = { editable = "." }
 dependencies = [
     { name = "frontmatter-format" },
     { name = "kash-media" },
+    { name = "kash-shell" },
     { name = "prettyfmt" },
     { name = "rich" },
     { name = "sidematter-format" },
@@ -513,7 +514,8 @@ dev = [
 requires-dist = [
     { name = "deno", marker = "extra == 'youtube'", specifier = ">=2.9,<3" },
     { name = "frontmatter-format", specifier = ">=0.4.0,<0.5" },
-    { name = "kash-media", specifier = ">=0.4.7,<0.5" },
+    { name = "kash-media", specifier = ">=0.4.8,<0.5" },
+    { name = "kash-shell", specifier = ">=0.4.10,<0.5" },
     { name = "prettyfmt", specifier = ">=0.4.1" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "sidematter-format", specifier = ">=0.1.0,<0.2" },
@@ -1085,7 +1087,7 @@ wheels = [
 
 [[package]]
 name = "kash-media"
-version = "0.4.7"
+version = "0.4.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chopdiff" },
@@ -1093,20 +1095,21 @@ dependencies = [
     { name = "flexdoc" },
     { name = "flowmark" },
     { name = "kash-docs" },
+    { name = "kash-shell" },
     { name = "opencv-python" },
     { name = "scikit-image" },
     { name = "sidematter-format" },
     { name = "typing-extensions" },
     { name = "yt-dlp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e2/15/d1e402c1404db11f083b7894aa7cc48cd4da2d8278ce3ea2287c5f26265a/kash_media-0.4.7.tar.gz", hash = "sha256:151b31a62b3b3e47d0295a40ebfd6cdf7dff01e9dfa5d41e5320f86d5d140fda", size = 166532, upload-time = "2026-08-27T06:36:24.32Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/80/abe27bf0cf77bd9c915d3268a43e86999f80596c7bddc4fb4ffee1ae0b47/kash_media-0.4.8.tar.gz", hash = "sha256:6e72f62d20cce960a2458f3429b0b015899684b6715e681d2d352012b8f46556", size = 166952, upload-time = "2026-08-28T03:57:18.703Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/66/c267fb06d161d6d5a7e2af7f11782aca3938d4ad841f18090b77b62b5ae0/kash_media-0.4.7-py3-none-any.whl", hash = "sha256:07c161862a024986d77f64358cc70216206f12dcf96fc5722d33067622a92ecc", size = 46580, upload-time = "2026-08-27T06:36:23.048Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/37/f2664d0f499e9cd0192bc612e8f561cd93d9ca9ef0db8d3f9bec1d8ca36d/kash_media-0.4.8-py3-none-any.whl", hash = "sha256:088a62a9307967ad829e183ca62fe19b32825f31f354e8c5ec9b20e587c43de9", size = 46882, upload-time = "2026-08-28T03:57:17.419Z" },
 ]
 
 [[package]]
 name = "kash-shell"
-version = "0.4.9"
+version = "0.4.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiolimiter" },
@@ -1165,9 +1168,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "xonsh" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3e/16/1f3eba8c74ecbc1b992454370add238a354cc21b8da53dcc75340260791c/kash_shell-0.4.9.tar.gz", hash = "sha256:37892c3a13481d8e77d499f254c46a68d79020f588492316178caea27b9a95bb", size = 828034, upload-time = "2026-08-27T06:22:15.135Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/20/477236d2ee2683bdc8a4d2f144f21a5c54fc09d7cb9475b16bc1a630154f/kash_shell-0.4.10.tar.gz", hash = "sha256:dcbbefea33b2d7a3874dc19c55e7eb22a2656bb432a2b11051f8ccc15a0fa2d1", size = 829042, upload-time = "2026-08-28T03:45:32.42Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/f4/ce7aecffe51c9f1ead46f52cf634970d0224cde345f9ac5063dfa5feea69/kash_shell-0.4.9-py3-none-any.whl", hash = "sha256:c2e973d1ca34f260ba079f94db8c7be434f4f17719da7f9e5dab29f48c5f3323", size = 596239, upload-time = "2026-08-27T06:22:13.333Z" },
+    { url = "https://files.pythonhosted.org/packages/68/60/fae64ae555f3b6c58574ef008d4061f95889dfe69f9f25535189091e947f/kash_shell-0.4.10-py3-none-any.whl", hash = "sha256:ce4dabf6f9b755a3a72588cc81d18083d73c0eaf44af4f476b1b03311ff0e6e4", size = 597386, upload-time = "2026-08-28T03:45:30.782Z" },
 ]
 
 [[package]]

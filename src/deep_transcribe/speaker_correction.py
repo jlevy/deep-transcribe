@@ -4,7 +4,7 @@ import html
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 
 from kash.config.logger import get_logger
 from kash.exec import kash_action
@@ -68,25 +68,6 @@ ROSTER_INFERENCE_PROMPT = StringTemplate(
     """,
     allowed_fields=["evidence", "search_clause"],
 )
-
-
-# Anthropic exposes web search as a server-side tool, not the OpenAI-style
-# `web_search_options` that kash's `enable_web_search` sets, and litellm's capability
-# table reports no support for these models. Route by provider rather than asking
-# litellm whether search is supported, or the request is silently dropped.
-ANTHROPIC_WEB_SEARCH_TOOL = {
-    "type": "web_search_20250305",
-    "name": "web_search",
-    "max_uses": 5,
-}
-
-
-def _web_search_kwargs(model: LLMName) -> dict[str, Any]:
-    """Enable server-side search the way the model's provider actually accepts it."""
-    name = str(getattr(model, "litellm_name", model)).lower()
-    if "claude" in name or name.startswith("anthropic/"):
-        return {"tools": [ANTHROPIC_WEB_SEARCH_TOOL]}
-    return {"enable_web_search": True}
 
 
 def _roster_evidence(item: Item) -> str:
@@ -186,7 +167,7 @@ def infer_speaker_roster_from_context(
         ),
         input="Determine whether the supplied evidence gives a complete speaker roster.",
         body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
-        **(_web_search_kwargs(model) if web_search else {}),
+        enable_web_search=web_search,
     ).content
     roster = _parse_inferred_roster(response)
     if not roster:
@@ -742,8 +723,7 @@ def test_infer_speaker_roster_structures_complete_prose_context() -> None:
     assert "Written by the user of this tool." in prompt
     assert "Do not\n    add any other facts." in prompt
     assert "web search" not in prompt
-    assert "tools" not in completion.call_args.kwargs
-    assert not completion.call_args.kwargs.get("enable_web_search")
+    assert completion.call_args.kwargs["enable_web_search"] is False
 
 
 def test_infer_speaker_roster_labels_fetched_metadata_and_can_search() -> None:
@@ -778,8 +758,7 @@ def test_infer_speaker_roster_labels_fetched_metadata_and_can_search() -> None:
     assert "Kumail Nanjiani" in prompt
     assert "<user_context>" not in prompt
     assert "corroborate with web search" in prompt
-    # Anthropic models must get the server tool; the OpenAI-style flag is ignored there.
-    assert completion.call_args.kwargs["tools"] == [ANTHROPIC_WEB_SEARCH_TOOL]
+    assert completion.call_args.kwargs["enable_web_search"] is True
 
 
 def test_infer_speaker_roster_skips_when_there_is_no_evidence() -> None:
