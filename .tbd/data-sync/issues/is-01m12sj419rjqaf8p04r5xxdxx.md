@@ -5,12 +5,12 @@ title: Derive the example's cast context instead of hand-writing it
 kind: feature
 status: open
 priority: 2
-version: 7
+version: 8
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-27T23:40:54.176Z
-updated_at: 2026-08-28T00:50:10.598Z
+updated_at: 2026-08-28T00:53:12.707Z
 ---
 The README example passes a 90-word --context string naming all five performers and their roles, plus four --key-term flags. That is a lot of hand-authored structure for facts the pipeline can mostly reach on its own, and it makes the headline example look harder to use than the tool actually is.
 
@@ -67,21 +67,32 @@ Design implication:
 - Do not let the model attach a performer name unless that name appears in source evidence AND the mapping is supported. Names present in tags are candidates, not assignments.
 - Emit 'unknown' or a role-only label as a first-class output rather than a fallback, so a missing name degrades to 'Government Representative' instead of a confident wrong name.
 - Surface the proposed roster for review before it is baked into the transcript, so a wrong guess is cheap to correct.
-
 MECHANISM, and the agreed grounding rule.
-
 infer_speaker_roster_from_context (src/deep_transcribe/speaker_correction.py:113) reads only item.additional_context and returns early when it is empty. It never sees the extractor metadata. Its system message is 'You conservatively structure user-authored speaker context without adding facts.' So the URL-only run did not produce a bad roster, it produced no roster at all, and speaker assignment ran unanchored. That is the whole five-to-three collapse.
-
 The two downstream prompts, _assign_window and _adjudicate_conflicts, both assign to a fixed roster and both already say to use UNKNOWN rather than guessing. They are not the risk. The risk is entirely in whatever creates the roster.
-
 Grounding rule for the roster prompt, per the user:
 - Include a name only when it is present in data on hand, meaning user-supplied context or YouTube metadata (description, tags, channel, title), or corroborated by web search when that is enabled.
 - Anything not so supported stays a role-only label such as 'Government Representative', or 'unknown'. Role-only is a first-class result, not a degraded one.
 - Tags are a candidate pool, never an assignment. The measured failure was the model taking 'Chris Redd' from the tag list for a role Beck Bennett actually played, purely because Bennett was absent and Redd was present.
 - State the rule as a hard constraint on output, not as advice. The failing control run already carried 'If you are unsure of a performer, say unknown rather than guessing' and guessed regardless, so the instruction must be paired with a check that every emitted name appears in the supplied evidence.
-
 Optional web search:
 - Off by default; opt-in flag. When on, a name may also be included if corroborated by a retrieved source, and the roster should carry the corroborating source so a wrong mapping is traceable.
 - Feasible without new accounts: EXA_API_KEY, PERPLEXITYAI_API_KEY, and FIRECRAWL_API_KEY are already present in the user's environment. Note that kash's research_paras is LLM-only today, so there is no existing web-search path in the pipeline to reuse.
-
 Scope note: extending roster inference to read metadata under this rule is self-contained and testable against the baselines recorded above (three of five speakers with metadata alone, five of five with one sentence of context). Web search is a separate, larger increment.
+
+WEB SEARCH WORKS, AND THE GUARD I PROPOSED DOES NOT.
+
+Anthropic server-side web search (tool web_search_20250305, claude-opus-4-5) answered the question the metadata cannot: 17.2 seconds, three queries, landed on SNL Transcripts, and returned Beck Bennett as the government representative plus the full five-person cast. So the optional-search branch is viable today with no new provider account. Perplexity was tried first and is out of quota.
+
+Correction to the earlier design note. The proposed code guard, 'every name in a roster label must appear in the supplied evidence', would NOT have caught the observed failure. 'Chris Redd' was present in the tags. The error was attaching a present name to the wrong role. Presence is checkable; the role-to-name mapping is not, and that is where the failure lives.
+
+What is actually mechanically checkable:
+- Association, not presence. Accept a name only when the evidence itself associates it with that role, as the description does for 'front desk employee (Kumail Nanjiani)'. This would have blocked 'Government Representative (Chris Redd)', because nothing in the metadata ties Redd to that role. Stricter than presence and it catches the real failure.
+- Citation required. With search enabled, require a retrieved source per name and store it, so a wrong mapping is traceable rather than anonymous.
+- Review before bake-in. Surface the proposed roster so a wrong mapping is cheap to correct.
+Truth of the mapping is not verifiable in code. Beyond the checks above it is prompt discipline plus residual risk, and that should be stated rather than papered over.
+
+SETTLED SPEC:
+1. Take the fetched metadata by default. Tell the model where it came from, that it is fetched from the video platform, and that odd or hostile metadata is possible. Escaping and length bounds already exist in source_prompt_context.
+2. Never assert anything not present in the source. Unsupported roles stay role-only labels.
+3. No web search unless explicitly enabled, since search can mislead. Default off.
