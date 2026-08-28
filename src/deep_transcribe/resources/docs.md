@@ -98,6 +98,12 @@ A cached URL resource created without extractor metadata is enriched once on its
 run. Use `--context` for relevant facts the publisher did not include or that require
 review, such as a complete cast-to-role mapping.
 
+The speaker roster step reads that metadata alongside your context, and is told which
+evidence came from you and which was fetched from the source service. It may state only
+what one of those supports. `--web-search` additionally lets it corroborate facts it
+finds; it is off by default because search can mislead. Local files have no metadata to
+fetch and nothing to corroborate, so context is the only evidence there.
+
 `--title`, `--description`, and repeatable `--key-term` flags provide simple exact
 values without a schema.
 `--metadata YAML_OR_JSON` remains available for automation and advanced overrides.

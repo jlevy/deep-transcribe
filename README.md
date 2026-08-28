@@ -29,14 +29,34 @@ and frame captures in just over four minutes.
 [example-video]: https://www.youtube.com/watch?v=kq9Q9-U0vrc
 [example-pdf]: docs/examples/snl-hotel-check-in-transcript.pdf
 
-For supported URLs, Deep Transcribe fetches source metadata through the media extractor
-and gives the models a bounded version of the title, description, canonical URL, channel,
-categories, and tags.
-For this video that already supplies four of the five performer names.
+A URL is enough to start:
 
-What it cannot supply is which performer plays which role, and the two guests who speak
-only a few times each.
-One sentence of ordinary prose covers both:
+```shell
+uvx "deep-transcribe[youtube]" --annotated "https://www.youtube.com/watch?v=kq9Q9-U0vrc"
+```
+
+Deep Transcribe fetches the source metadata through the media extractor and gives the
+models a bounded version of the title, description, canonical URL, channel, categories,
+and tags.
+For this sketch that already names four of the five performers.
+What the metadata cannot say is which performer plays which role, so the two guests who
+speak once each are absorbed into other speakers.
+
+Add `--web-search` and the roster step researches the source before labeling anyone:
+
+```shell
+uvx "deep-transcribe[youtube]" --annotated --web-search \
+    "https://www.youtube.com/watch?v=kq9Q9-U0vrc"
+```
+
+That recovers all five speakers, including both Room 904 guests and the agent the
+metadata never mentions, with no context of your own.
+Search is off by default because it can mislead.
+With or without it, the models may state only what your context, the fetched metadata, or
+a corroborated search result supports; they are told where each piece of evidence came
+from and are not permitted to add anything else.
+
+You can also just say what you know, which is faster and free:
 
 ```shell
 uvx "deep-transcribe[youtube]" --annotated \
@@ -44,12 +64,8 @@ uvx "deep-transcribe[youtube]" --annotated \
     "https://www.youtube.com/watch?v=kq9Q9-U0vrc"
 ```
 
-That labels all five roles, writes a synopsis naming every performer, and picks up
-“Chatsworth House, a Marriott experience,” the Stargazer Lounge, and the Indulge spa
-without being told about them.
-Dropping the context entirely costs both Room 904 Guests: their lines are absorbed into
-the other speakers, and the synopsis then credits their towel request to the government
-representative.
+That labels all five roles too, and picks up “Chatsworth House, a Marriott experience,”
+the Stargazer Lounge, and the Indulge spa without being told about them.
 
 ### Steering the Output
 
@@ -70,6 +86,22 @@ uvx "deep-transcribe[youtube]" \
     --key-term "North Korea" \
     "https://www.youtube.com/watch?v=kq9Q9-U0vrc"
 ```
+
+### Local Files and Sources Without Metadata
+
+A local recording, or a podcast whose publisher says little, has no useful metadata to
+fetch and nothing for search to corroborate.
+Your own context is the only evidence, so say who is speaking:
+
+```shell
+uvx deep-transcribe --annotated \
+    --context "Board meeting recording. Three speakers: Dana Ortiz chairing, Sam Weber presenting the budget, and one board member asking questions." \
+    ./board-meeting.m4a
+```
+
+Local files need no JavaScript runtime, so the plain `deep-transcribe` install is enough.
+Without context the transcript still comes out correct; the speakers are just labeled
+generically.
 
 The command produces cached media and intermediate results, a processed Markdown
 transcript, and browser-ready HTML. Review the result, revise the prose, and run the
