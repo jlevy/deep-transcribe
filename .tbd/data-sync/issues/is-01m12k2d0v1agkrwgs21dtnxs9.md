@@ -3,16 +3,20 @@ type: is
 id: is-01m12k2d0v1agkrwgs21dtnxs9
 title: Release kash-media v0.4.8 with the YouTube discovery mapping
 kind: task
-status: open
+status: closed
 priority: 1
-version: 2
+version: 3
 labels: []
 dependencies:
   - type: blocks
     target: is-01m12k2db1dqxc18fmmsjcy70x
 parent_id: is-01m1118hwdhra16fmaz6jd1smt
 created_at: 2026-08-27T21:47:27.642Z
-updated_at: 2026-08-27T21:47:27.968Z
+updated_at: 2026-08-28T04:20:11.910Z
+closed_at: 2026-08-28T04:20:11.909Z
+close_reason: "Released kash-media v0.4.8 (confirmed live on PyPI). Relocked onto kash-shell 0.4.10 with the direct floor, and fixed a latent '**overrides: dict[str, Any]' annotation in the three media services that the upgrade turned into eight type errors."
+resolution: null
+duplicate_of: null
 ---
 On jlevy/kash-media#11 (draft), after kash-shell 0.4.10 publishes:
 

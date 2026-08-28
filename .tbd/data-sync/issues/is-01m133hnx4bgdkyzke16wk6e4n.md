@@ -3,14 +3,18 @@ type: is
 id: is-01m133hnx4bgdkyzke16wk6e4n
 title: "Upstream: kash web search is a no-op for Anthropic models"
 kind: bug
-status: open
+status: closed
 priority: 2
-version: 1
+version: 2
 labels: []
 dependencies: []
 parent_id: is-01m0zpq37wdhx51829qx0xmf0t
 created_at: 2026-08-28T02:35:25.463Z
-updated_at: 2026-08-28T02:35:25.463Z
+updated_at: 2026-08-28T04:20:12.793Z
+closed_at: 2026-08-28T04:20:12.792Z
+close_reason: "Fixed upstream in kash PR #22 and shipped in kash-shell 0.4.10. deep-transcribe's local _web_search_kwargs workaround is deleted; it now calls enable_web_search directly. Verified end to end: 'Enabling Anthropic web search tool', three searches, five-role roster."
+resolution: null
+duplicate_of: null
 ---
 kash.llm_utils.llm_completion.llm_completion takes enable_web_search, then does two things that together make it inert for Claude models:
 
