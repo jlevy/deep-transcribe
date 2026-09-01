@@ -238,6 +238,20 @@ def get_speaker_roster(item: Item) -> list[str]:
     ]
 
 
+def get_concepts(item: Item) -> list[dict[str, Any]]:
+    """Read extracted concepts from the extensible item metadata payload."""
+    item_extra = cast(dict[str, object], item.extra or {})
+    transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    raw = (
+        cast(dict[object, object], transcription).get("concepts")
+        if isinstance(transcription, dict)
+        else None
+    )
+    if not isinstance(raw, list):
+        return []
+    return [cast(dict[str, Any], c) for c in cast(list[object], raw) if isinstance(c, dict)]
+
+
 def get_processing_instructions(item: Item) -> str | None:
     """Read trusted post-transcription instructions from item metadata."""
     return TranscriptionMetadata(extra=item.extra or {}).processing_instructions

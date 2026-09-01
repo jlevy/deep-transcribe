@@ -4,6 +4,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 from kash.exec import kash_action, kash_precondition
 from kash.exec.preconditions import has_simple_text_body, has_timestamps
@@ -39,6 +40,14 @@ _ISLAND_PATTERN = re.compile(
 )
 
 _EXCERPT_MAX_CHARS = 140
+
+CONCEPT_KINDS = frozenset({"topic", "entity", "term", "claim", "decision"})
+"""Closed vocabulary for concept kinds."""
+
+CONCEPT_RELATION_TYPES = frozenset(
+    {"leads-to", "contrasts-with", "elaborates", "example-of", "depends-on"}
+)
+"""Closed vocabulary for concept relations, so the renderer has a fixed visual language."""
 
 
 @dataclass(frozen=True)
@@ -177,6 +186,47 @@ def _count_sentences_naive(text: str) -> int:
     return len(_SENTENCE_END_PATTERN.findall(text)) or 1
 
 
+@dataclass(frozen=True)
+class RawUnit:
+    """One citation-anchored paragraph as scanned from the document body."""
+
+    key: str
+    start: float
+    label: str | None
+    text: str
+
+
+def scan_raw_units(body: str) -> list[RawUnit]:
+    """Scan citation-anchored units with their full text, label stripped."""
+    citations = list(_CITATION_PATTERN.finditer(body))
+    headings = list(_H2_PATTERN.finditer(body))
+    frames = list(_FRAME_PATTERN.finditer(body))
+    raw_units: list[RawUnit] = []
+    for i, citation in enumerate(citations):
+        # A unit's text runs from the nearest structural boundary to its citation.
+        boundary = 0
+        if i > 0:
+            boundary = citations[i - 1].end()
+        for match_list in (headings, frames):
+            for m in match_list:
+                if m.end() <= citation.start():
+                    boundary = max(boundary, m.end())
+        for m in _DIV_LINE_PATTERN.finditer(body, boundary, citation.start()):
+            boundary = max(boundary, m.end())
+        text = body[boundary : citation.start()].strip()
+        label: str | None = None
+        label_match = _SPEAKER_LABEL_PATTERN.match(text)
+        if label_match:
+            label = label_match.group("name").strip()
+            text = text[label_match.end() :].strip()
+        raw_units.append(
+            RawUnit(
+                key=citation.group("ts"), start=float(citation.group("ts")), label=label, text=text
+            )
+        )
+    return raw_units
+
+
 def build_transcript_index(
     body: str,
     *,
@@ -186,6 +236,7 @@ def build_transcript_index(
     duration: float | None = None,
     sentence_onsets: list[float] | None = None,
     has_video: bool = False,
+    concepts: list[dict[str, object]] | None = None,
 ) -> TranscriptIndex:
     """
     Build the transcript index from a formatted transcript body.
@@ -209,25 +260,14 @@ def build_transcript_index(
         return speaker_ids[name]
 
     units: list[UnitEntry] = []
-    starts = [float(m.group("ts")) for m in citations]
+    raw_units = scan_raw_units(body)
+    starts = [raw.start for raw in raw_units]
     previous_speaker: str | None = None
-    for i, citation in enumerate(citations):
-        # A unit's text runs from the nearest structural boundary to its citation.
-        boundary = 0
-        if i > 0:
-            boundary = citations[i - 1].end()
-        for match_list in (headings, frames):
-            for m in match_list:
-                if m.end() <= citation.start():
-                    boundary = max(boundary, m.end())
-        for m in _DIV_LINE_PATTERN.finditer(body, boundary, citation.start()):
-            boundary = max(boundary, m.end())
-        raw_text = body[boundary : citation.start()].strip()
-
-        label_match = _SPEAKER_LABEL_PATTERN.match(raw_text)
-        if label_match:
-            speaker = speaker_id_for(label_match.group("name").strip())
-            raw_text = raw_text[label_match.end() :].strip()
+    for i, raw in enumerate(raw_units):
+        citation = citations[i]
+        raw_text = raw.text
+        if raw.label is not None:
+            speaker = speaker_id_for(raw.label)
         else:
             speaker = previous_speaker
         previous_speaker = speaker
@@ -301,6 +341,7 @@ def build_transcript_index(
         )
 
     reported_duration = duration if duration is not None and duration >= last_end - 0.5 else None
+    resolved_concepts = _resolve_concepts(concepts or [], units)
     return TranscriptIndex(
         media_url=url,
         media_duration=reported_duration,
@@ -312,7 +353,75 @@ def build_transcript_index(
         sections=sections,
         units=units,
         frames=frame_entries,
+        concepts=resolved_concepts,
     )
+
+
+def _resolve_concepts(
+    concepts: list[dict[str, object]], units: list[UnitEntry]
+) -> list[dict[str, object]]:
+    """
+    Validate extracted concepts against the built units.
+
+    Mentions must cite citation keys that exist; unresolvable mentions are dropped, and
+    a concept with no valid mention is dropped entirely. Spans and speakers are derived
+    here so the extractor never asserts timing the transcript does not support.
+    """
+    import logging
+
+    log = logging.getLogger(__name__)
+    unit_by_key = {u.key: u for u in units}
+    known_ids = {str(c.get("id")) for c in concepts}
+    resolved: list[dict[str, object]] = []
+    for concept in concepts:
+        raw_mentions = concept.get("mentions")
+        keys = (
+            [str(k) for k in cast("list[object]", raw_mentions)]
+            if isinstance(raw_mentions, list)
+            else []
+        )
+        mention_units = [unit_by_key[k] for k in keys if k in unit_by_key]
+        dropped = len(keys) - len(mention_units)
+        if dropped:
+            log.warning(
+                "Dropping %d unresolvable mention(s) for concept %r", dropped, concept.get("id")
+            )
+        if not mention_units:
+            log.warning("Dropping concept %r: no valid mentions", concept.get("id"))
+            continue
+        raw_relations = concept.get("relations")
+        relation_dicts = [
+            cast("dict[str, object]", r)
+            for r in (
+                cast("list[object]", raw_relations) if isinstance(raw_relations, list) else []
+            )
+            if isinstance(r, dict)
+        ]
+        relations = [
+            {"to": str(r.get("to")), "type": str(r.get("type"))}
+            for r in relation_dicts
+            if str(r.get("to")) in known_ids
+            and str(r.get("to")) != str(concept.get("id"))
+            and str(r.get("type")) in CONCEPT_RELATION_TYPES
+        ]
+        speakers = sorted({u.speaker for u in mention_units if u.speaker is not None})
+        resolved.append(
+            {
+                "id": str(concept.get("id")),
+                "label": str(concept.get("label") or concept.get("id")),
+                "kind": str(concept.get("kind") or "topic"),
+                "gloss": str(concept.get("gloss") or ""),
+                "mentions": [{"t": u.start, "key": u.key} for u in mention_units],
+                "span": [
+                    min(u.start for u in mention_units),
+                    max(u.end for u in mention_units),
+                ],
+                "speakers": speakers,
+                "relations": relations,
+                "research": concept.get("research"),
+            }
+        )
+    return resolved
 
 
 def index_to_json(index: TranscriptIndex) -> str:
@@ -436,7 +545,7 @@ def attach_transcript_index(item: Item) -> Item:
     The visible prose is untouched; the index binds to existing citation spans by
     their `data-timestamp` values.
     """
-    from deep_transcribe.transcription_metadata import get_speaker_roster
+    from deep_transcribe.transcription_metadata import get_concepts, get_speaker_roster
 
     if not item.body:
         raise InvalidInput(f"Item must have a body: {item}")
@@ -451,6 +560,7 @@ def attach_transcript_index(item: Item) -> Item:
         duration=duration,
         sentence_onsets=_resolve_sentence_onsets(item),
         has_video=has_video,
+        concepts=get_concepts(item),
     )
     return item.derived_copy(body=f"{body.rstrip()}\n\n{render_index_island(index)}\n")
 

@@ -236,6 +236,11 @@ def _process_transcript(
     if options.insert_frame_captures:
         result = insert_frame_captures(result)
 
+    if options.extract_concepts and options.format:
+        from deep_transcribe.concept_map import extract_transcript_concepts
+
+        result = extract_transcript_concepts(result, web_search=options.web_search)
+
     if options.build_index and options.format:
         from deep_transcribe.transcript_index import attach_transcript_index
 

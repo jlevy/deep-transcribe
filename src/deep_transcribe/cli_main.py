@@ -191,6 +191,14 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--concepts",
+        action="store_true",
+        help=(
+            "Extract a concept map: key concepts with glosses, timeline spans, and "
+            "relations, shown in the transcript's analytics views (included in --deep)"
+        ),
+    )
+    processing.add_argument(
         "--web-search",
         "--web_search",
         dest="web_search",
@@ -562,6 +570,9 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
         options = options.merge_with(TranscribeOptions.deep())
     if args.with_flags:
         options = options.merge_with(TranscribeOptions.from_with_flags(args.with_flags))
+
+    if args.concepts:
+        options = options.merge_with(TranscribeOptions(extract_concepts=True))
 
     # Presets do not carry this: it is an explicit opt-in that must outlive them.
     if args.web_search:
