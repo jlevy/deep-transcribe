@@ -9,7 +9,7 @@ author: Joshua Levy with Claude assistance
 
 **Author:** Joshua Levy with Claude assistance
 
-**Status:** Draft
+**Status:** Implemented (pending a live --concepts run and interactive QA)
 
 ## Overview
 
@@ -434,41 +434,41 @@ second search gate.
 Everything here is computable without an LLM and testable against the cached workspace,
 so it can be built and reviewed at zero API cost.
 
-- [ ] Add `transcript_index.py` with the index dataclasses and a pure
+- [x] Add `transcript_index.py` with the index dataclasses and a pure
   `build_transcript_index(body, metadata, duration)` function.
-- [ ] Resolve sentence-level timings by running the existing alignment at sentence
+- [x] Resolve sentence-level timings by running the existing alignment at sentence
   granularity and keeping only the numbers.
-- [ ] Read media duration and the speaker roster from workspace metadata; handle both
+- [x] Read media duration and the speaker roster from workspace metadata; handle both
   being absent.
-- [ ] Add the `attach_transcript_index` action and wire it into `_process_transcript` as
+- [x] Add the `attach_transcript_index` action and wire it into `_process_transcript` as
   the last stage.
-- [ ] Add the guard test pinning that `minify_html` leaves the JSON island intact.
-- [ ] Add `dt_core.js.jinja`: index parsing, DOM binding by citation key, time↔pixel
+- [x] Add the guard test pinning that `minify_html` leaves the JSON island intact.
+- [x] Add `dt_core.js.jinja`: index parsing, DOM binding by citation key, time↔pixel
   math, the event contract, and the absent-index no-op path.
-- [ ] Add `dt_viz.css.jinja` with the speaker palette, light and dark variants, and
+- [x] Add `dt_viz.css.jinja` with the speaker palette, light and dark variants, and
   print rules that hide all interactive chrome.
-- [ ] Add `dt_rail.js.jinja`: bucketed speaker band, section and frame ticks, viewport
+- [x] Add `dt_rail.js.jinja`: bucketed speaker band, section and frame ticks, viewport
   window, reading marker, hover tooltip, click-to-scroll, shift-click-to-seek, keyboard
   navigation, and popover coexistence.
-- [ ] Add `dt_stats.js.jinja`: the speaker analytics table and talk-flow strip.
-- [ ] Add `dt_frames.js.jinja`: gutter placement, the connector overlay, viewport-scoped
+- [x] Add `dt_stats.js.jinja`: the speaker analytics table and talk-flow strip.
+- [x] Add `dt_frames.js.jinja`: gutter placement, the connector overlay, viewport-scoped
   drawing, and bidirectional hover.
-- [ ] Extend `deep_transcribe_webpage.html.jinja` to include the new partials.
-- [ ] Verify the printed PDF against `docs/examples/snl-hotel-check-in-transcript.pdf`.
+- [x] Extend `deep_transcribe_webpage.html.jinja` to include the new partials.
+- [x] Verify the printed PDF against `docs/examples/snl-hotel-check-in-transcript.pdf`.
 
 ### Phase 2: Concepts
 
-- [ ] Add `concept_map.py` with the concept schema, the closed relation vocabulary, and
+- [x] Add `concept_map.py` with the concept schema, the closed relation vocabulary, and
   the extraction prompt.
-- [ ] Validate every mention timestamp against the index; drop and log unresolvable
+- [x] Validate every mention timestamp against the index; drop and log unresolvable
   ones.
-- [ ] Add the optional research pass behind `--web-search`, with sources and provenance
+- [x] Add the optional research pass behind `--web-search`, with sources and provenance
   preserved and search results barred from introducing concepts.
-- [ ] Merge concepts into the index before serialization.
-- [ ] Add `--concepts`; set `extract_concepts=True` in `deep()`.
-- [ ] Add `dt_concepts.js.jinja`: concept ribbon, time-layered graph, selection
+- [x] Merge concepts into the index before serialization.
+- [x] Add `--concepts`; set `extract_concepts=True` in `deep()`.
+- [x] Add `dt_concepts.js.jinja`: concept ribbon, time-layered graph, selection
   filtering, runtime prose highlighting, and the printable definition list.
-- [ ] Add the concept-span lane to the rail.
+- [x] Add the concept-span lane to the rail.
 
 ## Testing Strategy
 
@@ -518,6 +518,25 @@ command keeps its current cost and runtime.
 The README example is regenerated once Phase 1 lands, with a screenshot showing the rail
 and connectors. The committed PDF is regenerated only if the print comparison shows it
 should be, which by design it should not.
+
+## Implementation Notes
+
+Two contract details changed during implementation, verified on the cached SNL
+workspace:
+
+- The island is a bare top-level `<script type="application/json">` line rather than a
+  wrapped div: CommonMark passes a top-level script block through verbatim but escapes
+  one nested in a div.
+  Spaces in the compact JSON are encoded as `\u0020` so Markdown normalization on save
+  cannot line-wrap the island mid-string.
+- Sentence counts come from the raw transcript’s sentence-span onsets (the same numbers
+  in `sentence_times`), not from re-segmenting rendered prose: the available splitter is
+  deliberately conservative for formatting and undercounts short conversational
+  sentences. A punctuation count is the fallback when no raw source is available.
+- The duration probe consults only the existing media cache and never downloads; when
+  the cache is cold, duration is null and the client marks the tail estimated.
+- The stats panel is hidden in print along with all other injected chrome: print parity
+  with the committed PDF was preferred over a printable table.
 
 ## Open Questions
 
