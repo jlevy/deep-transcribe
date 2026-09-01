@@ -42,6 +42,12 @@ class TranscribeOptions:
     insert_frame_captures: bool = False
     """Insert frame captures from video (for video content)."""
 
+    build_index: bool = False
+    """Embed the JSON transcript index used by the timeline and analytics views."""
+
+    extract_concepts: bool = False
+    """Extract a concept map from the transcript (LLM stage)."""
+
     web_search: bool = False
     """Let the speaker roster step corroborate facts with web search."""
 
@@ -51,7 +57,7 @@ class TranscribeOptions:
 
     @classmethod
     def formatted(cls) -> TranscribeOptions:
-        return cls(format=True, identify_speakers=True)
+        return cls(format=True, identify_speakers=True, build_index=True)
 
     @classmethod
     def annotated(cls) -> TranscribeOptions:
@@ -63,6 +69,7 @@ class TranscribeOptions:
             add_summary_bullets=True,
             add_description=True,
             insert_frame_captures=True,
+            build_index=True,
         )
 
     @classmethod
@@ -75,6 +82,8 @@ class TranscribeOptions:
             add_summary_bullets=True,
             add_description=True,
             insert_frame_captures=True,
+            build_index=True,
+            extract_concepts=True,
         )
 
     @classmethod

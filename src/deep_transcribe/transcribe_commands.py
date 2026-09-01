@@ -236,6 +236,11 @@ def _process_transcript(
     if options.insert_frame_captures:
         result = insert_frame_captures(result)
 
+    if options.build_index and options.format:
+        from deep_transcribe.transcript_index import attach_transcript_index
+
+        result = attach_transcript_index(result)
+
     if not has_overview_stage:
         set_processing_instructions(result, processing_instructions)
 
