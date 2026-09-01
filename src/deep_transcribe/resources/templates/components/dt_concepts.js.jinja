@@ -1,0 +1,220 @@
+/* Deep Transcribe concept views: a swimlane ribbon of when each concept is
+   discussed, a time-layered relation graph (chronology supplies the x axis;
+   no force simulation), and a plain definition list that also serves print
+   and screen readers. Selecting a concept highlights its mentions in the
+   prose and broadcasts dt:conceptselect for the rail. */
+(function () {
+  "use strict";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  let model = null;
+  let selected = null;
+  let root = null;
+
+  function svgEl(name, attrs, text) {
+    const el = document.createElementNS(SVG_NS, name);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function timeSpan() {
+    const units = model.index.units;
+    const start = units.length ? units[0].start : 0;
+    return { start, length: Math.max(1, model.duration - start) };
+  }
+
+  function select(id) {
+    selected = selected === id ? null : id;
+    root.querySelectorAll("[data-concept]").forEach((node) => {
+      node.classList.toggle("dt-selected", node.dataset.concept === selected);
+      node.classList.toggle("dt-dimmed", selected != null && node.dataset.concept !== selected);
+    });
+    for (const unit of model.index.units) {
+      if (!unit.el) continue;
+      const concept = model.index.concepts.find((c) => c.id === selected);
+      const hit = concept && concept.mentions.some((m) => m.key === unit.key);
+      unit.el.classList.toggle("dt-mention", Boolean(hit));
+    }
+    document.dispatchEvent(new CustomEvent("dt:conceptselect", { detail: { id: selected } }));
+  }
+
+  function buildRibbon(concepts) {
+    const { start, length } = timeSpan();
+    const rowHeight = 22;
+    const labelWidth = 168;
+    const width = 720;
+    const height = concepts.length * rowHeight + 18;
+    const svg = svgEl("svg", {
+      class: "dt-ribbon",
+      viewBox: `0 0 ${width} ${height}`,
+      role: "img",
+    });
+    const x = (t) => labelWidth + ((t - start) / length) * (width - labelWidth - 8);
+
+    concepts.forEach((concept, row) => {
+      const y = row * rowHeight + 14;
+      const group = svgEl("g", { class: "dt-ribbon-row", "data-concept": concept.id });
+      group.appendChild(
+        svgEl("text", { class: "dt-ribbon-label", x: labelWidth - 8, y: y + 4 }, concept.label)
+      );
+      group.appendChild(
+        svgEl("line", { class: "dt-ribbon-track", x1: labelWidth, x2: width - 8, y1: y, y2: y })
+      );
+      group.appendChild(
+        svgEl("rect", {
+          class: "dt-ribbon-span",
+          x: x(concept.span[0]),
+          y: y - 4,
+          width: Math.max(3, x(concept.span[1]) - x(concept.span[0])),
+          height: 8,
+          rx: 3,
+        })
+      );
+      for (const mention of concept.mentions) {
+        const dot = svgEl("circle", {
+          class: "dt-ribbon-mention",
+          cx: x(mention.t), cy: y, r: 3.4,
+        });
+        dot.addEventListener("click", (event) => {
+          event.stopPropagation();
+          model.seek(mention.t);
+        });
+        group.appendChild(dot);
+      }
+      group.addEventListener("click", () => select(concept.id));
+      svg.appendChild(group);
+    });
+    return svg;
+  }
+
+  /* Deterministic time-layered layout: x from first mention, rows packed
+     greedily so labels never collide. */
+  function buildGraph(concepts) {
+    const { start, length } = timeSpan();
+    const width = 720;
+    const nodeHeight = 26;
+    const rowGap = 14;
+    const charWidth = 6.6;
+    const x = (t) => 10 + ((t - start) / length) * (width - 30);
+
+    const nodes = concepts.map((concept) => {
+      const w = Math.min(190, concept.label.length * charWidth + 22);
+      return { concept, x: x(concept.mentions[0].t), w };
+    });
+    const rows = [];
+    for (const node of nodes) {
+      let row = rows.findIndex((endX) => node.x > endX + 12);
+      if (row === -1) {
+        row = rows.length;
+        rows.push(-Infinity);
+      }
+      node.x = Math.min(node.x, width - node.w - 10);
+      node.row = row;
+      rows[row] = node.x + node.w;
+    }
+    const height = rows.length * (nodeHeight + rowGap) + 16;
+    const svg = svgEl("svg", {
+      class: "dt-graph",
+      viewBox: `0 0 ${width} ${height}`,
+      role: "img",
+    });
+    const nodeById = new Map(nodes.map((n) => [n.concept.id, n]));
+    const yOf = (n) => n.row * (nodeHeight + rowGap) + 10;
+
+    for (const node of nodes) {
+      for (const relation of node.concept.relations) {
+        const target = nodeById.get(relation.to);
+        if (!target) continue;
+        const x0 = node.x + node.w / 2;
+        const y0 = yOf(node) + nodeHeight / 2;
+        const x1 = target.x + target.w / 2;
+        const y1 = yOf(target) + nodeHeight / 2;
+        const bend = (y1 - y0) * 0.3 + (y1 === y0 ? 26 : 0);
+        const edge = svgEl("path", {
+          class: "dt-graph-edge",
+          d: `M ${x0} ${y0} C ${x0} ${y0 + bend}, ${x1} ${y1 - bend}, ${x1} ${y1}`,
+        });
+        edge.appendChild(svgEl("title", {}, `${node.concept.label} ${relation.type} ${target.concept.label}`));
+        svg.appendChild(edge);
+      }
+    }
+    for (const node of nodes) {
+      const y = yOf(node);
+      const group = svgEl("g", {
+        class: `dt-graph-node dt-kind-${node.concept.kind}`,
+        "data-concept": node.concept.id,
+      });
+      group.appendChild(
+        svgEl("rect", { x: node.x, y, width: node.w, height: nodeHeight, rx: 6 })
+      );
+      const label = svgEl(
+        "text",
+        { x: node.x + node.w / 2, y: y + nodeHeight / 2 + 4 },
+        node.concept.label.length > 26
+          ? node.concept.label.slice(0, 25) + "…"
+          : node.concept.label
+      );
+      group.appendChild(label);
+      group.appendChild(svgEl("title", {}, `${node.concept.label} — ${node.concept.gloss}`));
+      group.addEventListener("click", () => select(node.concept.id));
+      svg.appendChild(group);
+    }
+    return svg;
+  }
+
+  function buildDefinitions(concepts) {
+    const list = el("dl", "dt-concept-defs");
+    for (const concept of concepts) {
+      const term = el("dt", `dt-concept-term dt-kind-${concept.kind}`);
+      term.dataset.concept = concept.id;
+      term.appendChild(el("span", "dt-concept-kind", concept.kind));
+      term.appendChild(document.createTextNode(concept.label));
+      const time = el("span", "dt-concept-time", model.formatTime(concept.span[0]));
+      term.appendChild(time);
+      term.addEventListener("click", () => select(concept.id));
+      const detail = el("dd", "dt-concept-gloss", concept.gloss);
+      if (concept.research && concept.research.summary) {
+        const research = el("div", "dt-concept-research", concept.research.summary);
+        for (const source of concept.research.sources || []) {
+          const a = document.createElement("a");
+          a.href = source;
+          a.textContent = new URL(source).hostname;
+          a.target = "_blank";
+          a.rel = "noopener";
+          research.append(" ", a);
+        }
+        detail.appendChild(research);
+      }
+      list.append(term, detail);
+    }
+    return list;
+  }
+
+  function init(event) {
+    model = event.detail.model;
+    const concepts = model.index.concepts;
+    if (!concepts || !concepts.length) return;
+
+    root = el("section", "dt-concepts dt-ui");
+    root.setAttribute("aria-label", "Concept map");
+    root.appendChild(el("div", "dt-stats-title", "Concepts"));
+    root.appendChild(buildRibbon(concepts));
+    root.appendChild(buildGraph(concepts));
+    root.appendChild(buildDefinitions(concepts));
+
+    const anchor = document.querySelector(".dt-stats");
+    const scope = document.querySelector(".long-text") || document.body;
+    if (anchor) anchor.after(root);
+    else scope.prepend(root);
+  }
+
+  document.addEventListener("dt:ready", init);
+})();

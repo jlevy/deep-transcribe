@@ -298,6 +298,141 @@ body.yt-open #dt-rail {
   font-size: var(--font-size-mono-tiny);
 }
 
+/* ---- Concept views ---- */
+
+.dt-concepts {
+  margin: 1.5rem 0 2rem;
+  padding: 1rem;
+  font-size: var(--font-size-small);
+  border: 1px solid var(--color-border-hint);
+  border-radius: 0.4rem;
+}
+
+.dt-ribbon,
+.dt-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0.5rem 0 1rem;
+}
+
+.dt-ribbon-row,
+.dt-graph-node {
+  cursor: pointer;
+}
+
+.dt-ribbon-label {
+  text-anchor: end;
+  font-size: 11px;
+  fill: var(--color-text);
+}
+
+.dt-ribbon-track {
+  stroke: var(--color-hint-gentle);
+  stroke-width: 1;
+}
+
+.dt-ribbon-span {
+  fill: var(--color-primary);
+  opacity: 0.35;
+}
+
+.dt-ribbon-mention {
+  fill: var(--color-primary);
+  stroke: var(--color-bg-solid);
+  stroke-width: 1;
+}
+
+.dt-graph-edge {
+  fill: none;
+  stroke: var(--color-hint);
+  stroke-width: 1.2;
+  opacity: 0.6;
+  marker-end: none;
+}
+
+.dt-graph-node rect {
+  fill: var(--color-bg-alt-solid);
+  stroke: var(--color-hint-strong);
+  stroke-width: 1.2;
+}
+
+.dt-graph-node text {
+  text-anchor: middle;
+  font-size: 11px;
+  fill: var(--color-text);
+}
+
+/* Kind is encoded on the node border and the definition badge. */
+.dt-kind-topic rect { stroke: var(--color-primary); }
+.dt-kind-entity rect { stroke: var(--dt-sp-5); }
+.dt-kind-term rect { stroke: var(--dt-sp-7); }
+.dt-kind-claim rect { stroke: var(--dt-sp-1); }
+.dt-kind-decision rect { stroke: var(--dt-sp-4); }
+
+.dt-selected .dt-ribbon-span,
+.dt-selected.dt-graph-node rect {
+  opacity: 1;
+  stroke-width: 2;
+}
+
+.dt-dimmed {
+  opacity: 0.35;
+}
+
+.dt-concept-defs {
+  margin: 0.5rem 0 0;
+}
+
+.dt-concept-term {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-weight: var(--font-weight-sans-bold);
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.dt-concept-kind {
+  font-size: var(--font-size-mono-tiny);
+  font-family: var(--font-mono);
+  color: var(--color-hint-strong);
+  border: 1px solid var(--color-border-hint);
+  border-radius: 0.25rem;
+  padding: 0 0.3rem;
+}
+
+.dt-concept-time {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono-tiny);
+  color: var(--color-tertiary);
+}
+
+.dt-concept-gloss {
+  margin: 0.1rem 0 0.4rem 1.4rem;
+  color: var(--color-secondary);
+}
+
+.dt-concept-research {
+  margin-top: 0.2rem;
+  font-size: var(--font-size-tiny);
+  color: var(--color-hint-strong);
+  border-left: 2px solid var(--color-border-hint);
+  padding-left: 0.5rem;
+}
+
+/* Selected concept's mentions highlighted in the prose, runtime only. */
+.dt-mention {
+  background: var(--color-hover-bg);
+  outline: 2px solid var(--color-border-hint);
+  border-radius: 0.25rem;
+}
+
+.dt-rail-concept-span {
+  fill: var(--color-primary);
+  opacity: 0.8;
+}
+
 /* ---- Frame captures: gutter layout and connectors ---- */
 
 /* Applied by dt_frames only on wide viewports; cleared when narrow. */

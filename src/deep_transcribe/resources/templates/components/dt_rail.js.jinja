@@ -210,6 +210,26 @@
       }
     });
 
+    document.addEventListener("dt:conceptselect", (e) => {
+      svg.querySelectorAll(".dt-rail-concept-span").forEach((el) => el.remove());
+      const concept = model.index.concepts.find((c) => c.id === e.detail.id);
+      if (!concept) return;
+      const height = rail.clientHeight;
+      for (const mention of concept.mentions) {
+        const unit = model.index.units.find((u) => u.key === mention.key);
+        if (!unit) continue;
+        const y0 = timeToY(unit.start, height);
+        svg.appendChild(
+          svgEl("rect", {
+            class: "dt-rail-concept-span",
+            x: 0, y: y0, width: 4,
+            height: Math.max(3, timeToY(unit.end, height) - y0),
+            rx: 2,
+          })
+        );
+      }
+    });
+
     new ResizeObserver(render).observe(rail);
     render();
   }
