@@ -1,0 +1,126 @@
+/* Deep Transcribe speaker analytics: a real table of per-speaker counts and
+   shares plus a talk-flow strip of the conversation's speaker sequence.
+   Inserted between the outline and the transcript; hidden in print. */
+(function () {
+  "use strict";
+
+  function cell(tag, text, className) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  }
+
+  function formatShare(part, whole) {
+    return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "–";
+  }
+
+  function buildTable(model) {
+    const totals = model.index.totals;
+    const table = document.createElement("table");
+    const head = document.createElement("tr");
+    head.append(
+      cell("th", "Speaker"),
+      cell("th", "Turns", "dt-num"),
+      cell("th", "Words", "dt-num"),
+      cell("th", "Sentences", "dt-num"),
+      cell("th", "Time", "dt-num"),
+      cell("th", "Words %", "dt-num"),
+      cell("th", "Time %", "dt-num"),
+      cell("th", "", "dt-bar-cell")
+    );
+    table.createTHead().append(head);
+
+    const body = table.createTBody();
+    const ranked = [...model.index.speakers].sort((a, b) => {
+      const at = totals.by_speaker[a.id]?.seconds || 0;
+      const bt = totals.by_speaker[b.id]?.seconds || 0;
+      return bt - at;
+    });
+    for (const speaker of ranked) {
+      const t = totals.by_speaker[speaker.id];
+      if (!t) continue;
+      const row = document.createElement("tr");
+      row.append(
+        cell("td", speaker.name, `dt-speaker-name ${model.speakerClass(speaker.id)}`),
+        cell("td", String(t.turns), "dt-num"),
+        cell("td", String(t.words), "dt-num"),
+        cell("td", String(t.sentences), "dt-num"),
+        cell("td", model.formatTime(t.seconds), "dt-num"),
+        cell("td", formatShare(t.words, totals.words), "dt-num"),
+        cell("td", formatShare(t.seconds, totals.seconds), "dt-num")
+      );
+      const barCell = cell("td", "", "dt-bar-cell");
+      const bar = document.createElement("div");
+      bar.className = `dt-bar ${model.speakerClass(speaker.id)}`;
+      bar.style.width = formatShare(t.seconds, totals.seconds);
+      barCell.appendChild(bar);
+      row.appendChild(barCell);
+      body.appendChild(row);
+    }
+    return table;
+  }
+
+  function buildFlow(model) {
+    const units = model.index.units;
+    const strip = document.createElement("div");
+    strip.className = "dt-flow";
+    strip.setAttribute("aria-label", "Talk flow");
+    if (!units.length) return strip;
+
+    // Merge consecutive same-speaker units into turns.
+    const turns = [];
+    for (const unit of units) {
+      const last = turns[turns.length - 1];
+      if (last && last.speaker === unit.speaker) last.end = unit.end;
+      else turns.push({ speaker: unit.speaker, start: unit.start, end: unit.end });
+    }
+    const total = units[units.length - 1].end - units[0].start;
+    for (const turn of turns) {
+      const seg = document.createElement("div");
+      seg.className = `dt-flow-seg ${model.speakerClass(turn.speaker)}`;
+      seg.style.flexGrow = String(Math.max(0.001, turn.end - turn.start));
+      const name = model.speakerById.get(turn.speaker)?.name || "";
+      seg.title = `${name} · ${model.formatTime(turn.start)}`;
+      seg.addEventListener("click", () => model.seek(turn.start));
+      strip.appendChild(seg);
+    }
+    void total;
+    return strip;
+  }
+
+  function init(event) {
+    const model = event.detail.model;
+    const { units, speakers } = model.index;
+    if (!units.length || !speakers.length) return;
+
+    const panel = document.createElement("section");
+    panel.className = "dt-stats dt-ui";
+    panel.setAttribute("aria-label", "Speaker analytics");
+    const title = document.createElement("div");
+    title.className = "dt-stats-title";
+    title.textContent = "Speakers";
+    panel.append(title, buildTable(model), buildFlow(model));
+
+    const caption = document.createElement("div");
+    caption.className = "dt-flow-caption";
+    caption.append(
+      cell("span", model.formatTime(units[0].start)),
+      cell(
+        "span",
+        model.durationEstimated
+          ? `~${model.formatTime(model.duration)}`
+          : model.formatTime(model.duration)
+      )
+    );
+    panel.appendChild(caption);
+
+    const scope = document.querySelector(".long-text") || document.body;
+    const anchor =
+      scope.querySelector(".transcript-outline") || scope.querySelector(".description");
+    if (anchor) anchor.after(panel);
+    else scope.prepend(panel);
+  }
+
+  document.addEventListener("dt:ready", init);
+})();

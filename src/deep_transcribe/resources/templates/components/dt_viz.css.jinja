@@ -1,0 +1,380 @@
+/* Deep Transcribe timeline and analytics styles.
+   Everything injected by the dt_* modules carries .dt-ui so one print rule
+   can hide the interactive chrome and keep the printed PDF unchanged. */
+
+:root {
+  /* Speaker palette: 8 curated hues, all AA against the light background. */
+  --dt-sp-0: #1f6d79;
+  --dt-sp-1: #8a5d10;
+  --dt-sp-2: #635094;
+  --dt-sp-3: #993f55;
+  --dt-sp-4: #356f41;
+  --dt-sp-5: #33629c;
+  --dt-sp-6: #96482e;
+  --dt-sp-7: #4f6172;
+  --dt-rail-width: 3.4rem;
+  --dt-rail-band: 0.65rem;
+}
+
+[data-theme="dark"] {
+  /* Same hues, lightened to stay AA against the dark background. */
+  --dt-sp-0: #72c5d3;
+  --dt-sp-1: #d9a94e;
+  --dt-sp-2: #ab9ce2;
+  --dt-sp-3: #e08a9b;
+  --dt-sp-4: #82c28d;
+  --dt-sp-5: #8ab4e8;
+  --dt-sp-6: #dd9678;
+  --dt-sp-7: #9fb0c0;
+}
+
+/* One class per speaker slot; components read the indirection var. */
+.dt-s0 { --dt-c: var(--dt-sp-0); }
+.dt-s1 { --dt-c: var(--dt-sp-1); }
+.dt-s2 { --dt-c: var(--dt-sp-2); }
+.dt-s3 { --dt-c: var(--dt-sp-3); }
+.dt-s4 { --dt-c: var(--dt-sp-4); }
+.dt-s5 { --dt-c: var(--dt-sp-5); }
+.dt-s6 { --dt-c: var(--dt-sp-6); }
+.dt-s7 { --dt-c: var(--dt-sp-7); }
+
+/* Speaker labels in the prose pick up their speaker's color. */
+strong.dt-speaker-label {
+  color: var(--dt-c);
+}
+
+.dt-ui {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+}
+
+/* ---- Timeline rail ---- */
+
+#dt-rail {
+  position: fixed;
+  top: 4.5rem;
+  bottom: 3.5rem;
+  right: 0.9rem;
+  width: var(--dt-rail-width);
+  z-index: 40;
+  display: none;
+  border-radius: 0.4rem;
+  outline: none;
+}
+
+#dt-rail:focus-visible {
+  box-shadow: 0 0 0 3px var(--color-primary);
+}
+
+/* Make room for the open video popover, which parks at bottom right. */
+body.yt-open #dt-rail {
+  bottom: min(24rem, 45vh);
+}
+
+@media (min-width: 1150px) {
+  #dt-rail.dt-active {
+    display: block;
+  }
+}
+
+#dt-rail svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.dt-rail-track {
+  fill: var(--color-hint-gentle);
+}
+
+.dt-rail-seg {
+  fill: var(--dt-c, var(--color-hint));
+  opacity: 0.75;
+  transition: opacity 0.15s ease-in-out;
+}
+
+#dt-rail:hover .dt-rail-seg {
+  opacity: 0.95;
+}
+
+.dt-rail-section-tick {
+  stroke: var(--color-text);
+  stroke-width: 1;
+  opacity: 0.55;
+}
+
+.dt-rail-frame-tick {
+  fill: var(--color-bg-solid);
+  stroke: var(--color-hint-strong);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: transform 0.1s ease-in-out;
+}
+
+.dt-rail-frame-tick.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 2;
+  fill: var(--color-hover-bg);
+}
+
+.dt-rail-window {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: var(--color-selection);
+  opacity: 0.16;
+  border-top: 1px solid var(--color-hint-strong);
+  border-bottom: 1px solid var(--color-hint-strong);
+  border-radius: 0.2rem;
+  pointer-events: none;
+}
+
+.dt-rail-marker {
+  position: absolute;
+  left: -0.15rem;
+  width: calc(100% + 0.3rem);
+  height: 0;
+  border-top: 2px solid var(--color-primary);
+  pointer-events: none;
+}
+
+.dt-rail-marker::before {
+  content: "";
+  position: absolute;
+  left: -0.45rem;
+  top: -0.28rem;
+  border: 0.27rem solid transparent;
+  border-left-color: var(--color-primary);
+}
+
+.dt-rail-tip {
+  position: fixed;
+  right: calc(var(--dt-rail-width) + 1.6rem);
+  max-width: 17rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--color-tooltip-bg);
+  color: #fff;
+  border-radius: 0.4rem;
+  font-size: var(--font-size-tiny);
+  line-height: 1.35;
+  pointer-events: none;
+  z-index: 60;
+  backdrop-filter: blur(2px);
+}
+
+.dt-rail-tip .dt-tip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-weight: var(--font-weight-sans-bold);
+  margin-bottom: 0.15rem;
+}
+
+.dt-rail-tip .dt-tip-time {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono-tiny);
+  opacity: 0.85;
+}
+
+.dt-tip-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--dt-c, var(--color-hint));
+  flex: none;
+  align-self: center;
+}
+
+/* ---- Speaker analytics panel ---- */
+
+.dt-stats {
+  margin: 1.5rem 0 2rem;
+  padding: 1rem;
+  font-size: var(--font-size-small);
+  border: 1px solid var(--color-border-hint);
+  border-radius: 0.4rem;
+}
+
+.dt-stats-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+
+.dt-stats table {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-collapse: collapse;
+  font-size: var(--font-size-smaller);
+  table-layout: auto;
+}
+
+/* Neutralize the content table chrome: no cell min-widths, no header band. */
+.dt-stats th,
+.dt-stats td {
+  min-width: 0;
+  max-width: none;
+  background-color: transparent;
+}
+
+.dt-stats tbody tr:nth-child(even) {
+  background-color: var(--color-bg-alt);
+}
+
+.dt-stats th {
+  text-align: left;
+  font-size: var(--font-size-tiny);
+  font-weight: var(--font-weight-sans-medium);
+  color: var(--color-secondary);
+  border-bottom: 1px solid var(--color-border-hint);
+  padding: 0.25rem 0.9rem 0.25rem 0;
+  white-space: nowrap;
+}
+
+.dt-stats th.dt-num,
+.dt-stats td.dt-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dt-stats td {
+  padding: 0.3rem 0.9rem 0.3rem 0;
+  vertical-align: baseline;
+  word-break: normal;
+}
+
+.dt-stats .dt-speaker-name {
+  color: var(--dt-c);
+  font-weight: var(--font-weight-sans-bold);
+  white-space: nowrap;
+}
+
+.dt-stats .dt-bar-cell {
+  width: 22%;
+  min-width: 4.5rem;
+}
+
+.dt-bar {
+  height: 0.55rem;
+  border-radius: 0.3rem;
+  background: var(--dt-c, var(--color-hint));
+  opacity: 0.85;
+  min-width: 2px;
+}
+
+/* Talk-flow strip: the conversation's speaker sequence, left to right. */
+.dt-flow {
+  display: flex;
+  margin-top: 0.9rem;
+  height: 1.1rem;
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+
+.dt-flow-seg {
+  background: var(--dt-c, var(--color-hint));
+  opacity: 0.8;
+  cursor: pointer;
+  min-width: 1px;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.dt-flow-seg:hover {
+  opacity: 1;
+}
+
+.dt-flow-caption {
+  margin-top: 0.35rem;
+  color: var(--color-hint-strong);
+  font-size: var(--font-size-tiny);
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono-tiny);
+}
+
+/* ---- Frame captures: gutter layout and connectors ---- */
+
+/* Applied by dt_frames only on wide viewports; cleared when narrow. */
+@media (min-width: 1450px) {
+  body.dt-frames-gutter .long-text {
+    position: relative;
+  }
+
+  body.dt-frames-gutter .long-text img.frame-capture {
+    position: absolute;
+    left: calc(100% + 1.2rem);
+    width: calc(50vw - 24rem - var(--dt-rail-width) - 3.6rem);
+    max-width: 11rem;
+    margin: 0;
+    border-radius: 0.3rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    transition: box-shadow 0.15s ease-in-out;
+  }
+
+  /* Crowded frames stack like a deck; hover lifts one above its neighbors. */
+  body.dt-frames-gutter .long-text img.frame-capture:hover,
+  body.dt-frames-gutter .long-text img.frame-capture.dt-hot {
+    z-index: 30;
+  }
+
+  body.dt-frames-gutter .long-text img.frame-capture.dt-hot {
+    box-shadow: 0 0 0 2px var(--color-primary), 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+
+#dt-connectors {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 35;
+}
+
+.dt-connector {
+  fill: none;
+  stroke: var(--color-hint);
+  stroke-width: 1.2;
+  opacity: 0.5;
+}
+
+.dt-connector.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 1.8;
+  opacity: 0.95;
+}
+
+/* ---- Print and motion ---- */
+
+@media print {
+  .dt-ui,
+  #dt-rail,
+  #dt-connectors {
+    display: none !important;
+  }
+
+  /* Frames print inline exactly as before this feature. */
+  body.dt-frames-gutter .long-text img.frame-capture {
+    position: static !important;
+    width: auto !important;
+    box-shadow: none !important;
+  }
+
+  strong.dt-speaker-label {
+    color: inherit;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-rail-seg,
+  .dt-flow-seg,
+  .dt-rail-frame-tick {
+    transition: none;
+  }
+}

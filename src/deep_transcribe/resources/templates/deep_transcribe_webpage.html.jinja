@@ -3,6 +3,7 @@
 {% block custom_styles %}
 {{ super() }}
 <style>
+{% include "components/dt_viz.css.jinja" %}
 .timestamp-link,
 .timestamp-link:hover {
   background-color: transparent !important;
@@ -64,3 +65,13 @@
 }
 </style>
 {% endblock custom_styles %}
+
+{% block scripts_extra %}
+{{ super() }}
+<script>
+{% include "components/dt_core.js.jinja" %}
+{% include "components/dt_rail.js.jinja" %}
+{% include "components/dt_stats.js.jinja" %}
+{% include "components/dt_frames.js.jinja" %}
+</script>
+{% endblock scripts_extra %}

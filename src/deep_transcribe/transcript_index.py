@@ -316,10 +316,14 @@ def build_transcript_index(
 
 
 def index_to_json(index: TranscriptIndex) -> str:
-    """Compact JSON, safe to embed in a script element."""
+    """Compact JSON, safe to embed in a script element and in normalized Markdown."""
     payload = json.dumps(index.to_json_dict(), separators=(",", ":"), ensure_ascii=False)
     # `</` could close the script element early; `<\/` is the same string in JSON.
-    return payload.replace("</", "<\\/")
+    payload = payload.replace("</", "<\\/")
+    # With compact separators every space sits inside a string literal. Encoding them
+    # as \u0020 leaves no break points, so Markdown normalization on save cannot
+    # line-wrap the island mid-string.
+    return payload.replace(" ", "\\u0020")
 
 
 def render_index_island(index: TranscriptIndex) -> str:
@@ -349,39 +353,65 @@ def has_transcript_index(item: Item) -> bool:
     return bool(item.body and item.body.find(f'id="{INDEX_ELEMENT_ID}"') != -1)
 
 
-def _resolve_media_duration(item: Item) -> tuple[float | None, bool]:
-    """Best effort: probe the cached source media with ffprobe. Never raises."""
+def _ffprobe_duration(media_path: Path) -> float | None:
     import subprocess
 
-    from kash.utils.file_utils.file_formats_model import MediaType
-    from kash.web_content.file_cache_utils import cache_resource
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            str(media_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+    return round(float(json.loads(result.stdout)["format"]["duration"]), 2)
+
+
+def _find_cached_media(url: str | None, external_path: str | None) -> tuple[Path | None, bool]:
+    """Look up already-cached media without ever triggering a download."""
+    if external_path and Path(external_path).is_file():
+        suffix = Path(external_path).suffix.lower()
+        return Path(external_path), suffix in (".mp4", ".webm", ".mkv", ".mov")
+    if url and url.startswith("file://"):
+        local = Path(url.removeprefix("file://"))
+        if local.is_file():
+            return local, local.suffix.lower() in (".mp4", ".webm", ".mkv", ".mov")
+    if not url:
+        return None, False
+    from importlib import import_module
+
+    from kash.media_base.media_cache import SUFFIX_MP3, SUFFIX_MP4
+    from kash.media_base.media_services import canonicalize_media_url
+    from kash.media_base.media_tools import _media_cache  # pyright: ignore[reportPrivateUsage]
+    from kash.utils.common.url import Url
+
+    # Service canonicalization needs the extractor registry loaded.
+    import_module("kash.kits.media.media_services")
+    canonical = canonicalize_media_url(Url(url))
+    key = str(canonical) if canonical else url
+    audio = _media_cache.find(key, suffix=SUFFIX_MP3)
+    video = _media_cache.find(key, suffix=SUFFIX_MP4)
+    return audio or video, video is not None
+
+
+def _resolve_media_duration(item: Item) -> tuple[float | None, bool]:
+    """Best effort: probe already-cached source media with ffprobe. Never raises."""
     from kash.workspaces.source_items import find_upstream_resource
 
     try:
         resource = find_upstream_resource(item)
-        paths = cache_resource(resource)
-        has_video = MediaType.video in paths
-        media_path = paths.get(MediaType.audio) or paths.get(MediaType.video)
+        media_path, has_video = _find_cached_media(resource.url, resource.external_path)
         if media_path is None:
             return None, has_video
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "json",
-                str(media_path),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=True,
-        )
-        duration = float(json.loads(result.stdout)["format"]["duration"])
-        return round(duration, 2), has_video
+        return _ffprobe_duration(media_path), has_video
     except Exception:
         return None, False
 

@@ -1,0 +1,188 @@
+/* Deep Transcribe core: parses the embedded transcript index, binds it to the
+   rendered DOM, owns time math, and publishes the model other dt_* modules use.
+   Degrades to a no-op when the index island is absent. */
+(function () {
+  "use strict";
+
+  const SPEAKER_CLASS_COUNT = 8;
+
+  function parseIndex() {
+    const el = document.getElementById("dt-transcript-index");
+    if (!el) return null;
+    try {
+      const index = JSON.parse(el.textContent);
+      return index && index.version === 1 && Array.isArray(index.units) ? index : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function formatTime(t) {
+    const s = Math.max(0, Math.floor(t));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = String(s % 60).padStart(2, "0");
+    return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+  }
+
+  function bindUnits(index, scope) {
+    const byKey = new Map();
+    scope.querySelectorAll("span.timestamp-link[data-timestamp]").forEach((span) => {
+      if (!byKey.has(span.dataset.timestamp)) byKey.set(span.dataset.timestamp, span);
+    });
+    for (const unit of index.units) {
+      const span = byKey.get(unit.key);
+      unit.citationEl = span || null;
+      unit.el = span ? span.closest("p, li") || span.parentElement : null;
+    }
+  }
+
+  function bindFrames(index, scope) {
+    const byTime = new Map();
+    scope.querySelectorAll("img.frame-capture").forEach((img) => {
+      const match = /Frame at ([\d.]+) seconds/.exec(img.alt || "");
+      if (match) byTime.set(Number(match[1]), img);
+    });
+    for (const frame of index.frames) frame.el = byTime.get(frame.t) || null;
+  }
+
+  function bindSections(index, scope) {
+    const headings = Array.from(scope.querySelectorAll("h2"));
+    index.sections.forEach((section) => {
+      section.el =
+        headings.find((h) => h.textContent.trim() === section.heading.trim()) || null;
+    });
+  }
+
+  function decorateSpeakerLabels(model) {
+    for (const unit of model.index.units) {
+      if (!unit.el || unit.speaker == null) continue;
+      const strong = unit.el.querySelector("strong");
+      const name = model.speakerById.get(unit.speaker)?.name;
+      if (strong && name && strong.textContent.replace(/:\s*$/, "").trim() === name) {
+        strong.classList.add("dt-speaker-label", model.speakerClass(unit.speaker));
+      }
+    }
+  }
+
+  function buildModel(index) {
+    const speakerById = new Map(index.speakers.map((s) => [s.id, s]));
+    const units = index.units;
+    const lastEnd = units.length ? units[units.length - 1].end : 0;
+    const duration = index.media.duration ?? lastEnd;
+
+    const model = {
+      ready: true,
+      index,
+      speakerById,
+      duration,
+      durationEstimated: index.media.duration == null,
+      formatTime,
+
+      speakerClass(id) {
+        const speaker = speakerById.get(id);
+        return `dt-s${speaker ? speaker.order % SPEAKER_CLASS_COUNT : 0}`;
+      },
+
+      unitAtTime(t) {
+        let found = null;
+        for (const unit of units) {
+          if (unit.start <= t) found = unit;
+          else break;
+        }
+        return found || units[0] || null;
+      },
+
+      /* Interpolate media time from a viewport y position, using the bound
+         unit blocks as anchors. */
+      timeAtViewportY(y) {
+        const anchored = units.filter((u) => u.el);
+        if (!anchored.length) return 0;
+        let previous = null;
+        for (const unit of anchored) {
+          const top = unit.el.getBoundingClientRect().top;
+          if (top > y) break;
+          previous = unit;
+        }
+        if (!previous) return anchored[0].start;
+        const rect = previous.el.getBoundingClientRect();
+        const fraction = Math.min(
+          1,
+          Math.max(0, (y - rect.top) / Math.max(1, rect.height))
+        );
+        return previous.start + fraction * (previous.end - previous.start);
+      },
+
+      seek(t, behavior) {
+        const unit = model.unitAtTime(t);
+        if (!unit || !unit.el) return;
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        unit.el.scrollIntoView({
+          behavior: behavior || (reduced ? "auto" : "smooth"),
+          block: "center",
+        });
+        dispatch("dt:select", { time: t, unit: unit.uid });
+      },
+
+      /* Open the media player at the unit covering t, reusing the page's own
+         YouTube popover interception on the citation link. */
+      playAt(t) {
+        const unit = model.unitAtTime(t);
+        const link = unit && unit.citationEl && unit.citationEl.querySelector("a[href]");
+        if (link) link.click();
+        else model.seek(t);
+      },
+    };
+    return model;
+  }
+
+  function dispatch(name, detail) {
+    document.dispatchEvent(new CustomEvent(name, { detail }));
+  }
+
+  function watchScroll(model) {
+    let pending = false;
+    const emit = () => {
+      pending = false;
+      const y = window.innerHeight * 0.4;
+      dispatch("dt:timechange", {
+        time: model.timeAtViewportY(y),
+        topTime: model.timeAtViewportY(0),
+        bottomTime: model.timeAtViewportY(window.innerHeight),
+        source: "scroll",
+      });
+    };
+    const onScroll = () => {
+      if (!pending) {
+        pending = true;
+        requestAnimationFrame(emit);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    emit();
+  }
+
+  function init() {
+    const index = parseIndex();
+    if (!index) {
+      window.DeepTranscript = Object.freeze({ ready: false });
+      return;
+    }
+    const scope = document.querySelector(".long-text") || document.body;
+    bindUnits(index, scope);
+    bindFrames(index, scope);
+    bindSections(index, scope);
+    const model = buildModel(index);
+    decorateSpeakerLabels(model);
+    window.DeepTranscript = model;
+    dispatch("dt:ready", { model });
+    watchScroll(model);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();

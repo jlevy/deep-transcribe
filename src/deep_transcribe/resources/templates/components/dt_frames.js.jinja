@@ -1,0 +1,134 @@
+/* Deep Transcribe frame connectors: on wide viewports, frame captures move to
+   a right-hand gutter and a fixed SVG overlay draws a bezier from each
+   visible image to its tick on the rail. Below the breakpoint and in print,
+   frames stay inline and no connectors exist. */
+(function () {
+  "use strict";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const GUTTER_QUERY = "(min-width: 1450px)";
+  const RAIL_TICK_X = 34;
+
+  let model = null;
+  let overlay = null;
+  let longText = null;
+  const visible = new Set();
+
+  function gutterFrames() {
+    return model.index.frames.filter((f) => f.el);
+  }
+
+  function layoutGutter() {
+    const active = window.matchMedia(GUTTER_QUERY).matches;
+    document.body.classList.toggle("dt-frames-gutter", active);
+    if (!active) {
+      for (const frame of gutterFrames()) frame.el.style.top = "";
+      return;
+    }
+    const base = longText.getBoundingClientRect().top;
+    // When frames are denser than the gutter can hold, let them overlap like a
+    // deck (up to just over half an image) instead of drifting far from their text.
+    let previousTop = -Infinity;
+    let previousHeight = 0;
+    gutterFrames().forEach((frame, order) => {
+      const anchor = frame.el.closest("p") || frame.el;
+      const desired = anchor.getBoundingClientRect().top - base;
+      const minTop = previousTop + Math.max(24, previousHeight * 0.45);
+      const top = Math.max(desired, minTop);
+      frame.el.style.top = `${top}px`;
+      frame.el.style.zIndex = String(order + 1);
+      previousTop = top;
+      previousHeight = frame.el.getBoundingClientRect().height || 100;
+    });
+  }
+
+  function drawConnectors() {
+    overlay.textContent = "";
+    if (!document.body.classList.contains("dt-frames-gutter")) return;
+    const rail = document.getElementById("dt-rail");
+    if (!rail || getComputedStyle(rail).display === "none") return;
+    const railRect = rail.getBoundingClientRect();
+
+    for (const frame of gutterFrames()) {
+      if (!visible.has(frame.el)) continue;
+      const rect = frame.el.getBoundingClientRect();
+      const x0 = rect.right;
+      const y0 = rect.top + rect.height / 2;
+      const x1 = railRect.left + RAIL_TICK_X;
+      const y1 = railRect.top + (frame.t / model.duration) * railRect.height;
+      const dx = Math.max(20, (x1 - x0) * 0.5);
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute(
+        "d",
+        `M ${x0} ${y0} C ${x0 + dx} ${y0}, ${x1 - dx} ${y1}, ${x1 - 4} ${y1}`
+      );
+      path.setAttribute("class", "dt-connector");
+      path.dataset.frame = frame.uid;
+      overlay.appendChild(path);
+    }
+  }
+
+  function setHot(uid) {
+    overlay.querySelectorAll(".dt-hot").forEach((el) => el.classList.remove("dt-hot"));
+    for (const frame of gutterFrames()) frame.el.classList.toggle("dt-hot", frame.uid === uid);
+    if (uid) {
+      const path = overlay.querySelector(`[data-frame="${uid}"]`);
+      if (path) path.classList.add("dt-hot");
+    }
+  }
+
+  function init(event) {
+    model = event.detail.model;
+    const frames = gutterFrames();
+    if (!frames.length) return;
+    longText = document.querySelector(".long-text") || document.body;
+
+    overlay = document.createElementNS(SVG_NS, "svg");
+    overlay.id = "dt-connectors";
+    document.body.appendChild(overlay);
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) visible.add(entry.target);
+        else visible.delete(entry.target);
+      }
+      schedule();
+    });
+    for (const frame of frames) {
+      observer.observe(frame.el);
+      frame.el.addEventListener("mouseenter", () =>
+        document.dispatchEvent(
+          new CustomEvent("dt:hover", { detail: { frame: frame.uid, origin: "frame" } })
+        )
+      );
+      frame.el.addEventListener("mouseleave", () =>
+        document.dispatchEvent(new CustomEvent("dt:hover", { detail: { frame: null, origin: "frame" } }))
+      );
+    }
+
+    let pending = false;
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        drawConnectors();
+      });
+    }
+
+    function relayout() {
+      layoutGutter();
+      schedule();
+    }
+
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", relayout, { passive: true });
+    window.matchMedia(GUTTER_QUERY).addEventListener("change", relayout);
+    document.addEventListener("dt:hover", (e) => setHot(e.detail.frame));
+    // Images may load after layout; re-place the gutter as sizes settle.
+    for (const frame of frames) frame.el.addEventListener("load", relayout);
+    relayout();
+  }
+
+  document.addEventListener("dt:ready", init);
+})();

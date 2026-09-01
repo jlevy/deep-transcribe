@@ -1,0 +1,218 @@
+/* Deep Transcribe timeline rail: a fixed vertical map of the whole media
+   duration with speaker band, section and frame ticks, a viewport window,
+   and a reading marker. Renders one rect per run of same-speaker pixels so
+   cost tracks rail height, not transcript length. */
+(function () {
+  "use strict";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const BAND_X = 8;
+  const BAND_WIDTH = 12;
+  const FRAME_TICK_X = 34;
+
+  let model = null;
+  let rail, svg, windowEl, markerEl, tipEl;
+
+  function svgEl(name, attrs) {
+    const el = document.createElementNS(SVG_NS, name);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  }
+
+  function timeToY(t, height) {
+    return model.duration > 0 ? (t / model.duration) * height : 0;
+  }
+
+  function yToTime(y, height) {
+    return height > 0 ? Math.min(model.duration, Math.max(0, (y / height) * model.duration)) : 0;
+  }
+
+  function dominantSpeaker(t0, t1) {
+    let best = null;
+    let bestOverlap = 0;
+    for (const unit of model.index.units) {
+      if (unit.end <= t0) continue;
+      if (unit.start >= t1) break;
+      const overlap = Math.min(unit.end, t1) - Math.max(unit.start, t0);
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        best = unit.speaker;
+      }
+    }
+    return best;
+  }
+
+  function render() {
+    const height = rail.clientHeight;
+    if (!height || !model.duration) return;
+    svg.textContent = "";
+    svg.setAttribute("viewBox", `0 0 ${rail.clientWidth} ${height}`);
+
+    svg.appendChild(
+      svgEl("rect", {
+        class: "dt-rail-track",
+        x: BAND_X, y: 0, width: BAND_WIDTH, height, rx: 3,
+      })
+    );
+
+    // Speaker band, quantized to whole pixels and merged into runs.
+    let runStart = 0;
+    let runSpeaker = dominantSpeaker(0, yToTime(1, height));
+    const flush = (yEnd) => {
+      if (runSpeaker != null && yEnd > runStart) {
+        svg.appendChild(
+          svgEl("rect", {
+            class: `dt-rail-seg ${model.speakerClass(runSpeaker)}`,
+            x: BAND_X, y: runStart, width: BAND_WIDTH, height: yEnd - runStart,
+          })
+        );
+      }
+    };
+    for (let y = 1; y < height; y += 1) {
+      const speaker = dominantSpeaker(yToTime(y, height), yToTime(y + 1, height));
+      if (speaker !== runSpeaker) {
+        flush(y);
+        runStart = y;
+        runSpeaker = speaker;
+      }
+    }
+    flush(height);
+
+    for (const section of model.index.sections) {
+      const y = timeToY(section.start, height);
+      svg.appendChild(
+        svgEl("line", {
+          class: "dt-rail-section-tick",
+          x1: BAND_X - 5, x2: BAND_X + BAND_WIDTH + 5, y1: y, y2: y,
+        })
+      );
+    }
+
+    for (const frame of model.index.frames) {
+      const tick = svgEl("circle", {
+        class: "dt-rail-frame-tick",
+        cx: FRAME_TICK_X, cy: timeToY(frame.t, height), r: 3,
+        "data-frame": frame.uid,
+      });
+      tick.addEventListener("click", (event) => {
+        event.stopPropagation();
+        model.playAt(frame.t);
+      });
+      tick.addEventListener("mouseenter", () =>
+        document.dispatchEvent(new CustomEvent("dt:hover", { detail: { frame: frame.uid, origin: "rail" } }))
+      );
+      tick.addEventListener("mouseleave", () =>
+        document.dispatchEvent(new CustomEvent("dt:hover", { detail: { frame: null, origin: "rail" } }))
+      );
+      svg.appendChild(tick);
+    }
+  }
+
+  function showTip(clientY) {
+    const rect = rail.getBoundingClientRect();
+    const t = yToTime(clientY - rect.top, rect.height);
+    const unit = model.unitAtTime(t);
+    if (!unit) return;
+
+    tipEl.textContent = "";
+    const section = model.index.sections.find((s) => t >= s.start && t < s.end);
+    const head = document.createElement("div");
+    head.className = "dt-tip-head";
+    if (unit.speaker != null) {
+      const dot = document.createElement("span");
+      dot.className = `dt-tip-dot ${model.speakerClass(unit.speaker)}`;
+      head.appendChild(dot);
+      head.appendChild(
+        document.createTextNode(model.speakerById.get(unit.speaker)?.name || "")
+      );
+    }
+    const time = document.createElement("span");
+    time.className = "dt-tip-time";
+    time.textContent = model.formatTime(t);
+    head.appendChild(time);
+    tipEl.appendChild(head);
+    if (section) {
+      const sectionLine = document.createElement("div");
+      sectionLine.className = "dt-tip-time";
+      sectionLine.textContent = section.heading;
+      tipEl.appendChild(sectionLine);
+    }
+    tipEl.appendChild(document.createTextNode(unit.excerpt));
+
+    tipEl.hidden = false;
+    const tipHeight = tipEl.offsetHeight;
+    const top = Math.min(
+      window.innerHeight - tipHeight - 8,
+      Math.max(8, clientY - tipHeight / 2)
+    );
+    tipEl.style.top = `${top}px`;
+  }
+
+  function onTimechange(event) {
+    const { time, topTime, bottomTime } = event.detail;
+    const height = rail.clientHeight;
+    markerEl.style.top = `${timeToY(time, height)}px`;
+    const top = timeToY(topTime, height);
+    windowEl.style.top = `${top}px`;
+    windowEl.style.height = `${Math.max(4, timeToY(bottomTime, height) - top)}px`;
+  }
+
+  function onKeydown(event) {
+    const units = model.index.units;
+    if (!units.length) return;
+    const current = model.unitAtTime(model.timeAtViewportY(window.innerHeight * 0.4));
+    const i = units.indexOf(current);
+    let target = null;
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") target = units[Math.min(units.length - 1, i + 1)];
+    else if (event.key === "ArrowUp" || event.key === "ArrowLeft") target = units[Math.max(0, i - 1)];
+    else if (event.key === "Home") target = units[0];
+    else if (event.key === "End") target = units[units.length - 1];
+    else return;
+    event.preventDefault();
+    model.seek(target.start);
+  }
+
+  function init(event) {
+    model = event.detail.model;
+    if (!model.index.units.length) return;
+
+    rail = document.createElement("aside");
+    rail.id = "dt-rail";
+    rail.className = "dt-ui dt-active";
+    rail.tabIndex = 0;
+    rail.setAttribute("aria-label", "Media timeline");
+    svg = document.createElementNS(SVG_NS, "svg");
+    windowEl = document.createElement("div");
+    windowEl.className = "dt-rail-window";
+    markerEl = document.createElement("div");
+    markerEl.className = "dt-rail-marker";
+    tipEl = document.createElement("div");
+    tipEl.className = "dt-rail-tip";
+    tipEl.hidden = true;
+    rail.append(svg, windowEl, markerEl);
+    document.body.append(rail, tipEl);
+
+    rail.addEventListener("mousemove", (e) => showTip(e.clientY));
+    rail.addEventListener("mouseleave", () => (tipEl.hidden = true));
+    rail.addEventListener("click", (e) => {
+      const rect = rail.getBoundingClientRect();
+      const t = yToTime(e.clientY - rect.top, rect.height);
+      if (e.shiftKey) model.playAt(t);
+      else model.seek(t);
+    });
+    rail.addEventListener("keydown", onKeydown);
+    document.addEventListener("dt:timechange", onTimechange);
+    document.addEventListener("dt:hover", (e) => {
+      svg.querySelectorAll(".dt-rail-frame-tick.dt-hot").forEach((el) => el.classList.remove("dt-hot"));
+      if (e.detail.frame) {
+        const tick = svg.querySelector(`[data-frame="${e.detail.frame}"]`);
+        if (tick) tick.classList.add("dt-hot");
+      }
+    });
+
+    new ResizeObserver(render).observe(rail);
+    render();
+  }
+
+  document.addEventListener("dt:ready", init);
+})();
