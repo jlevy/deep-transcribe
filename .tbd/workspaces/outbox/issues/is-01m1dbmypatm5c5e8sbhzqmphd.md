@@ -3,9 +3,9 @@ type: is
 id: is-01m1dbmypatm5c5e8sbhzqmphd
 title: Time-mapped transcript analysis and concept map
 kind: epic
-status: open
+status: closed
 priority: 1
-version: 10
+version: 11
 spec_path: docs/project/specs/active/plan-2026-08-31-transcript-timeline-and-concept-map.md
 labels: []
 dependencies: []
@@ -19,6 +19,10 @@ child_order_hints:
   - is-01m1dbp059hmx278czczgmhjtm
   - is-01m1dbp0gq7rdk8vaaqfnag9s7
 created_at: 2026-09-01T02:09:25.705Z
-updated_at: 2026-09-01T02:10:30.893Z
+updated_at: 2026-09-01T06:03:38.534Z
+closed_at: 2026-09-01T06:03:38.534Z
+close_reason: "All eight child beads implemented, tested, and merged into PR #18; live --concepts LLM run and manual QA sweep remain as follow-ups"
+resolution: null
+duplicate_of: null
 ---
 Turn the HTML export into an analytically readable document: a sticky timeline rail, speaker analytics, frame-to-timeline connectors, and an extracted concept map. Deterministic index in the pipeline, dependency-free client rendering, unchanged prose and PDF.
