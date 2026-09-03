@@ -305,6 +305,9 @@ def test_models_profile_can_be_selected_before_transcription(
 
     monkeypatch.setattr(transcribe_commands, "run_transcription", fake_run_transcription)
     monkeypatch.setattr(setup, "kash_setup", fake_kash_setup)
+    # kash_setup is mocked, so no .env loading happens; satisfy the key preflight.
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     output = StringIO()
     with redirect_stdout(output):

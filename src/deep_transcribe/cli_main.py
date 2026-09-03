@@ -705,13 +705,37 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         console_log_level=LogLevel.warning,
     )
 
+    # Fail fast, after kash setup has loaded .env files, if required keys are absent.
+    from deep_transcribe.api_keys import format_missing_keys_message, missing_api_keys
+
+    options = _build_transcribe_options(args)
+    missing_keys = missing_api_keys(options, workspace)
+    if missing_keys:
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "error": "missing API keys",
+                        "missing": [key.var for key in missing_keys],
+                        "help": "deep-transcribe --docs",
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+        else:
+            from rich import print as rprint
+
+            rprint(f"[red]{format_missing_keys_message(missing_keys)}[/red]")
+        raise SystemExit(2)
+
     try:
         from deep_transcribe.transcribe_commands import run_transcription
 
         transcript_path, html_path = run_transcription(
             workspace,
             args.source,
-            _build_transcribe_options(args),
+            options,
             args.language,
             transcription_model=args.transcription_model,
             diarize_model=args.diarize_model,
