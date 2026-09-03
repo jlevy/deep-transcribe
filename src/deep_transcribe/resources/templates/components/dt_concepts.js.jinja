@@ -10,6 +10,7 @@
   let model = null;
   let selected = null;
   let root = null;
+  const rootExtras = [];
 
   function svgEl(name, attrs, text) {
     const el = document.createElementNS(SVG_NS, name);
@@ -33,10 +34,12 @@
 
   function select(id) {
     selected = selected === id ? null : id;
-    root.querySelectorAll("[data-concept]").forEach((node) => {
-      node.classList.toggle("dt-selected", node.dataset.concept === selected);
-      node.classList.toggle("dt-dimmed", selected != null && node.dataset.concept !== selected);
-    });
+    for (const scope of [root, ...rootExtras]) {
+      scope.querySelectorAll("[data-concept]").forEach((node) => {
+        node.classList.toggle("dt-selected", node.dataset.concept === selected);
+        node.classList.toggle("dt-dimmed", selected != null && node.dataset.concept !== selected);
+      });
+    }
     for (const unit of model.index.units) {
       if (!unit.el) continue;
       const concept = model.index.concepts.find((c) => c.id === selected);
@@ -198,22 +201,60 @@
     return list;
   }
 
+  /* Claims and decisions get their own focused panel, with each entry
+     attributed to the speakers who made it. */
+  function buildClaims(concepts) {
+    const claims = concepts.filter((c) => c.kind === "claim" || c.kind === "decision");
+    if (!claims.length) return null;
+    const panel = model.makePanel("Claims");
+    const list = el("dl", "dt-concept-defs");
+    for (const concept of claims) {
+      const term = el("dt", `dt-concept-term dt-kind-${concept.kind}`);
+      term.dataset.concept = concept.id;
+      term.appendChild(el("span", "dt-concept-kind", concept.kind));
+      term.appendChild(document.createTextNode(concept.label));
+      for (const speakerId of concept.speakers) {
+        const name = model.speakerById.get(speakerId)?.name;
+        if (name) {
+          term.appendChild(
+            el("span", `dt-claim-speaker ${model.speakerClass(speakerId)}`, name)
+          );
+        }
+      }
+      const chip = el("span", "dt-time-chip", model.formatTime(concept.span[0]));
+      chip.title = "Jump to this claim";
+      chip.addEventListener("click", (event) => {
+        event.stopPropagation();
+        model.seek(concept.span[0]);
+      });
+      term.appendChild(chip);
+      term.addEventListener("click", () => select(concept.id));
+      list.append(term, el("dd", "dt-concept-gloss", concept.gloss));
+    }
+    panel.appendChild(list);
+    return panel;
+  }
+
   function init(event) {
     model = event.detail.model;
     const concepts = model.index.concepts;
     if (!concepts || !concepts.length) return;
 
-    root = el("section", "dt-concepts dt-ui");
-    root.setAttribute("aria-label", "Concept map");
-    root.appendChild(el("div", "dt-stats-title", "Concepts"));
+    root = model.makePanel("Concepts");
+    root.classList.add("dt-concepts");
     root.appendChild(buildRibbon(concepts));
     root.appendChild(buildGraph(concepts));
     root.appendChild(buildDefinitions(concepts));
+    model.panels.bottom.appendChild(root);
 
-    const anchor = document.querySelector(".dt-stats");
-    const scope = document.querySelector(".long-text") || document.body;
-    if (anchor) anchor.after(root);
-    else scope.prepend(root);
+    const claimsPanel = buildClaims(concepts);
+    if (claimsPanel) {
+      // Claims select through the shared handler, so keep them inside root's
+      // event scope by tracking selection classes on both panels.
+      model.panels.bottom.appendChild(claimsPanel);
+      claimsPanel.querySelectorAll("[data-concept]").forEach(() => {});
+      rootExtras.push(claimsPanel);
+    }
   }
 
   document.addEventListener("dt:ready", init);

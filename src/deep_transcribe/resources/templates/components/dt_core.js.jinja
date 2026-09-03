@@ -140,6 +140,38 @@
     document.dispatchEvent(new CustomEvent(name, { detail }));
   }
 
+  /* Panel containers straddle the server-rendered outline so injected panels
+     land in the agreed order (Timeline, Speakers / outline / Concepts, Claims)
+     without moving stored content. */
+  function mountPanelContainers(scope) {
+    const top = document.createElement("div");
+    top.id = "dt-top-panels";
+    const bottom = document.createElement("div");
+    bottom.id = "dt-bottom-panels";
+    const outline = scope.querySelector(".transcript-outline");
+    if (outline) {
+      outline.before(top);
+      outline.after(bottom);
+    } else {
+      const description = scope.querySelector(".description");
+      if (description) description.after(top);
+      else scope.prepend(top);
+      top.after(bottom);
+    }
+    return { top, bottom };
+  }
+
+  function makePanel(title) {
+    const panel = document.createElement("section");
+    panel.className = "dt-panel dt-ui";
+    panel.setAttribute("aria-label", title);
+    const heading = document.createElement("div");
+    heading.className = "dt-panel-title";
+    heading.textContent = title;
+    panel.appendChild(heading);
+    return panel;
+  }
+
   function watchScroll(model) {
     let pending = false;
     const emit = () => {
@@ -175,6 +207,9 @@
     bindSections(index, scope);
     const model = buildModel(index);
     decorateSpeakerLabels(model);
+    const containers = mountPanelContainers(scope);
+    model.panels = containers;
+    model.makePanel = makePanel;
     window.DeepTranscript = model;
     dispatch("dt:ready", { model });
     watchScroll(model);

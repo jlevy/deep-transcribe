@@ -53,6 +53,9 @@ EXTRACTION_PROMPT = dedent("""
     - Base every concept and gloss only on the transcript{search_clause}. Do not add
       outside facts to glosses.
     - Relations are optional and must use only the listed types and other concept ids.
+    - Capture the most consequential claims and decisions speakers make as kind
+      "claim" or "decision", wording each gloss as what is asserted or decided and by
+      whom.
     - Use each id once.
     {research_rules}
     Transcript turns:

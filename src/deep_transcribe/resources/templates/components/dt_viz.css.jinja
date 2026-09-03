@@ -3,40 +3,49 @@
    can hide the interactive chrome and keep the printed PDF unchanged. */
 
 :root {
-  /* Speaker palette: 8 curated hues, all AA against the light background. */
-  --dt-sp-0: #1f6d79;
-  --dt-sp-1: #8a5d10;
-  --dt-sp-2: #635094;
-  --dt-sp-3: #993f55;
-  --dt-sp-4: #356f41;
-  --dt-sp-5: #33629c;
-  --dt-sp-6: #96482e;
-  --dt-sp-7: #4f6172;
+  /* Speaker palette: 8 hues. --dt-sp-N is the text-safe variant (WCAG AA on
+     the theme background); --dt-sp-N-vivid is the brighter fill variant used
+     for bands, bars, and markers in both themes. */
+  --dt-sp-0: #0b7285;
+  --dt-sp-1: #9a5b00;
+  --dt-sp-2: #6741d9;
+  --dt-sp-3: #c2255c;
+  --dt-sp-4: #28803a;
+  --dt-sp-5: #1971c2;
+  --dt-sp-6: #c23d08;
+  --dt-sp-7: #495d92;
+  --dt-sp-0-vivid: #22b8cf;
+  --dt-sp-1-vivid: #f59f00;
+  --dt-sp-2-vivid: #845ef7;
+  --dt-sp-3-vivid: #f06595;
+  --dt-sp-4-vivid: #40c057;
+  --dt-sp-5-vivid: #339af0;
+  --dt-sp-6-vivid: #f76707;
+  --dt-sp-7-vivid: #748ffc;
   --dt-rail-width: 3.4rem;
-  --dt-rail-band: 0.65rem;
 }
 
 [data-theme="dark"] {
   /* Same hues, lightened to stay AA against the dark background. */
-  --dt-sp-0: #72c5d3;
-  --dt-sp-1: #d9a94e;
-  --dt-sp-2: #ab9ce2;
-  --dt-sp-3: #e08a9b;
-  --dt-sp-4: #82c28d;
-  --dt-sp-5: #8ab4e8;
-  --dt-sp-6: #dd9678;
-  --dt-sp-7: #9fb0c0;
+  --dt-sp-0: #3bc9db;
+  --dt-sp-1: #ffc078;
+  --dt-sp-2: #b197fc;
+  --dt-sp-3: #faa2c1;
+  --dt-sp-4: #8ce99a;
+  --dt-sp-5: #74c0fc;
+  --dt-sp-6: #ffa94d;
+  --dt-sp-7: #a5b4d4;
 }
 
-/* One class per speaker slot; components read the indirection var. */
-.dt-s0 { --dt-c: var(--dt-sp-0); }
-.dt-s1 { --dt-c: var(--dt-sp-1); }
-.dt-s2 { --dt-c: var(--dt-sp-2); }
-.dt-s3 { --dt-c: var(--dt-sp-3); }
-.dt-s4 { --dt-c: var(--dt-sp-4); }
-.dt-s5 { --dt-c: var(--dt-sp-5); }
-.dt-s6 { --dt-c: var(--dt-sp-6); }
-.dt-s7 { --dt-c: var(--dt-sp-7); }
+/* One class per speaker slot; components read the indirection vars. */
+.dt-s0 { --dt-c: var(--dt-sp-0); --dt-cv: var(--dt-sp-0-vivid); }
+.dt-s1 { --dt-c: var(--dt-sp-1); --dt-cv: var(--dt-sp-1-vivid); }
+.dt-s2 { --dt-c: var(--dt-sp-2); --dt-cv: var(--dt-sp-2-vivid); }
+.dt-s3 { --dt-c: var(--dt-sp-3); --dt-cv: var(--dt-sp-3-vivid); }
+.dt-s4 { --dt-c: var(--dt-sp-4); --dt-cv: var(--dt-sp-4-vivid); }
+.dt-s5 { --dt-c: var(--dt-sp-5); --dt-cv: var(--dt-sp-5-vivid); }
+.dt-s6 { --dt-c: var(--dt-sp-6); --dt-cv: var(--dt-sp-6-vivid); }
+.dt-s7 { --dt-c: var(--dt-sp-7); --dt-cv: var(--dt-sp-7-vivid); }
 
 /* Speaker labels in the prose pick up their speaker's color. */
 strong.dt-speaker-label {
@@ -48,7 +57,102 @@ strong.dt-speaker-label {
   font-feature-settings: var(--font-features-sans);
 }
 
-/* ---- Timeline rail ---- */
+/* ---- Shared panel treatment (matches the transcript outline: no box) ---- */
+
+.dt-panel {
+  margin: 1.5rem 0 2rem;
+  padding: 1rem;
+  font-size: var(--font-size-small);
+}
+
+.dt-panel-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+
+.dt-time-chip {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono-tiny);
+  color: var(--color-secondary);
+  background: var(--color-bg-alt);
+  border-radius: 0.25rem;
+  padding: 0 0.3rem;
+  margin-left: 0.45rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dt-time-chip:hover {
+  color: var(--color-primary);
+  background: var(--color-hover-bg);
+}
+
+/* ---- Horizontal Timeline overview panel ---- */
+
+.dt-overview {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dt-ov-axis {
+  stroke: var(--color-border-hint);
+  stroke-width: 1;
+}
+
+.dt-ov-axis-label {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  fill: var(--color-tertiary);
+}
+
+.dt-ov-section {
+  fill: var(--color-bg-alt);
+  stroke: var(--color-hint);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: stroke 0.15s ease-in-out, fill 0.15s ease-in-out;
+}
+
+.dt-ov-section.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 1.8;
+  fill: var(--color-hover-bg);
+}
+
+.dt-ov-section-label {
+  font-size: 9.5px;
+  fill: var(--color-secondary);
+  pointer-events: none;
+}
+
+.dt-ov-band {
+  fill: var(--dt-cv, var(--color-hint));
+  opacity: 0.9;
+  cursor: pointer;
+}
+
+.dt-ov-frame {
+  fill: var(--color-bg-solid);
+  stroke: var(--color-hint-strong);
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.dt-ov-frame:hover,
+.dt-ov-frame.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 2;
+}
+
+.dt-ov-marker {
+  stroke: var(--color-primary);
+  stroke-width: 1.6;
+  pointer-events: none;
+}
+
+/* ---- Vertical rail (hidden until the transcript is being read) ---- */
 
 #dt-rail {
   position: fixed;
@@ -60,6 +164,16 @@ strong.dt-speaker-label {
   display: none;
   border-radius: 0.4rem;
   outline: none;
+  opacity: 0;
+  transform: translateX(0.6rem);
+  transition: opacity 0.35s ease-in-out, transform 0.35s ease-in-out;
+  pointer-events: none;
+}
+
+#dt-rail.dt-rail-visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 #dt-rail:focus-visible {
@@ -90,13 +204,13 @@ body.yt-open #dt-rail {
 }
 
 .dt-rail-seg {
-  fill: var(--dt-c, var(--color-hint));
-  opacity: 0.75;
+  fill: var(--dt-cv, var(--color-hint));
+  opacity: 0.85;
   transition: opacity 0.15s ease-in-out;
 }
 
 #dt-rail:hover .dt-rail-seg {
-  opacity: 0.95;
+  opacity: 1;
 }
 
 .dt-rail-section-tick {
@@ -110,7 +224,6 @@ body.yt-open #dt-rail {
   stroke: var(--color-hint-strong);
   stroke-width: 1;
   cursor: pointer;
-  transition: transform 0.1s ease-in-out;
 }
 
 .dt-rail-frame-tick.dt-hot {
@@ -183,26 +296,12 @@ body.yt-open #dt-rail {
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 50%;
-  background: var(--dt-c, var(--color-hint));
+  background: var(--dt-cv, var(--color-hint));
   flex: none;
   align-self: center;
 }
 
 /* ---- Speaker analytics panel ---- */
-
-.dt-stats {
-  margin: 1.5rem 0 2rem;
-  padding: 1rem;
-  font-size: var(--font-size-small);
-  border: 1px solid var(--color-border-hint);
-  border-radius: 0.4rem;
-}
-
-.dt-stats-title {
-  font-weight: 600;
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
-}
 
 .dt-stats table {
   width: 100%;
@@ -262,8 +361,7 @@ body.yt-open #dt-rail {
 .dt-bar {
   height: 0.55rem;
   border-radius: 0.3rem;
-  background: var(--dt-c, var(--color-hint));
-  opacity: 0.85;
+  background: var(--dt-cv, var(--color-hint));
   min-width: 2px;
 }
 
@@ -277,8 +375,8 @@ body.yt-open #dt-rail {
 }
 
 .dt-flow-seg {
-  background: var(--dt-c, var(--color-hint));
-  opacity: 0.8;
+  background: var(--dt-cv, var(--color-hint));
+  opacity: 0.9;
   cursor: pointer;
   min-width: 1px;
   transition: opacity 0.15s ease-in-out;
@@ -291,7 +389,6 @@ body.yt-open #dt-rail {
 .dt-flow-caption {
   margin-top: 0.35rem;
   color: var(--color-hint-strong);
-  font-size: var(--font-size-tiny);
   display: flex;
   justify-content: space-between;
   font-family: var(--font-mono);
@@ -299,14 +396,6 @@ body.yt-open #dt-rail {
 }
 
 /* ---- Concept views ---- */
-
-.dt-concepts {
-  margin: 1.5rem 0 2rem;
-  padding: 1rem;
-  font-size: var(--font-size-small);
-  border: 1px solid var(--color-border-hint);
-  border-radius: 0.4rem;
-}
 
 .dt-ribbon,
 .dt-graph {
@@ -348,7 +437,6 @@ body.yt-open #dt-rail {
   stroke: var(--color-hint);
   stroke-width: 1.2;
   opacity: 0.6;
-  marker-end: none;
 }
 
 .dt-graph-node rect {
@@ -421,6 +509,13 @@ body.yt-open #dt-rail {
   padding-left: 0.5rem;
 }
 
+/* Claims panel entries name their speakers in speaker colors. */
+.dt-claim-speaker {
+  color: var(--dt-c);
+  font-weight: var(--font-weight-sans-medium);
+  white-space: nowrap;
+}
+
 /* Selected concept's mentions highlighted in the prose, runtime only. */
 .dt-mention {
   background: var(--color-hover-bg);
@@ -449,15 +544,18 @@ body.yt-open #dt-rail {
     margin: 0;
     border-radius: 0.3rem;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-    transition: box-shadow 0.15s ease-in-out;
+    transition: box-shadow 0.15s ease-in-out, transform 0.2s ease-in-out;
   }
 
-  /* Crowded frames stack like a deck; hover lifts one above its neighbors. */
+  /* Hover (or rail hover) lifts a frame above overlapping neighbors; the
+     .dt-raised class is kept briefly after the pointer leaves, tooltip-style,
+     before the deck settles back. */
+  body.dt-frames-gutter .long-text img.frame-capture.dt-raised {
+    z-index: 30 !important;
+    transform: scale(1.04);
+  }
+
   body.dt-frames-gutter .long-text img.frame-capture:hover,
-  body.dt-frames-gutter .long-text img.frame-capture.dt-hot {
-    z-index: 30;
-  }
-
   body.dt-frames-gutter .long-text img.frame-capture.dt-hot {
     box-shadow: 0 0 0 2px var(--color-primary), 0 2px 8px rgba(0, 0, 0, 0.3);
   }
@@ -499,6 +597,7 @@ body.yt-open #dt-rail {
     position: static !important;
     width: auto !important;
     box-shadow: none !important;
+    transform: none !important;
   }
 
   strong.dt-speaker-label {
@@ -507,9 +606,11 @@ body.yt-open #dt-rail {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #dt-rail,
   .dt-rail-seg,
   .dt-flow-seg,
-  .dt-rail-frame-tick {
-    transition: none;
+  .dt-ov-section,
+  body.dt-frames-gutter .long-text img.frame-capture {
+    transition: none !important;
   }
 }

@@ -6,9 +6,9 @@
   "use strict";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const BAND_X = 8;
+  const BAND_X = 22;
   const BAND_WIDTH = 12;
-  const FRAME_TICK_X = 34;
+  const FRAME_TICK_X = 8;
 
   let model = null;
   let rail, svg, windowEl, markerEl, tipEl;
@@ -155,6 +155,17 @@
     const top = timeToY(topTime, height);
     windowEl.style.top = `${top}px`;
     windowEl.style.height = `${Math.max(4, timeToY(bottomTime, height) - top)}px`;
+    updateVisibility();
+  }
+
+  /* The overview panels stay the focus at the top of the page; the rail fades
+     in once the transcript itself is being read. */
+  function updateVisibility() {
+    const first = model.index.units.find((u) => u.el);
+    if (!first) return;
+    const visible = first.el.getBoundingClientRect().top < window.innerHeight * 0.75;
+    rail.classList.toggle("dt-rail-visible", visible);
+    if (!visible) tipEl.hidden = true;
   }
 
   function onKeydown(event) {
@@ -232,6 +243,7 @@
 
     new ResizeObserver(render).observe(rail);
     render();
+    updateVisibility();
   }
 
   document.addEventListener("dt:ready", init);

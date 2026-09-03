@@ -7,7 +7,7 @@
 
   const SVG_NS = "http://www.w3.org/2000/svg";
   const GUTTER_QUERY = "(min-width: 1450px)";
-  const RAIL_TICK_X = 34;
+  const RAIL_TICK_X = 8;
 
   let model = null;
   let overlay = null;
@@ -46,7 +46,8 @@
     overlay.textContent = "";
     if (!document.body.classList.contains("dt-frames-gutter")) return;
     const rail = document.getElementById("dt-rail");
-    if (!rail || getComputedStyle(rail).display === "none") return;
+    if (!rail || !rail.classList.contains("dt-rail-visible")) return;
+    if (getComputedStyle(rail).display === "none") return;
     const railRect = rail.getBoundingClientRect();
 
     for (const frame of gutterFrames()) {
@@ -68,9 +69,13 @@
     }
   }
 
-  function setHot(uid) {
+  function setHot(uid, handlers) {
     overlay.querySelectorAll(".dt-hot").forEach((el) => el.classList.remove("dt-hot"));
-    for (const frame of gutterFrames()) frame.el.classList.toggle("dt-hot", frame.uid === uid);
+    for (const frame of gutterFrames()) {
+      frame.el.classList.toggle("dt-hot", frame.uid === uid);
+      if (frame.uid === uid) handlers.raise(frame);
+      else if (frame.el.classList.contains("dt-raised")) handlers.restoreLater(frame);
+    }
     if (uid) {
       const path = overlay.querySelector(`[data-frame="${uid}"]`);
       if (path) path.classList.add("dt-hot");
@@ -94,16 +99,32 @@
       }
       schedule();
     });
+    // A hovered frame rises above overlapping neighbors immediately and, like
+    // a tooltip, settles back only after a short delay once the pointer leaves.
+    const restoreTimers = new Map();
+    const raise = (frame) => {
+      clearTimeout(restoreTimers.get(frame.uid));
+      frame.el.classList.add("dt-raised");
+    };
+    const restoreLater = (frame) => {
+      clearTimeout(restoreTimers.get(frame.uid));
+      restoreTimers.set(
+        frame.uid,
+        setTimeout(() => frame.el.classList.remove("dt-raised"), 650)
+      );
+    };
     for (const frame of frames) {
       observer.observe(frame.el);
-      frame.el.addEventListener("mouseenter", () =>
+      frame.el.addEventListener("mouseenter", () => {
+        raise(frame);
         document.dispatchEvent(
           new CustomEvent("dt:hover", { detail: { frame: frame.uid, origin: "frame" } })
-        )
-      );
-      frame.el.addEventListener("mouseleave", () =>
-        document.dispatchEvent(new CustomEvent("dt:hover", { detail: { frame: null, origin: "frame" } }))
-      );
+        );
+      });
+      frame.el.addEventListener("mouseleave", () => {
+        restoreLater(frame);
+        document.dispatchEvent(new CustomEvent("dt:hover", { detail: { frame: null, origin: "frame" } }));
+      });
     }
 
     let pending = false;
@@ -124,7 +145,7 @@
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", relayout, { passive: true });
     window.matchMedia(GUTTER_QUERY).addEventListener("change", relayout);
-    document.addEventListener("dt:hover", (e) => setHot(e.detail.frame));
+    document.addEventListener("dt:hover", (e) => setHot(e.detail.frame, { raise, restoreLater }));
     // Images may load after layout; re-place the gutter as sizes settle.
     for (const frame of frames) frame.el.addEventListener("load", relayout);
     relayout();

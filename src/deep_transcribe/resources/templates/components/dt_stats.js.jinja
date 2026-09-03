@@ -94,13 +94,9 @@
     const { units, speakers } = model.index;
     if (!units.length || !speakers.length) return;
 
-    const panel = document.createElement("section");
-    panel.className = "dt-stats dt-ui";
-    panel.setAttribute("aria-label", "Speaker analytics");
-    const title = document.createElement("div");
-    title.className = "dt-stats-title";
-    title.textContent = "Speakers";
-    panel.append(title, buildTable(model), buildFlow(model));
+    const panel = model.makePanel("Speakers");
+    panel.classList.add("dt-stats");
+    panel.append(buildTable(model), buildFlow(model));
 
     const caption = document.createElement("div");
     caption.className = "dt-flow-caption";
@@ -115,11 +111,7 @@
     );
     panel.appendChild(caption);
 
-    const scope = document.querySelector(".long-text") || document.body;
-    const anchor =
-      scope.querySelector(".transcript-outline") || scope.querySelector(".description");
-    if (anchor) anchor.after(panel);
-    else scope.prepend(panel);
+    model.panels.top.appendChild(panel);
   }
 
   document.addEventListener("dt:ready", init);
