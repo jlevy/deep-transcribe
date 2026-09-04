@@ -1,0 +1,16 @@
+---
+type: is
+id: is-01m1q8mqy5vtyy8cpnspnwghbk
+title: Make the rerun table in docs.md true
+kind: task
+status: open
+priority: 1
+version: 1
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
+labels: []
+dependencies: []
+parent_id: is-01m1n3knrvxt38paq147xp42s3
+created_at: 2026-09-04T22:29:17.380Z
+updated_at: 2026-09-04T22:29:17.380Z
+---
+docs.md row 162 says a hint change 'reuses the cached transcript and everything through section headings'. Measured on a fresh workspace it re-runs break_into_paragraphs and insert_section_headings — 46 minutes on #501 — because hints are written back to the hashed resource (see dt-xjlp). Rewrite the row to what is measured now; when dt-xjlp lands, restore the original wording. Same pass: soften line 62's '12 hours or more is supported' to 'tested end to end at five hours' until dt-qc7j Phase 3 produces a real 12-hour run. Do this AFTER the R6 and R8 review fixes land, since both also edit docs.md.

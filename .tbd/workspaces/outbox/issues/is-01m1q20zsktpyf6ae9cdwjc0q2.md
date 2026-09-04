@@ -5,12 +5,13 @@ title: "PR #19 review R4: collapsed segment steals the section heading"
 kind: bug
 status: closed
 priority: 1
-version: 3
+version: 4
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1q1zs4f81krjzenfbtmp35t
 created_at: 2026-09-04T20:33:38.609Z
-updated_at: 2026-09-04T20:46:39.944Z
+updated_at: 2026-09-04T22:29:16.046Z
 closed_at: 2026-09-04T20:46:39.943Z
 close_reason: Heading now moves only when the suppressed run reaches the section's end.
 resolution: null

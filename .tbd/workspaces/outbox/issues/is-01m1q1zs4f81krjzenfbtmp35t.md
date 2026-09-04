@@ -5,7 +5,8 @@ title: "Address review: PR #19 — long-form scale"
 kind: task
 status: open
 priority: 1
-version: 13
+version: 14
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
@@ -23,5 +24,5 @@ child_order_hints:
   - is-01m1q212jf1rpbkeeyetz96gb7
   - is-01m1q212vq29vy3zq5m8ynk64d
 created_at: 2026-09-04T20:32:59.022Z
-updated_at: 2026-09-04T20:33:41.751Z
+updated_at: 2026-09-04T22:29:15.963Z
 ---

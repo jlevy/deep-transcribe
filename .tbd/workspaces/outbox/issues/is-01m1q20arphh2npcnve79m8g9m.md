@@ -5,12 +5,13 @@ title: "PR #19 review R3: frame-density cap strips 80% of frames from short medi
 kind: bug
 status: closed
 priority: 0
-version: 3
+version: 4
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1q1zs4f81krjzenfbtmp35t
 created_at: 2026-09-04T20:33:17.077Z
-updated_at: 2026-09-04T20:43:50.822Z
+updated_at: 2026-09-04T22:29:16.046Z
 closed_at: 2026-09-04T20:43:50.820Z
 close_reason: Floor on absolute frame count added alongside the density; the real showcase shape (15 frames over 4:26) is now untouched, verified to fail against the old target. Long-form thinning unchanged at ~240 of 502.
 resolution: null
