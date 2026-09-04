@@ -3,14 +3,18 @@ type: is
 id: is-01m1p0rsvvp8ah3tczzv446xdc
 title: Reduce pass times out on the maps that need it
 kind: bug
-status: open
+status: closed
 priority: 0
-version: 1
+version: 2
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T10:52:27.386Z
-updated_at: 2026-09-04T10:52:27.386Z
+updated_at: 2026-09-04T16:11:19.657Z
+closed_at: 2026-09-04T16:11:19.656Z
+close_reason: "Fixed by batching the reduce to 25 concepts per call. On the exact 119-concept map that timed out twice: 114 concepts in 13 themes, 0 unthemed, 249 s."
+resolution: null
+duplicate_of: null
 ---
 The concept reduce pass times out at the size it is actually needed for.
 
