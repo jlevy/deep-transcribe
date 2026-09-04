@@ -470,3 +470,49 @@ def test_results_omit_the_hint_path_when_nothing_was_suggested(
     import json as _json
 
     assert "suggested_segments" not in _json.loads(capsys.readouterr().out)
+
+
+def test_segments_flag_survives_metadata_validation(tmp_path: Path) -> None:
+    """
+    --segments was built, documented, and never run end to end. The metadata validator
+    rejects unknown fields, so the flag failed on the first real invocation with
+    "Unsupported transcription metadata fields: ['segments']" before anything ran.
+    """
+    import argparse
+
+    from kash.model import Item, ItemType
+
+    from deep_transcribe.cli_main import build_transcription_metadata
+    from deep_transcribe.transcription_metadata import get_segment_hints
+
+    hints = tmp_path / "segments.yml"
+    hints.write_text('segments:\n  - at: "0:00 - 1:49"\n    purpose: teaser\n')
+
+    args = argparse.Namespace(
+        metadata=None,
+        context_file=[],
+        context=[],
+        segments=hints,
+        title=None,
+        description=None,
+        key_term=[],
+        speaker=None,
+        speaker_role=None,
+        instructions_file=[],
+        instructions=[],
+    )
+
+    metadata = build_transcription_metadata(args)
+
+    item = Item(type=ItemType.doc, body="x", extra=metadata.extra)
+    carried = get_segment_hints(item)
+    assert isinstance(carried, dict)
+    assert carried["segments"][0]["purpose"] == "teaser"
+    assert carried["segments"][0]["at"] == "0:00:00 - 0:01:49"
+
+
+def test_metadata_still_rejects_a_genuinely_unknown_field() -> None:
+    from deep_transcribe.transcription_metadata import transcription_metadata_from_mapping
+
+    with pytest.raises(ValueError, match="Unsupported"):
+        transcription_metadata_from_mapping({"not_a_field": 1})

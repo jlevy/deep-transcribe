@@ -149,6 +149,7 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         "speaker_hints",
         "speaker_roster",
         "processing_instructions",
+        SEGMENTS_KEY,
     }
     unexpected_fields = sorted(str(key) for key in data_dict if key not in allowed_fields)
     if unexpected_fields:
@@ -184,6 +185,14 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         transcription["processing_instructions"] = _optional_text(
             data_dict["processing_instructions"], "processing_instructions"
         )
+    # Segment hints pass through as the mapping the hints file parsed to; the pipeline
+    # strips them before the cached stages and validates them where they are used.
+    for source in (transcription, data_dict):
+        if SEGMENTS_KEY in source:
+            hints = source[SEGMENTS_KEY]
+            if hints is not None and not isinstance(hints, dict):
+                raise ValueError(f"`{SEGMENTS_KEY}` must be a mapping")
+            transcription[SEGMENTS_KEY] = hints
     if transcription or TRANSCRIPTION_METADATA_KEY in extra:
         extra[TRANSCRIPTION_METADATA_KEY] = transcription
 
