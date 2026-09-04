@@ -43,7 +43,9 @@ person can read and correct, not a silent deletion inside a pipeline stage.
   cleanly.
 - Keep every downstream view consistent with the exclusions: concepts, outline,
   synopsis, speaker statistics, and the timeline.
-- Make what was removed visible rather than silent, with the excluded time reported.
+- Keep excluded passages in the document but collapsed and grayed, expandable in place,
+  so nothing is lost and nothing is in the way.
+- Make what was set aside visible rather than silent, with the excluded time reported.
 
 ## Non-Goals
 
@@ -123,15 +125,30 @@ rather than guessed at.
 
 ### Downstream consistency
 
-Excluded units are marked in the transcript index rather than deleted, so every view can
-agree without the document losing text:
+Nothing is removed. Excluded units are marked in the transcript index, so every view
+agrees while the document keeps every word that was actually said.
 
-- Concept extraction and the outline read only included units.
-- Speaker statistics report content time, with excluded time shown separately.
-- The Timeline overview shades excluded spans distinctly, so their share is visible at a
-  glance.
-- The transcript marks excluded passages rather than removing them, since the words were
-  really said; `--elements` may later offer an export that omits them entirely.
+**In the transcript**, an excluded run collapses to a single line carrying a kind chip
+(`INTRO`, `SPONSOR`, `OUTRO`, `DUPLICATE`), its duration, and its time — the same chip
+vocabulary the concept views use, so the page still reads as one system.
+Clicking it expands the passage in place, rendered in the supporting gray rather than
+the content color, which signals at a glance that it sits outside the analysis.
+The reader can always drill in; they are simply not made to scroll through six minutes
+of advertising to reach the conversation.
+
+**In the analysis**, excluded units are absent: the synopsis, outline, concepts, and
+claims read only included units, so sponsor brands never become entities and the intro’s
+preview never competes with the real discussion.
+
+**In the statistics**, speaker figures report content only, with excluded time shown
+separately — how much of an episode is advertising is itself interesting, and hiding it
+would be its own distortion.
+
+**On the timeline**, excluded spans are shaded distinctly rather than dropped, so their
+position and share stay visible and the time axis still matches the source.
+
+**In print**, an excluded run prints as its collapsed line, not its full text: the PDF
+records that the segment existed and how long it ran without spending pages on it.
 
 ## Implementation Plan
 
