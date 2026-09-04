@@ -55,6 +55,30 @@ Choose the least expensive preset that produces the requested result:
 Use `--with STAGE[,STAGE]` to add individual stages to a preset.
 Run `deep-transcribe --help` for the current stage list and Deepgram model options.
 
+## Long Recordings
+
+Hours-long sources work end to end.
+Full-length podcasts and interviews have been run through the whole pipeline, and the
+design holds well past that: **12 hours or more is supported**.
+
+Nothing about the transcript is chunked or stitched together.
+Speech-to-text sends the audio as a single request, so timestamps come back on one
+continuous timeline rather than being reconciled across segment boundaries.
+The cost of preparing that audio is flat in duration, because conversion streams through
+ffmpeg rather than decoding the recording into memory.
+
+Two practical notes for long sources:
+
+- Downloads are sized for the job.
+  Video is fetched at up to 1080p in H.264, which remuxes without re-encoding and keeps
+  a multi-hour download to a couple of gigabytes rather than ten.
+  Only the frame-capture stage needs video at all.
+- The request budget for speech-to-text scales with the length of the audio, so a long
+  recording is not cut off by a timeout meant for short clips.
+
+Expect the wall-clock time of a long run to be dominated by downloading and by the LLM
+stages, not by speech-to-text: a five-hour recording transcribes in about a minute.
+
 ## Supply Recording Context
 
 Raw media often lacks the names, roles, vocabulary, and chronology needed for accurate
@@ -99,10 +123,12 @@ run. Use `--context` for relevant facts the publisher did not include or that re
 review, such as a complete cast-to-role mapping.
 
 The speaker roster step reads that metadata alongside your context, and is told which
-evidence came from you and which was fetched from the source service. It may state only
-what one of those supports. `--web-search` additionally lets it corroborate facts it
-finds; it is off by default because search can mislead. Local files have no metadata to
-fetch and nothing to corroborate, so context is the only evidence there.
+evidence came from you and which was fetched from the source service.
+It may state only what one of those supports.
+`--web-search` additionally lets it corroborate facts it finds; it is off by default
+because search can mislead.
+Local files have no metadata to fetch and nothing to corroborate, so context is the only
+evidence there.
 
 `--title`, `--description`, and repeatable `--key-term` flags provide simple exact
 values without a schema.
