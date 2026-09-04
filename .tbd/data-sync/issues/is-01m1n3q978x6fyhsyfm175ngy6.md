@@ -5,7 +5,7 @@ title: Transcript segments with default suppression
 kind: feature
 status: open
 priority: 1
-version: 14
+version: 15
 spec_path: docs/project/specs/active/plan-2026-09-04-transcript-segments.md
 labels: []
 dependencies: []
@@ -20,7 +20,7 @@ child_order_hints:
   - is-01m1na58vampj3d053x9qddjf3
   - is-01m1nq9wwxfa8c5v3h4ngk3z68
 created_at: 2026-09-04T02:24:48.871Z
-updated_at: 2026-09-04T09:07:59.066Z
+updated_at: 2026-09-04T10:00:11.923Z
 ---
 MEASURED against Lex #501 (5.3h) before designing:
 - 23 YouTube chapters with exact boundaries and human titles, including 'Episode highlight' (0:00-1:27) and 'Introduction' (1:27-2:56). Excellent free skeleton.
@@ -63,3 +63,23 @@ export re-run, which is the point.
 If frame captures turn out to dominate the rerun cost, the fix is to move
 insert_frame_captures above the boundary — but note that puts img tags into the outline
 prompt's input, which is why it is not already there.
+FRESH CLEAN RUN, in progress (started 01:18 on an empty workspace, against the released
+kash 0.4.11 and kash-media 0.4.9 rather than local checkouts). Confirmed so far:
+
+  sections   191 (the earlier run gave 194 — sectioning is an LLM pass, so a few either
+             way is expected, not drift)
+  units      1,439 (earlier 1,396)
+  outline    199 top-level bullets, 100% of them bold section labels, 607 sub-bullets.
+             The prompt fix holds on a completely fresh run; the broken version had 114
+             labels out of 304 top-level.
+
+PREVIEW DETECTION IS STABLE ACROSS RUNS, which is the more interesting result:
+  earlier run   0:00:04-0:01:48, 3 paragraphs, 100% echoed
+  fresh run     0:00:04-0:01:48, 6 paragraphs, 83% echoed
+Identical boundary from different paragraph segmentation. The detector keys on shingles
+rather than on paragraph identity, so how the text was divided does not move the answer.
+
+The outline's first three entries are "The Rapid Acceleration of AI Progress",
+"Racing, Risk-Taking, and Shifting Paradigms", "Parenthood as Peak Human Experience" —
+the highlight reel, still present because this run passed no hints. That is exactly what
+the segments feature removes, and it is why it is worth having.
