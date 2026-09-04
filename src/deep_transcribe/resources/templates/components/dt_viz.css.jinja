@@ -19,19 +19,17 @@ strong.dt-speaker-label {
   font-feature-settings: var(--font-features-sans);
 }
 
-@media screen {
-  strong.dt-speaker-label {
-    display: block;
-    margin-bottom: 0.05rem;
-  }
+strong.dt-speaker-label {
+  display: block;
+  margin-bottom: 0.05rem;
+}
 
-  strong.dt-speaker-label .dt-colon {
-    display: none;
-  }
+strong.dt-speaker-label .dt-colon {
+  display: none;
+}
 
-  .long-text {
-    line-height: var(--dt-leading);
-  }
+.long-text {
+  line-height: var(--dt-leading);
 }
 
 .dt-ui {
@@ -49,47 +47,66 @@ strong.dt-speaker-label {
   font-size: var(--font-size-small);
 }
 
-@media screen {
-  /* The summary joins the system: sans (it is extracted content, not
-     transcript), padded to the shared text edge. */
-  .description.dt-summary {
-    padding: 0 var(--dt-pad);
-    margin: 1.5rem 0 2rem;
-    font-family: var(--font-sans);
-    font-feature-settings: var(--font-features-sans);
-    font-size: var(--font-size-small);
-  }
+/* The summary joins the system: sans (it is extracted content, not
+   transcript), padded to the shared text edge. */
+.description.dt-summary {
+  padding: 0 var(--dt-pad);
+  margin: 1.5rem 0 2rem;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-small);
+}
 
-  /* H1: all-caps centered sans for every top section. The !important flags
-     override the outline title's stored inline style. */
-  .dt-panel-title,
-  .long-text .transcript-outline-title {
-    font-family: var(--font-sans) !important;
-    font-feature-settings: var(--font-features-sans);
-    font-style: normal !important;
-    font-weight: var(--dt-title-weight) !important;
-    font-size: var(--dt-h1-size) !important;
-    letter-spacing: var(--dt-h1-spacing);
-    text-transform: uppercase;
-    text-align: center !important;
-    color: var(--dt-text) !important;
-    margin: 0 0 1rem !important;
-  }
+/* H1: all-caps centered sans for every top section. The !important flags
+   override the outline title's stored inline style. */
+.dt-panel-title,
+.long-text .transcript-outline-title {
+  font-family: var(--font-sans) !important;
+  font-feature-settings: var(--font-features-sans);
+  font-style: normal !important;
+  font-weight: var(--dt-title-weight) !important;
+  font-size: var(--dt-h1-size) !important;
+  letter-spacing: var(--dt-h1-spacing);
+  text-transform: uppercase;
+  text-align: center !important;
+  color: var(--dt-text) !important;
+  margin: 0 0 1rem !important;
+}
 
-  /* H2: transcript sections take the sans title treatment. */
-  .long-text .original h2 {
-    font-family: var(--font-sans);
-    font-feature-settings: var(--font-features-sans);
-    font-style: normal;
-    font-weight: var(--dt-title-weight);
-    font-size: var(--dt-h2-size);
-    color: var(--dt-text);
-  }
+/* H2: transcript sections take the sans title treatment. */
+.long-text .original h2 {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-style: normal;
+  font-weight: var(--dt-title-weight);
+  font-size: var(--dt-h2-size);
+  color: var(--dt-text);
+}
 
-  /* The transcript prose sits on the panels' text edge, never wider. */
-  .long-text .original .original {
-    padding: 0 var(--dt-pad);
-  }
+/* The transcript prose sits on the panels' text edge, never wider. */
+.long-text .original .original {
+  padding: 0 var(--dt-pad);
+}
+
+/* Print-only data lines: information that lives in hover surfaces on screen
+   (mention dots, edge tooltips) still reaches the printed page. */
+.dt-print-only {
+  display: none;
+}
+
+/* ---- Page-element selection (the --elements flag) ----
+   The client sets body.dt-no-<part> for excluded stored content; excluded
+   panels are simply never built. */
+body.dt-no-title .long-text h1:not(.dt-panel-title),
+body.dt-no-thumbnail img.thumbnail,
+body.dt-no-summary .description,
+body.dt-no-outline .transcript-outline,
+body.dt-no-transcript .original .original,
+body.dt-no-transcript .dt-transcript-heading,
+body.dt-no-frames img.frame-capture,
+body.dt-no-frames #dt-connectors,
+body.dt-no-frames .dt-ov-frame {
+  display: none !important;
 }
 
 /* ---- Timestamps ---- */
@@ -580,6 +597,21 @@ body.yt-open #dt-rail {
   gap: 0.5rem;
 }
 
+/* Print forms of the track dots and edge tooltips. */
+.dt-track-times {
+  margin: 0.1rem 0 0.2rem;
+}
+
+.dt-track-times .dt-timestamp {
+  margin-right: 0.4rem;
+}
+
+.dt-concept-relations {
+  font-size: var(--font-size-tiny);
+  color: var(--dt-text-support);
+  margin-top: 0.1rem;
+}
+
 /* The one concept chip: kind tag | bar | value, outlined in the kind color
    over a pale kind tint. Identical in the list, the Claims panel, and the
    graph. */
@@ -726,13 +758,16 @@ body.yt-open #dt-rail {
 /* ---- Print and motion ---- */
 
 @media print {
-  .dt-ui,
+  /* Held out: viewport-bound chrome and pointing surfaces. Their data reaches
+     print through the panels (see the PRINT rule in dt_tokens.css.jinja). */
   #dt-rail,
-  #dt-connectors {
+  #dt-connectors,
+  .dt-tip,
+  .dt-ov-marker {
     display: none !important;
   }
 
-  /* Frames print inline exactly as before this feature. */
+  /* Frames print inline; gutter placement is screen-only. */
   body.dt-frames-gutter .long-text img.frame-capture {
     position: static !important;
     width: auto !important;
@@ -740,14 +775,44 @@ body.yt-open #dt-rail {
     transform: none !important;
   }
 
-  strong.dt-speaker-label {
-    color: inherit;
-    font-family: inherit;
-    display: inline;
+  /* Transient selection state never prints. */
+  .dt-dimmed {
+    opacity: 1 !important;
   }
 
-  strong.dt-speaker-label .dt-colon {
-    display: inline;
+  .dt-concept-chip.dt-selected {
+    box-shadow: none !important;
+  }
+
+  .dt-mention {
+    background: none !important;
+    outline: none !important;
+  }
+
+  /* Hover-only data gets its print form. */
+  .dt-print-only {
+    display: block;
+  }
+
+  /* Keep each visual whole across page breaks. */
+  .dt-panel-title,
+  .dt-overview,
+  .dt-graph,
+  .dt-stats table,
+  .dt-concept-entry,
+  .dt-concept-chip {
+    break-inside: avoid;
+  }
+
+  /* Color fills must actually print. */
+  .dt-ov-band,
+  .dt-ov-section,
+  .dt-bar,
+  .dt-track-span,
+  .dt-track-dot,
+  .dt-concept-chip {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }
 

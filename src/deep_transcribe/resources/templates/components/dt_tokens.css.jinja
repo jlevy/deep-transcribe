@@ -31,8 +31,12 @@
           content width on one 0-to-duration scale, so bars align vertically
           across panels.
 
-   PRINT  None of this reaches print: the printed document keeps the original
-          serif layout exactly.
+   PRINT  Everything static and data-bearing prints; only viewport-bound or
+          transient chrome is held out (the rail, connectors, tooltips, the
+          reading marker, selection states). Data that lives in a hover
+          surface on screen reaches print through print-only lines. Charts
+          re-render at --dt-print-width during printing so type keeps its
+          real size.
    ============================================================================ */
 
 :root {
@@ -92,6 +96,7 @@
        1150px  rail + gutter + left-slid column become active
        (print and narrower screens keep the centered document layout) --- */
   --dt-pad: 1rem;          /* panel padding; also the shared text edge */
+  --dt-print-width: 660;   /* px; chart re-render width while printing (read by JS) */
   --dt-rail-width: 3.4rem;
   --dt-col-shift: 8rem;    /* how far left of center the column slides */
 

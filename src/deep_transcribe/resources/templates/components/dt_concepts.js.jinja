@@ -33,7 +33,7 @@
   }
 
   function applySelection() {
-    for (const scope of [root, ...rootExtras]) {
+    for (const scope of [root, ...rootExtras].filter(Boolean)) {
       scope.querySelectorAll("[data-concept]").forEach((node) => {
         node.classList.toggle("dt-selected", node.dataset.concept === selected);
         node.classList.toggle("dt-dimmed", selected != null && node.dataset.concept !== selected);
@@ -174,14 +174,28 @@
   }
 
   function buildDefinitions(concepts) {
+    const byId = new Map(concepts.map((c) => [c.id, c]));
     const list = el("div", "dt-concept-defs");
     for (const concept of concepts) {
       const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
       entry.dataset.concept = concept.id;
       entry.appendChild(buildConceptTrack(concept));
+      // Print form of the track dots: the mention times as bracketed stamps.
+      const times = el("div", "dt-track-times dt-print-only");
+      for (const mention of concept.mentions) {
+        times.appendChild(el("span", "dt-timestamp", model.formatTime(mention.t)));
+      }
+      entry.appendChild(times);
       const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
       const detail = el("div", "dt-concept-gloss", concept.gloss);
+      // Print form of the edge tooltips: typed relations in words.
+      if (concept.relations.length) {
+        const related = concept.relations
+          .map((r) => `${r.type.replace(/-/g, " ")}: ${byId.get(r.to)?.label || r.to}`)
+          .join(" · ");
+        detail.appendChild(el("div", "dt-concept-relations dt-print-only", related));
+      }
       if (concept.research && concept.research.summary) {
         const research = el("div", "dt-concept-research", concept.research.summary);
         for (const source of concept.research.sources || []) {
@@ -235,36 +249,43 @@
     const concepts = model.index.concepts;
     if (!concepts || !concepts.length) return;
 
-    root = model.makePanel("Concepts");
-    root.classList.add("dt-concepts");
-    const charts = document.createElement("div");
-    root.appendChild(charts);
-    root.appendChild(buildDefinitions(concepts));
-    model.panels.bottom.appendChild(root);
+    if (model.elements.has("concepts")) {
+      root = model.makePanel("Concepts");
+      root.classList.add("dt-concepts");
+      const charts = document.createElement("div");
+      root.appendChild(charts);
+      root.appendChild(buildDefinitions(concepts));
+      model.panels.bottom.appendChild(root);
 
-    // Charts render at the panel's real pixel width, like the Timeline, so
-    // their type sits on the design system's own sizes.
-    let chartWidth = 0;
-    const renderCharts = () => {
-      const width = Math.floor(charts.getBoundingClientRect().width);
-      if (!width || width === chartWidth) return;
-      chartWidth = width;
-      charts.textContent = "";
-      const graph = buildGraph(concepts, width);
-      charts.appendChild(graph.wrap);
-      layoutGraph(graph);
-      applySelection();
-    };
-    new ResizeObserver(renderCharts).observe(charts);
-    renderCharts();
+      // Charts render at the panel's real pixel width, like the Timeline, so
+      // their type sits on the design system's own sizes. Printing re-renders
+      // at the print width so type keeps its real size on paper.
+      let chartWidth = 0;
+      let forcedWidth = 0;
+      const renderCharts = () => {
+        const width = forcedWidth || Math.floor(charts.getBoundingClientRect().width);
+        if (!width || width === chartWidth) return;
+        chartWidth = width;
+        charts.textContent = "";
+        const graph = buildGraph(concepts, width);
+        charts.appendChild(graph.wrap);
+        layoutGraph(graph);
+        applySelection();
+      };
+      document.addEventListener("dt:printmode", (e) => {
+        forcedWidth = e.detail.on ? e.detail.width : 0;
+        renderCharts();
+      });
+      new ResizeObserver(renderCharts).observe(charts);
+      renderCharts();
+    }
 
-    const claimsPanel = buildClaims(concepts);
-    if (claimsPanel) {
-      // Claims select through the shared handler, so keep them inside root's
-      // event scope by tracking selection classes on both panels.
-      model.panels.bottom.appendChild(claimsPanel);
-      claimsPanel.querySelectorAll("[data-concept]").forEach(() => {});
-      rootExtras.push(claimsPanel);
+    if (model.elements.has("claims")) {
+      const claimsPanel = buildClaims(concepts);
+      if (claimsPanel) {
+        model.panels.bottom.appendChild(claimsPanel);
+        rootExtras.push(claimsPanel);
+      }
     }
   }
 

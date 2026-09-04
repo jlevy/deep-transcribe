@@ -19,13 +19,13 @@ subcommands, stale examples, and wrapping changes are visible in review.
 $ deep-transcribe --help
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--no-minify] [--context TEXT] [--context-file PATH]
-                       [--instructions TEXT] [--instructions-file PATH]
-                       [--title TEXT] [--description TEXT]
-                       [--metadata YAML_OR_JSON] [--key-term TERM]
-                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
-                       [--workspace WORKSPACE] [--models [PROFILE]]
-                       [--language LANGUAGE]
+                       [--elements PARTS] [--no-minify] [--context TEXT]
+                       [--context-file PATH] [--instructions TEXT]
+                       [--instructions-file PATH] [--title TEXT]
+                       [--description TEXT] [--metadata YAML_OR_JSON]
+                       [--key-term TERM] [--speaker ID=NAME]
+                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
+                       [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |
@@ -71,6 +71,10 @@ Custom Processing:
                         Let the speaker roster step corroborate facts with web
                         search (off by default; source metadata and your own
                         context are used either way)
+  --elements PARTS      Comma-separated page parts to include in the HTML
+                        export (default: everything). Choices: title,
+                        thumbnail, summary, timeline, speakers, outline,
+                        concepts, claims, frames, transcript
   --no-minify, --no_minify
                         Skip HTML, CSS, JavaScript, and Tailwind minification
 
@@ -205,13 +209,13 @@ $ deep-transcribe --models anthropic --workspace ./output --json && \
 $ deep-transcribe --models invalid --workspace ./output 2>&1
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--no-minify] [--context TEXT] [--context-file PATH]
-                       [--instructions TEXT] [--instructions-file PATH]
-                       [--title TEXT] [--description TEXT]
-                       [--metadata YAML_OR_JSON] [--key-term TERM]
-                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
-                       [--workspace WORKSPACE] [--models [PROFILE]]
-                       [--language LANGUAGE]
+                       [--elements PARTS] [--no-minify] [--context TEXT]
+                       [--context-file PATH] [--instructions TEXT]
+                       [--instructions-file PATH] [--title TEXT]
+                       [--description TEXT] [--metadata YAML_OR_JSON]
+                       [--key-term TERM] [--speaker ID=NAME]
+                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
+                       [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |

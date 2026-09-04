@@ -84,6 +84,7 @@
 
   function init(event) {
     model = event.detail.model;
+    if (!model.elements.has("frames")) return;
     const frames = gutterFrames();
     if (!frames.length) return;
     longText = document.querySelector(".long-text") || document.body;

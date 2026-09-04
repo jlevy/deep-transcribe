@@ -18,11 +18,11 @@ tooltips, timestamps, and typography each converged on one deliberate treatment.
 The rules now live implicitly across `dt_viz.css.jinja` and the dt modules, where they
 grew, which makes them easy to drift from.
 
-Per owner direction the design system is self-documenting: the authoritative
-reference lives in `dt_tokens.css.jinja` itself, where every token is declared with
-its rule beside it and `tests/test_design_tokens.py` enforces the contract.
-This spec keeps a summary of the rules and records the consolidation refactor that
-moved every literal into tokens and shared helpers.
+Per owner direction the design system is self-documenting: the authoritative reference
+lives in `dt_tokens.css.jinja` itself, where every token is declared with its rule
+beside it and `tests/test_design_tokens.py` enforces the contract.
+This spec keeps a summary of the rules and records the consolidation refactor that moved
+every literal into tokens and shared helpers.
 
 ## Design System Reference
 
@@ -135,6 +135,45 @@ Each step lands separately with the print-parity and test gates green.
 - [x] **Step 6 — Regression pass.** Re-render the SNL test bed in light and dark at 1280
   and 1500 widths, re-run the print comparison against the committed PDF, and spot-check
   the tooltip, selection, and seek contracts in-browser.
+
+## Print Carry-Over Policy
+
+Printing no longer hides the analysis: the PDF carries everything static and
+data-bearing, and holds out only what is viewport-bound or transient.
+The rule of thumb: if it encodes data, it prints; if it encodes *where you are* or *what
+you are pointing at*, it does not — and any data that lived only in a hover surface must
+reach print another way.
+
+| Element | Print | Notes |
+| --- | --- | --- |
+| Page title, thumbnail | prints | unchanged |
+| Heading hierarchy (caps H1s, sans H2s) | prints | carried from screen |
+| Summary (heading, sans prose) | prints |  |
+| Timeline overview | prints | reading marker held out; re-rendered at print width |
+| Speakers table with totals | prints | fills forced with print-color-adjust |
+| Outline with time chips | prints | chips render as plain bracketed times |
+| Concepts: graph, tracks, chips, glosses | prints | graph re-rendered at print width |
+| Concept mention times | print-only line | on screen the track dots carry them |
+| Concept relations with types | print-only line | on screen the edge tooltips carry them |
+| Claims | prints |  |
+| Transcript prose (block sans labels, serif words) | prints | carried from screen |
+| Frame captures | print inline | gutter placement is screen-only |
+| Vertical rail | held out | position map; the Timeline overview is its print form |
+| Connectors, tooltips, reading marker | held out | pointing surfaces |
+| Selection/dim/mention states | neutralized | transient |
+
+This supersedes the original byte-parity contract deliberately: the committed showcase
+PDF is regenerated under the README-refresh bead once reviewed.
+
+### Page elements flag
+
+`--elements` selects which parts the HTML export includes, as a comma-separated subset
+of: `title, thumbnail, summary, timeline, speakers, outline, concepts,
+claims, frames, transcript`. The default includes everything.
+The choice is injected into the exported page as configuration; the client skips
+excluded panels and hides excluded stored content, so one pipeline run can produce
+differently scoped exports cheaply (a summary-only brief, a transcript-only document, a
+print-oriented analysis page).
 
 ## Open Questions
 

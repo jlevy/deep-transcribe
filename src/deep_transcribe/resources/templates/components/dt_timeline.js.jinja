@@ -22,6 +22,7 @@
   let svg = null;
   let markerEl = null;
   let width = 0;
+  let forcedWidth = 0;
 
   function svgEl(name, attrs, text) {
     const el = document.createElementNS(SVG_NS, name);
@@ -175,18 +176,20 @@
   }
 
   function setHotSection(id) {
+    if (!svg) return;
     svg.querySelectorAll(".dt-ov-section").forEach((el) => {
       el.classList.toggle("dt-hot", id != null && el.dataset.section === id);
     });
   }
 
   function render() {
-    const measured = Math.floor(svg.getBoundingClientRect().width);
+    const measured = forcedWidth || Math.floor(svg.getBoundingClientRect().width);
     if (!measured || !model.duration) return;
     width = measured;
     svg.setAttribute("viewBox", `0 0 ${width} ${HEIGHT}`);
     svg.textContent = "";
-    svg.append(buildAxis(), buildSections(), buildBand(), buildFrames());
+    svg.append(buildAxis(), buildSections(), buildBand());
+    if (model.elements.has("frames")) svg.appendChild(buildFrames());
     markerEl = svgEl("line", {
       class: "dt-ov-marker",
       x1: 0, x2: 0, y1: AXIS_Y, y2: FRAME_Y + 7,
@@ -203,6 +206,8 @@
   function init(event) {
     model = event.detail.model;
     if (!model.index.units.length) return;
+    crossReferenceOutline();
+    if (!model.elements.has("timeline")) return;
 
     panel = model.makePanel("Timeline");
     svg = svgEl("svg", {
@@ -227,9 +232,12 @@
         if (dot) dot.classList.add("dt-hot");
       }
     });
+    document.addEventListener("dt:printmode", (e) => {
+      forcedWidth = e.detail.on ? e.detail.width : 0;
+      render();
+    });
     new ResizeObserver(render).observe(svg);
     render();
-    crossReferenceOutline();
   }
 
   document.addEventListener("dt:ready", init);

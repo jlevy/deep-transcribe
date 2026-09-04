@@ -489,10 +489,13 @@ Verify in a desktop browser wider than 1450 px unless a step says otherwise.
    speaker must be named in text, and clicking a talk-flow segment must scroll to that
    turn.
 8. Toggle light and dark themes: all speaker colors must stay readable in both.
-9. Print preview: the printed pages must show no rail, no analytics panel, no
-   connectors, and inline frames — identical to the pre-feature layout.
-   For the SNL example, compare against
-   `docs/examples/snl-hotel-check-in-transcript.pdf` page for page.
+9. Print preview: the printed pages carry the analysis — caps section headings,
+   Summary, the Timeline overview (no reading marker), the Speakers table with its
+   colored bars, outline time chips, Concepts with per-concept mention times and
+   typed relations as printed lines, and Claims — while the rail, connectors,
+   tooltips, and selection states are held out and frames return inline.
+   Charts must print at full text size (they re-render at the print width), and
+   no visual may split awkwardly across a page break.
 10. With reduced motion enabled in the OS, rail clicks must jump without smooth
     scrolling.
 

@@ -209,6 +209,16 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--elements",
+        type=str,
+        metavar="PARTS",
+        help=(
+            "Comma-separated page parts to include in the HTML export "
+            "(default: everything). Choices: title, thumbnail, summary, timeline, "
+            "speakers, outline, concepts, claims, frames, transcript"
+        ),
+    )
+    processing.add_argument(
         "--no-minify",
         "--no_minify",
         dest="no_minify",
@@ -732,6 +742,15 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
     try:
         from deep_transcribe.transcribe_commands import run_transcription
 
+        elements = None
+        if args.elements:
+            from deep_transcribe.transcribe_commands import parse_page_elements
+
+            try:
+                elements = parse_page_elements(args.elements)
+            except ValueError as error:
+                parser.error(str(error))
+
         transcript_path, html_path = run_transcription(
             workspace,
             args.source,
@@ -743,6 +762,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             no_minify=args.no_minify,
             rerun=args.rerun,
             rerun_processing=args.rerun_processing,
+            elements=elements,
         )
         display_results(
             workspace,

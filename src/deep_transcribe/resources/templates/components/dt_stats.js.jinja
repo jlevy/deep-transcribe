@@ -81,6 +81,7 @@
     const model = event.detail.model;
     const { units, speakers } = model.index;
     if (!units.length || !speakers.length) return;
+    if (!model.elements.has("speakers")) return;
 
     const panel = model.makePanel("Speakers");
     panel.classList.add("dt-stats");

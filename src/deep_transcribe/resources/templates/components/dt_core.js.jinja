@@ -6,6 +6,14 @@
 
   const SPEAKER_CLASS_COUNT = 8;
 
+  /* The parts an export can include; --elements injects window.DT_ELEMENTS
+     to select a subset. Excluded panels are never built and excluded stored
+     content is hidden via body.dt-no-<part> classes. */
+  const ALL_ELEMENTS = [
+    "title", "thumbnail", "summary", "timeline", "speakers",
+    "outline", "concepts", "claims", "frames", "transcript",
+  ];
+
   function parseIndex() {
     const el = document.getElementById("dt-transcript-index");
     if (!el) return null;
@@ -211,7 +219,7 @@
     description.prepend(heading);
   }
 
-  function mountPanelContainers(scope) {
+  function mountPanelContainers(scope, withTranscriptHeading) {
     const top = document.createElement("div");
     top.id = "dt-top-panels";
     const bottom = document.createElement("div");
@@ -220,10 +228,12 @@
     if (outline) {
       outline.before(top);
       outline.after(bottom);
-      const transcriptHeading = document.createElement("h1");
-      transcriptHeading.className = "dt-panel-title dt-ui";
-      transcriptHeading.textContent = "Transcript";
-      bottom.after(transcriptHeading);
+      if (withTranscriptHeading) {
+        const transcriptHeading = document.createElement("h1");
+        transcriptHeading.className = "dt-panel-title dt-transcript-heading dt-ui";
+        transcriptHeading.textContent = "Transcript";
+        bottom.after(transcriptHeading);
+      }
     } else {
       const description = scope.querySelector(".description");
       if (description) description.after(top);
@@ -291,6 +301,19 @@
     );
   }
 
+  function watchPrint() {
+    const printWidth =
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--dt-print-width")
+      ) || 660;
+    window.addEventListener("beforeprint", () =>
+      dispatch("dt:printmode", { on: true, width: printWidth })
+    );
+    window.addEventListener("afterprint", () =>
+      dispatch("dt:printmode", { on: false, width: 0 })
+    );
+  }
+
   function init() {
     if (window.location.protocol === "file:") enableFileProtocolFallback();
     const index = parseIndex();
@@ -304,15 +327,22 @@
     bindSections(index, scope);
     const model = buildModel(index);
     model.tipContent = buildTipContent;
+    model.elements = new Set(
+      Array.isArray(window.DT_ELEMENTS) ? window.DT_ELEMENTS : ALL_ELEMENTS
+    );
+    for (const part of ALL_ELEMENTS) {
+      if (!model.elements.has(part)) document.body.classList.add(`dt-no-${part}`);
+    }
     decorateSpeakerLabels(model);
     document.body.classList.add("dt-on");
-    dressSummary(scope);
-    const containers = mountPanelContainers(scope);
+    if (model.elements.has("summary")) dressSummary(scope);
+    const containers = mountPanelContainers(scope, model.elements.has("transcript"));
     model.panels = containers;
     model.makePanel = makePanel;
     window.DeepTranscript = model;
     dispatch("dt:ready", { model });
     watchScroll(model);
+    watchPrint();
   }
 
   if (document.readyState === "loading") {
