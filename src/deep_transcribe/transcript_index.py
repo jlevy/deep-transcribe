@@ -209,6 +209,16 @@ class RawUnit:
     """Index of the `##` heading this unit falls under; -1 before the first heading."""
 
 
+def scan_section_offsets(body: str) -> list[int]:
+    """
+    Byte offsets of each `##` heading, indexed the way `RawUnit.section` counts them.
+
+    Chunking cuts the body at these, so a chunk starts with the heading that opens it
+    rather than mid-section.
+    """
+    return [match.start() for match in _H2_PATTERN.finditer(body)]
+
+
 def scan_raw_units(body: str) -> list[RawUnit]:
     """Scan citation-anchored units with their full text, label stripped."""
     citations = list(_CITATION_PATTERN.finditer(body))

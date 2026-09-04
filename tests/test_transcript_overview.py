@@ -1,9 +1,14 @@
+from pathlib import Path
+from unittest.mock import patch
+
 from kash.model import Format, Item, ItemType
 from kash.utils.common.url import Url
 
 from deep_transcribe.transcript_overview import (
+    CHUNK_SUMMARY_PROMPT,
     DESCRIPTION_PROMPT,
     OUTLINE_PROMPT,
+    SYNOPSIS_REDUCE_PROMPT,
     add_transcript_description,
     add_transcript_outline,
     normalize_transcript_outline,
@@ -91,3 +96,84 @@ Repeated synopsis paragraph.
     assert normalize_transcript_outline(response) == (
         "- **Opening**\n  - Key point\n- **Discussion**\n  - Suggestion"
     )
+
+
+def _long_body(sections: int, minutes_apart: int) -> str:
+    return "".join(
+        f"## Section {i}\n\n**Alice:** Point {i}.\n"
+        '<span class="citation timestamp-link" data-src="r.yml" '
+        f'data-timestamp="{i * minutes_apart * 60}.00"><a href="https://x">t</a></span>\n\n'
+        for i in range(sections)
+    )
+
+
+def _runtime(tmp_path: Path):
+    """The actions resolve source metadata through a workspace, so give them an empty one."""
+    from kash.exec import kash_runtime
+
+    return kash_runtime(tmp_path / "workspace")
+
+
+def test_outline_runs_per_chunk_and_never_sends_the_whole_document(tmp_path: Path) -> None:
+    body = _long_body(9, 10)  # 80 minutes
+    item = Item(type=ItemType.doc, format=Format.md_html, body=body)
+    sent: list[str] = []
+
+    def fake_transform(prepared: Item, **_kwargs: object) -> Item:
+        assert prepared.body
+        sent.append(prepared.body)
+        return prepared.new_copy_with(body=f"- **Chunk {len(sent)}**\n  - A point")
+
+    with (
+        _runtime(tmp_path),
+        patch("deep_transcribe.transcript_overview.llm_transform_item", fake_transform),
+    ):
+        outlined = add_transcript_outline(item)
+
+    assert len(sent) == 3
+    assert all("Point 0." not in text for text in sent[1:])
+    # Every call is a fraction of the document, which is the whole point.
+    assert all(len(text) < len(body) for text in sent)
+    assert outlined.body
+    for i in (1, 2, 3):
+        assert f"**Chunk {i}**" in outlined.body
+
+
+def test_synopsis_reduces_chunk_summaries_for_long_media(tmp_path: Path) -> None:
+    item = Item(type=ItemType.doc, format=Format.md_html, body=_long_body(9, 10))
+    prompts: list[str] = []
+
+    def fake_complete(_model: object, prompt: str, body: str | None) -> str:
+        prompts.append(prompt)
+        if "Summaries, in order" in prompt:
+            return "Reduced synopsis."
+        return f"Summary of {(body or '')[:1]}"
+
+    with (
+        _runtime(tmp_path),
+        patch("deep_transcribe.transcript_overview._complete", fake_complete),
+    ):
+        described = add_transcript_description(item)
+
+    assert len(prompts) == 4  # three chunk summaries, then one reduce
+    assert prompts.count(SYNOPSIS_REDUCE_PROMPT) == 1
+    assert prompts[:3] == [CHUNK_SUMMARY_PROMPT] * 3
+    assert described.body and "Reduced synopsis." in described.body
+
+
+def test_short_media_still_takes_the_single_call_path(tmp_path: Path) -> None:
+    item = Item(type=ItemType.doc, format=Format.md_html, body=_long_body(3, 5))  # 10 min
+    calls: list[Item] = []
+
+    def fake_transform(prepared: Item, **_kwargs: object) -> Item:
+        calls.append(prepared)
+        return prepared.new_copy_with(body="A synopsis.")
+
+    with (
+        _runtime(tmp_path),
+        patch("deep_transcribe.transcript_overview.llm_transform_item", fake_transform),
+    ):
+        described = add_transcript_description(item)
+
+    assert len(calls) == 1
+    assert described.body and "A synopsis." in described.body

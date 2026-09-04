@@ -13,6 +13,7 @@ from kash.llm_utils.fuzzy_parsing import fuzzy_parse_json
 from kash.model import Item, ItemType, Param, common_params
 from kash.utils.errors import ApiResultError, InvalidInput
 
+from deep_transcribe.chunking import plan_chunks
 from deep_transcribe.transcript_index import (
     CONCEPT_RELATION_TYPES,
     RawUnit,
@@ -34,15 +35,6 @@ than a short one: 24 concepts is a good map of a four-minute sketch and 4.6 conc
 hour on a five-hour interview. Budgeting per chunk keeps the density roughly constant,
 so a 22-minute talk is one chunk and unchanged while five hours yields on the order of
 sixty.
-"""
-
-CHUNK_TARGET_SECONDS = 1800.0
-"""
-Target audio duration per extraction call, before snapping to section boundaries.
-
-Time sets the budget so the number of calls is proportional to length — about 11 for a
-five-hour episode, 24 for twelve hours — while sections set the actual cut, so no chunk
-begins or ends mid-topic.
 """
 
 EXTRACTION_PROMPT = dedent("""
@@ -100,34 +92,6 @@ def _format_turns(units: Sequence[RawUnit]) -> str:
         text = " ".join(unit.text.split())
         lines.append(f"[key={unit.key}] {speaker}{text}")
     return "\n".join(lines)
-
-
-def plan_chunks(
-    units: Sequence[RawUnit], target_seconds: float = CHUNK_TARGET_SECONDS
-) -> list[list[RawUnit]]:
-    """
-    Group units into extraction chunks of about `target_seconds`, cut at section seams.
-
-    A chunk closes once it has covered the target duration and the next unit starts a new
-    section, so boundaries land where the sectioning pass already found a topic change.
-    A section longer than the target becomes a chunk on its own rather than being split,
-    since splitting a topic is what this exists to avoid. Anything shorter than the
-    target is a single chunk, which is the previous whole-document behavior.
-    """
-    if not units:
-        return []
-    chunks: list[list[RawUnit]] = []
-    current: list[RawUnit] = []
-    for unit in units:
-        starts_section = bool(current) and unit.section != current[-1].section
-        covered = bool(current) and unit.start - current[0].start >= target_seconds
-        if starts_section and covered:
-            chunks.append(current)
-            current = []
-        current.append(unit)
-    if current:
-        chunks.append(current)
-    return chunks
 
 
 def _parse_concepts(response: str) -> list[dict[str, Any]]:
@@ -617,35 +581,6 @@ def test_format_turns_uses_citation_keys() -> None:
 
 def _unit(start: float, section: int) -> RawUnit:
     return RawUnit(key=f"{start:.2f}", start=start, label="A", text="x", section=section)
-
-
-def test_plan_chunks_cuts_at_section_seams_after_the_target() -> None:
-    # Four sections of 20 minutes each, one unit per five minutes.
-    units = [_unit(i * 300.0, i // 4) for i in range(16)]
-
-    chunks = plan_chunks(units, target_seconds=1800.0)
-
-    # A chunk closes only once it has covered 30 min AND a new section starts, so the
-    # cuts land at 40 min and 80 min rather than mid-section at 30 min.
-    assert [[u.start for u in c][0] for c in chunks] == [0.0, 2400.0]
-    assert [len(c) for c in chunks] == [8, 8]
-    # Every cut falls where the section changes.
-    assert all(a[-1].section != b[0].section for a, b in zip(chunks, chunks[1:], strict=False))
-
-
-def test_plan_chunks_keeps_short_media_whole() -> None:
-    units = [_unit(i * 60.0, i // 5) for i in range(20)]  # 20 min over 4 sections
-
-    assert len(plan_chunks(units, target_seconds=1800.0)) == 1
-    assert plan_chunks([]) == []
-
-
-def test_plan_chunks_does_not_split_an_over_long_section() -> None:
-    units = [_unit(i * 300.0, 0) for i in range(20)]  # one 100-minute section
-
-    chunks = plan_chunks(units, target_seconds=1800.0)
-
-    assert len(chunks) == 1
 
 
 def test_one_failed_chunk_does_not_lose_the_others() -> None:
