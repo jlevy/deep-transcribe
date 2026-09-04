@@ -19,6 +19,7 @@ editor at a glance, so times may be written the way they are read.
 from __future__ import annotations
 
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -92,6 +93,23 @@ def format_time(seconds: float) -> str:
     """Write a time the way the transcript shows it, so a rewritten file still reads well."""
     total = int(round(seconds))
     return f"{total // 3600}:{total % 3600 // 60:02d}:{total % 60:02d}"
+
+
+def format_span_outward(start: float, end: float) -> str:
+    """
+    Write a span that still covers everything it covered before it was rounded.
+
+    `format_time` rounds to the nearest second in both directions, which is right for a
+    label a person reads and wrong for a value a machine writes and then re-parses: a start
+    of 4.56 becomes 0:00:05 and no longer contains the paragraph at 4.56, while an end of
+    108.55 becomes 0:01:49 and reaches into the conversation. On the measured recording a
+    suggested teaser lost its opening paragraph and gained two of the interview.
+
+    So the start floors and the end ceils, and the span only ever grows by rounding.
+    """
+    lo = int(math.floor(start))
+    hi = int(math.ceil(end))
+    return f"{format_time(lo)} - {format_time(hi)}"
 
 
 @dataclass(frozen=True)
@@ -253,7 +271,7 @@ def write_hints(path: Path, hints: SegmentHints, title: str | None = None) -> No
     if not hints.segments:
         lines.append("  # No segments marked yet.\n  []\n")
     for segment in hints.segments:
-        lines.append(f'  - at: "{format_time(segment.start)} - {format_time(segment.end)}"\n')
+        lines.append(f'  - at: "{format_span_outward(segment.start, segment.end)}"\n')
         lines.append(f"    purpose: {segment.purpose.value}\n")
         if segment.suppress is not None:
             lines.append(f"    suppress: {str(segment.suppress).lower()}\n")
@@ -402,3 +420,37 @@ def test_a_hint_edit_is_the_only_thing_that_changes_between_runs() -> None:
     assert [(h.start, h.end, h.purpose, h.note, h.suppressed) for h in one.segments] == [
         (h.start, h.end, h.purpose, h.note, h.suppressed) for h in other.segments
     ]
+
+
+def test_a_written_span_still_covers_the_paragraphs_it_described() -> None:
+    """
+    The measured case from the real Lex transcript: the detector found a teaser at
+    start=4.56, end=108.55, and the file written for it said "0:00:05 - 0:01:49" — which no
+    longer contained the paragraph at 4.56 and did contain two paragraphs of the interview.
+    A machine-written span must only ever grow when rounded.
+    """
+    hints = SegmentHints(
+        [SegmentHint(start=4.56, end=108.55, purpose=SegmentPurpose.teaser, note="")]
+    )
+    written = format_span_outward(hints.segments[0].start, hints.segments[0].end)
+    assert written == "0:00:04 - 0:01:49"
+
+    reparsed = parse_hints({"segments": [{"at": written, "purpose": "teaser"}]})
+    lo, hi = reparsed.segments[0].start, reparsed.segments[0].end
+    assert lo <= 4.56, "the written span lost its first paragraph"
+    assert hi >= 108.55, "the written span lost its last paragraph"
+
+
+def test_writing_and_reparsing_a_hint_file_keeps_every_unit(tmp_path: Path) -> None:
+    """Round-trip through the file the tool actually writes."""
+    units = [4.56, 31.46, 44.12, 61.03, 69.12, 108.55]
+    hints = SegmentHints(
+        [SegmentHint(start=units[0], end=units[-1], purpose=SegmentPurpose.teaser, note="")]
+    )
+    path = tmp_path / "segments.yml"
+    write_hints(path, hints)
+
+    reloaded = load_hints(path)
+    span = reloaded.segments[0]
+    covered = [t for t in units if span.start <= t <= span.end]
+    assert covered == units, f"round trip dropped {set(units) - set(covered)}"

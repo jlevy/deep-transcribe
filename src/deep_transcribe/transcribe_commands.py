@@ -189,6 +189,17 @@ def transcribe_with_options(
         if result.metadata() != old_metadata:
             workspace.save(result, overwrite=True)
     finally:
+        # The late inputs go back onto the stored resource so they stick to the item: a
+        # later run without --instructions or --segments still honors what the user asked
+        # for, which is the behaviour `test_processing_instructions_bypass_raw_and_formatting
+        # _cache_identity` pins and what makes a "clear" affordance necessary at all.
+        #
+        # The cost is that a CHANGE to a late input alters the file kash hashes, so it
+        # re-runs paragraph formatting and section headings. Measured on a fresh workspace:
+        # an unchanged rerun is 5 s and free, while adding --segments re-runs those two
+        # stages (13 and 30 minutes on the 5-hour recording). Resolving that needs the late
+        # inputs stored outside the hashed metadata; tracked separately rather than traded
+        # against stickiness here.
         set_processing_instructions(item, processing_instructions)
         if segment_hints is not None:
             set_segment_hints(item, segment_hints)
