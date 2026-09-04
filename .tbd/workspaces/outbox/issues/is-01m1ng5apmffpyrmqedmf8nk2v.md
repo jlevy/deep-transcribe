@@ -3,14 +3,18 @@ type: is
 id: is-01m1ng5apmffpyrmqedmf8nk2v
 title: Cap frame capture density for long media
 kind: task
-status: open
+status: closed
 priority: 1
-version: 2
+version: 3
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T06:02:12.052Z
-updated_at: 2026-09-04T06:10:56.551Z
+updated_at: 2026-09-04T08:29:54.506Z
+closed_at: 2026-09-04T08:29:54.499Z
+close_reason: Implemented in 56def37. Density cap at 45 frames/hour, matched to the density short media already runs at (SNL is 41/hour and untouched). The 5.3-hour run drops 502 -> 174 frames, 96 -> 33 per hour, freeing ~75 MB of 115 MB of assets, with the smallest kept gap at 43 s and the transcript text unchanged.
+resolution: null
+duplicate_of: null
 ---
 Frame captures are emitted at paragraph granularity with only a similarity filter in
 front of them. On long media that leaves far too many for one page.
