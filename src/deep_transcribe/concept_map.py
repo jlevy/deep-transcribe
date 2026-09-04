@@ -254,6 +254,49 @@ def merge_concepts(per_chunk: Sequence[Sequence[dict[str, Any]]]) -> list[dict[s
     return list(merged.values())
 
 
+REDUCE_BATCH_SIZE = 25
+"""
+Concepts per reduce call.
+
+MEASURED, same model and workspace, one call each:
+  20 concepts    26 s
+  40 concepts   146 s
+  80 concepts   155 s
+  119 concepts  267 s once, then the 600 s provider timeout twice
+
+This is not a clean curve — 40 and 80 cost about the same — so it is not simply that
+more concepts take proportionally longer. What the numbers show is a spread that widens
+with size: small inputs are consistently quick, and large ones are sometimes quick and
+sometimes never finish. At 119 the pass failed two times in three, which is where it is
+actually needed.
+
+Batching to 25 keeps every call in the range that has never been slow, and costs five
+calls of about half a minute rather than one that may not return. Batches are taken in
+timeline order, so each sees the concepts most likely to duplicate each other — the ones
+from adjacent extraction chunks.
+"""
+
+CONSOLIDATE_PROMPT = dedent("""
+    Below are theme names, each produced while looking at one stretch of a single long
+    recording. Because each was named without seeing the others, the same strand of the
+    conversation is often named more than once in slightly different words.
+
+    Group the names that refer to the same strand, and give each group one name — reuse
+    the best of the names in that group rather than inventing a new one. Leave a name
+    alone if nothing else matches it. Aim for 8 to 14 groups over the whole recording.
+
+    Return ONLY a JSON object of this exact shape, referring to names by NUMBER:
+
+    {{"groups": [{{"name": "The chosen name", "members": [1, 4]}}]}}
+
+    Every number must be one of the numbers below, and every name belongs to exactly one
+    group.
+
+    Theme names:
+
+    {names}
+    """).strip()
+
 REDUCE_THRESHOLD = 2
 """
 Chunk count above which the reduce pass runs.
@@ -481,48 +524,140 @@ def apply_reduction(
     return ordered
 
 
+def _reduce_batch(
+    batch: Sequence[dict[str, Any]], model: LLMName
+) -> tuple[list[tuple[str, list[str]]], dict[str, str], set[str]]:
+    """Organize one batch. Raises on failure so the caller can keep the batch as it is."""
+    from kash.llm_utils.llm_completion import llm_template_completion
+
+    prompt = REDUCE_PROMPT.format(concepts=_format_concepts_for_reduce(batch))
+    escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
+    response = llm_template_completion(
+        model=model,
+        system_message=Message(
+            "You organize an already-extracted concept map. You never add, rename, "
+            "or reword anything."
+        ),
+        input="Organize the supplied concept map.",
+        body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
+    ).content
+    return _parse_reduce(response, batch)
+
+
+def consolidate_theme_names(names: Sequence[str], model: LLMName) -> dict[str, str]:
+    """
+    Map each theme name to a canonical one, collapsing names for the same strand.
+
+    Batches are named independently, so a strand running across two of them gets two
+    names. This reads only the names — a dozen or two short strings, whatever the length
+    of the recording — so it stays cheap where the pass that produced them does not.
+
+    Returns a name-to-name mapping; a failure returns the identity, which leaves the
+    per-batch names in place rather than losing them.
+    """
+    from kash.llm_utils.llm_completion import llm_template_completion
+
+    unique = list(dict.fromkeys(names))
+    if len(unique) < 2:
+        return {name: name for name in unique}
+
+    numbered = "\n".join(f"{i}. {name}" for i, name in enumerate(unique, start=1))
+    prompt = CONSOLIDATE_PROMPT.format(names=numbered)
+    escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
+    try:
+        response = llm_template_completion(
+            model=model,
+            system_message=Message("You group names that mean the same thing. You never invent."),
+            input="Group the supplied theme names.",
+            body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
+        ).content
+        parsed = fuzzy_parse_json(response)
+        if not isinstance(parsed, dict):
+            raise ApiResultError("Consolidation response is not a JSON object")
+        groups = cast(list[object], cast(dict[str, Any], parsed).get("groups") or [])
+    except Exception as error:
+        log.warning("Theme consolidation failed, keeping per-batch names: %s", error)
+        return {name: name for name in unique}
+
+    canonical: dict[str, str] = {}
+    for raw in groups:
+        if not isinstance(raw, dict):
+            continue
+        group = cast(dict[str, Any], raw)
+        members: list[str] = []
+        for raw_member in cast(list[object], group.get("members") or []):
+            text = str(raw_member).strip()
+            if text.isdigit() and 1 <= int(text) <= len(unique):
+                members.append(unique[int(text) - 1])
+        if not members:
+            continue
+        name = " ".join(str(group.get("name") or "").split()) or members[0]
+        for member in members:
+            canonical.setdefault(member, name)
+    # A name no group claimed keeps itself, rather than disappearing.
+    for name in unique:
+        canonical.setdefault(name, name)
+    return canonical
+
+
 def reduce_concepts(concepts: Sequence[dict[str, Any]], model: LLMName) -> list[dict[str, Any]]:
     """
     Organize a merged concept map: collapse duplicates, group into themes, drop the minor.
 
     This is the step chunking makes possible. The transcript is 55,000 words but its
-    concept map with glosses is a few thousand, so one call can hold the whole thing and
-    make judgments no single chunk could — that two labels name one idea, that a strand
-    runs through the conversation, that an entry looked bigger from inside its half hour
-    than it does from outside. Extraction is local where the detail is; this is global
-    where the overview is.
+    concept map with glosses is a few thousand, so a model can hold it and make judgments
+    no single extraction chunk could — that two labels name one idea, that a strand runs
+    through the conversation, that an entry looked bigger from inside its half hour than
+    it does from outside.
 
-    A failure here returns the input unchanged. An unorganized map is still a map.
+    It runs in batches because a single call over the whole map failed two times in three
+    at 119 concepts, while small calls have never been slow (see REDUCE_BATCH_SIZE for
+    the measurements). Batches are in timeline order, so each sees the concepts most
+    likely to duplicate each other — those from adjacent extraction chunks — and a final
+    pass reconciles the names the batches chose independently.
+
+    Any failure keeps what it had. An unorganized map is still a map.
     """
-    from kash.llm_utils.llm_completion import llm_template_completion
+    batches = [
+        concepts[i : i + REDUCE_BATCH_SIZE] for i in range(0, len(concepts), REDUCE_BATCH_SIZE)
+    ]
+    all_themes: list[tuple[str, list[str]]] = []
+    merged_into: dict[str, str] = {}
+    dropped: set[str] = set()
+    failures = 0
+    for position, batch in enumerate(batches):
+        try:
+            themes, merges, drops = _reduce_batch(batch, model)
+        except Exception as error:
+            failures += 1
+            log.warning(
+                "Reduce failed for batch %d/%d, keeping it unorganized: %s",
+                position + 1,
+                len(batches),
+                error,
+            )
+            continue
+        all_themes.extend(themes)
+        merged_into.update(merges)
+        dropped |= drops
 
-    prompt = REDUCE_PROMPT.format(concepts=_format_concepts_for_reduce(concepts))
-    escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
-    try:
-        response = llm_template_completion(
-            model=model,
-            system_message=Message(
-                "You organize an already-extracted concept map. You never add, rename, "
-                "or reword anything."
-            ),
-            input="Organize the supplied concept map.",
-            body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
-        ).content
-        themes, merged_into, dropped = _parse_reduce(response, concepts)
-    except Exception as error:
-        # Deliberately broad. This pass is pure improvement over a map that already
-        # exists, so nothing it can raise is worth losing that map for — and the first
-        # real failure was a provider timeout, which is not an ApiResultError and would
-        # have thrown away ten successful chunk extractions on its way out.
-        log.warning("Concept reduce pass failed, keeping the unorganized map: %s", error)
+    if not all_themes:
+        log.warning("Concept reduce pass produced no themes, keeping the unorganized map")
         return list(concepts)
 
-    reduced = apply_reduction(concepts, themes, merged_into, dropped)
+    canonical = consolidate_theme_names([label for label, _ in all_themes], model)
+    merged_themes: dict[str, list[str]] = {}
+    for label, members in all_themes:
+        merged_themes.setdefault(canonical.get(label, label), []).extend(members)
+
+    reduced = apply_reduction(concepts, list(merged_themes.items()), merged_into, dropped)
     log.info(
-        "Reduced %d concepts to %d in %d themes (%d merged, %d dropped)",
+        "Reduced %d concepts to %d in %d themes (%d batches, %d failed, %d merged, %d dropped)",
         len(concepts),
         len(reduced),
-        len(themes),
+        len(merged_themes),
+        len(batches),
+        failures,
         len(merged_into),
         len(dropped),
     )
@@ -734,6 +869,89 @@ def test_reduce_merges_folds_mentions_and_orders_by_theme() -> None:
     assert [c["id"] for c in reduced] == ["agents", "linux"]
     assert [c["theme"] for c in reduced] == ["Agentic coding", "Operating systems"]
     assert reduced[0]["mentions"] == ["1.00", "2.00"]  # the merged concept's mentions survive
+
+
+def test_consolidation_collapses_names_the_batches_chose_separately() -> None:
+    from unittest.mock import patch
+
+    names = ["Agentic coding", "AI coding agents", "Linux and tooling"]
+    response = json.dumps(
+        {
+            "groups": [
+                {"name": "Agentic coding", "members": [1, 2]},
+                {"name": "Linux and tooling", "members": [3]},
+            ]
+        }
+    )
+
+    class _Result:
+        content: str = response
+
+    with patch("kash.llm_utils.llm_completion.llm_template_completion", return_value=_Result()):
+        canonical = consolidate_theme_names(names, LLM.default_structured)
+
+    assert canonical == {
+        "Agentic coding": "Agentic coding",
+        "AI coding agents": "Agentic coding",
+        "Linux and tooling": "Linux and tooling",
+    }
+
+
+def test_a_name_no_group_claimed_keeps_itself() -> None:
+    from unittest.mock import patch
+
+    class _Result:
+        content: str = json.dumps({"groups": [{"name": "A", "members": [1]}]})
+
+    with patch("kash.llm_utils.llm_completion.llm_template_completion", return_value=_Result()):
+        canonical = consolidate_theme_names(["A", "Forgotten"], LLM.default_structured)
+
+    assert canonical["Forgotten"] == "Forgotten"
+
+
+def test_consolidation_failure_keeps_the_per_batch_names() -> None:
+    from unittest.mock import patch
+
+    with patch(
+        "kash.llm_utils.llm_completion.llm_template_completion",
+        side_effect=TimeoutError("timed out"),
+    ):
+        canonical = consolidate_theme_names(["A", "B"], LLM.default_structured)
+
+    assert canonical == {"A": "A", "B": "B"}
+
+
+def _identity_names(names: Sequence[str], _model: object) -> dict[str, str]:
+    return {name: name for name in names}
+
+
+def test_one_failed_batch_does_not_lose_the_other_themes() -> None:
+    from unittest.mock import patch
+
+    concepts = [_concept(f"c{i}", [f"{i * 100}.00"]) for i in range(60)]
+    calls: list[int] = []
+
+    def flaky(batch: object, _model: object) -> object:
+        calls.append(len(calls))
+        if len(calls) == 2:
+            raise TimeoutError("timed out")
+        ids = [str(c["id"]) for c in cast(list[dict[str, Any]], batch)]
+        return ([(f"Theme {len(calls)}", ids)], {}, set())
+
+    with (
+        patch("deep_transcribe.concept_map._reduce_batch", side_effect=flaky),
+        patch(
+            "deep_transcribe.concept_map.consolidate_theme_names",
+            side_effect=_identity_names,
+        ),
+    ):
+        reduced = reduce_concepts(concepts, LLM.default_structured)
+
+    assert len(calls) == 3  # 60 concepts at 25 per batch
+    # Every concept survives: the failed batch's concepts are simply unthemed.
+    assert len(reduced) == 60
+    assert sum(1 for c in reduced if c.get("theme")) == 35
+    assert sum(1 for c in reduced if not c.get("theme")) == 25
 
 
 def test_reduce_accepts_numbers_and_ignores_out_of_range_ones() -> None:
