@@ -414,6 +414,23 @@ def set_processing_instructions(item: Item, instructions: str | None) -> Item:
     return item
 
 
+VOLATILE_SOURCE_FIELDS = frozenset(
+    {"view_count", "like_count", "comment_count", "channel_follower_count", "concurrent_view_count"}
+)
+"""
+Source fields that change on their own and must stay out of cache identity.
+
+Every downstream action hashes the item's metadata, so anything stored there is part of
+the cache key. A view counter on a popular video moves by the minute, which means a rerun
+a few hours later re-does the entire pipeline — speaker correction, paragraph formatting,
+section headings, and paid speech-to-text — because a number nothing reads went up.
+
+Measured on Lex #501: 1,227,118 views at the first run and 1,238,631 six hours later, and
+the second run repeated every stage. These counters were already excluded from the prompt
+context, so nothing uses them; they only ever sat in the identity doing harm.
+"""
+
+
 def copy_source_metadata(source: Item, target: Item) -> Item:
     """Copy descriptive source metadata to another item without losing target metadata."""
     if source.title is not None:
@@ -427,7 +444,13 @@ def copy_source_metadata(source: Item, target: Item) -> Item:
     if source.thumbnail_url is not None:
         target.thumbnail_url = source.thumbnail_url
     if source.extra:
-        target.extra = _deep_merge(target.extra or {}, source.extra)
+        stable = {k: v for k, v in source.extra.items() if k not in VOLATILE_SOURCE_FIELDS}
+        target.extra = _deep_merge(target.extra or {}, stable)
+    # A counter already stored by an earlier version must go too, or the item keeps the
+    # value it was first saved with and stays out of step with a freshly fetched one.
+    if target.extra:
+        for field in VOLATILE_SOURCE_FIELDS:
+            target.extra.pop(field, None)
     return target
 
 
@@ -570,3 +593,55 @@ def test_copy_source_metadata_preserves_canonical_media_links() -> None:
 
     assert target.url == source.url
     assert target.thumbnail_url == source.thumbnail_url
+
+
+def test_a_moving_view_count_does_not_change_item_identity() -> None:
+    """
+    Every downstream action hashes item.metadata(), so a counter stored there is inside
+    the cache key of the whole pipeline. On the measured recording the view count moved
+    from 1,227,118 to 1,238,631 in six hours and the rerun repeated every stage,
+    including paid speech-to-text.
+    """
+    from kash.model import Format
+
+    def source(views: int) -> Item:
+        return Item(
+            type=ItemType.resource,
+            format=Format.yaml,
+            title="A recording",
+            extra={"channel": "A channel", "view_count": views, "upload_date": "2026-08-26"},
+        )
+
+    first = Item(type=ItemType.resource, format=Format.yaml)
+    copy_source_metadata(source(1_227_118), first)
+
+    second = Item(type=ItemType.resource, format=Format.yaml)
+    copy_source_metadata(source(1_238_631), second)
+
+    # Compare everything the two runs would hash, less the creation stamp, which differs
+    # because the test builds two items rather than reusing one.
+    def identity(item: Item) -> dict[str, Any]:
+        return {k: v for k, v in item.metadata().items() if k != "created_at"}
+
+    assert identity(first) == identity(second)
+    assert "view_count" not in (first.extra or {})
+    # The fields that actually describe the source are still carried.
+    assert (first.extra or {})["channel"] == "A channel"
+    assert (first.extra or {})["upload_date"] == "2026-08-26"
+
+
+def test_a_counter_stored_by_an_earlier_run_is_dropped_too() -> None:
+    """An item saved before this rule existed still carries the counter; it must go."""
+    from kash.model import Format
+
+    target = Item(
+        type=ItemType.resource,
+        format=Format.yaml,
+        extra={"view_count": 999, "like_count": 5, "channel": "A channel"},
+    )
+
+    copy_source_metadata(Item(type=ItemType.resource, format=Format.yaml, title="T"), target)
+
+    assert "view_count" not in (target.extra or {})
+    assert "like_count" not in (target.extra or {})
+    assert (target.extra or {})["channel"] == "A channel"
