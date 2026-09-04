@@ -305,10 +305,72 @@
     return panel;
   }
 
+  /* The outline names every section — 172 of them on a five-hour recording, which is a
+     wall rather than a map. Group it under the themes the reduce pass already found, so
+     the outline and the concept map agree on the shape of the conversation instead of
+     describing it two different ways. Short media has no themes and is left alone. */
+  const OUTLINE_FLAT_LIMIT = 30;
+
+  function themeSpans(concepts) {
+    const spans = [];
+    for (const concept of concepts) {
+      if (!concept.theme) continue;
+      const last = spans[spans.length - 1];
+      if (last && last.label === concept.theme) last.end = Math.max(last.end, concept.span[1]);
+      else spans.push({ label: concept.theme, start: concept.span[0], end: concept.span[1] });
+    }
+    return spans;
+  }
+
+  function groupOutlineByTheme(concepts) {
+    const outline = document.querySelector(".transcript-outline");
+    if (!outline) return;
+    const list = outline.querySelector("ul, ol");
+    if (!list) return;
+    const items = [...list.children].filter((el) => el.tagName === "LI");
+    if (items.length <= OUTLINE_FLAT_LIMIT) return;
+    const spans = themeSpans(concepts);
+    if (spans.length < 2) return;
+
+    // An item's time comes from the chip the timeline cross-reference stamped on it.
+    // An item with no chip belongs with whatever came before it.
+    let clock = 0;
+    const placed = items.map((li) => {
+      const chip = li.querySelector(".dt-time-chip[data-t]");
+      if (chip) clock = parseFloat(chip.dataset.t);
+      let index = spans.findIndex((s) => clock >= s.start && clock <= s.end);
+      if (index < 0) {
+        index = 0;
+        for (let i = 0; i < spans.length; i += 1) if (spans[i].start <= clock) index = i;
+      }
+      return { li, index };
+    });
+
+    const groups = el("div", "dt-outline-groups");
+    let current = null;
+    let currentIndex = -1;
+    for (const { li, index } of placed) {
+      if (index !== currentIndex) {
+        currentIndex = index;
+        const built = buildThemeGroup(spans[index].label, 0, true);
+        groups.appendChild(built.group);
+        current = built;
+      }
+      const inner = el("ul", null);
+      inner.appendChild(li);
+      current.body.appendChild(inner);
+      const count = current.group.querySelector(".dt-theme-count");
+      count.textContent = String(current.body.querySelectorAll(":scope > ul > li").length);
+    }
+    list.replaceWith(groups);
+  }
+
   function init(event) {
     model = event.detail.model;
     const concepts = model.index.concepts;
     if (!concepts || !concepts.length) return;
+
+    groupOutlineByTheme(concepts);
 
     if (model.elements.has("concepts")) {
       root = model.makePanel("Concepts");

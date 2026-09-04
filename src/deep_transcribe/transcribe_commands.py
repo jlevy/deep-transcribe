@@ -237,6 +237,7 @@ def _process_transcript(
 
     if options.insert_frame_captures:
         result = insert_frame_captures(result)
+        result = _thin_frame_captures(result)
 
     if options.extract_concepts and options.format:
         from deep_transcribe.concept_map import extract_transcript_concepts
@@ -576,6 +577,32 @@ def relocate_referenced_assets(html_path: Path, source_dir: Path) -> bool:
     with atomic_output_file(html_path) as temp_path:
         temp_path.write_text(text)
     return True
+
+
+def _thin_frame_captures(item: Item) -> Item:
+    """
+    Cap frame density on long media, editing in place so no cache entry is invalidated.
+
+    `insert_frame_captures` has already written the files and the tags; this only decides
+    which of them survive. Doing it as a mutation of the same item rather than a derived
+    one keeps the frame capture step's own cache intact, so a rerun does not pay for the
+    captures again.
+    """
+    from sidematter_format import Sidematter
+
+    from deep_transcribe.frame_density import thin_frame_captures
+
+    if not item.body or not item.store_path:
+        return item
+    from kash.workspaces.workspaces import current_ws
+
+    assets_dir = Sidematter(current_ws().base_dir / item.store_path).assets_dir
+    body, removed = thin_frame_captures(item.body, assets_dir)
+    if not removed:
+        return item
+    item.body = body
+    current_ws().save(item)
+    return item
 
 
 def format_results(

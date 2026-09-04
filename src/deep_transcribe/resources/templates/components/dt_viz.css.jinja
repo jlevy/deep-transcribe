@@ -636,6 +636,13 @@ body.yt-open #dt-rail {
   display: none;
 }
 
+/* The grouped outline reuses the theme container, so its lists lose the default
+   list indent and spacing the flat outline had. */
+.dt-outline-groups .dt-theme-body ul {
+  margin: 0.2rem 0;
+  padding-left: 1.1rem;
+}
+
 /* A group's first entry already has the head above it. */
 .dt-theme-body > .dt-concept-entry:first-child {
   margin-top: 0.5rem;

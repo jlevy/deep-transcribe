@@ -268,6 +268,8 @@
       const chip = document.createElement("span");
       chip.className = "dt-timestamp dt-time-chip dt-ui";
       chip.textContent = model.formatTime(section.start);
+      // Other modules group the outline by time; the chip is where that time lives.
+      chip.dataset.t = String(section.start);
       chip.addEventListener("click", () => model.playAt(section.start));
       chip.addEventListener("mouseenter", () => setHotSection(section.id));
       chip.addEventListener("mouseleave", () => setHotSection(null));
