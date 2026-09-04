@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import bisect
 import json
+import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import cast
 
@@ -11,6 +12,8 @@ from kash.exec import kash_action, kash_precondition
 from kash.exec.preconditions import has_simple_text_body, has_timestamps
 from kash.model import Item
 from kash.utils.errors import InvalidInput
+
+from deep_transcribe.segment_hints import SegmentHints, parse_hints
 
 INDEX_ELEMENT_ID = "dt-transcript-index"
 """DOM id of the embedded JSON transcript index."""
@@ -33,6 +36,8 @@ _FRAME_PATTERN = re.compile(
     r"[^>]*>"
 )
 _SPEAKER_LABEL_PATTERN = re.compile(r"^\*\*(?P<name>[^*\n]{1,80}?):\*\*")
+
+log = logging.getLogger(__name__)
 _DIV_LINE_PATTERN = re.compile(r"^\s*</?div[^>]*>\s*$", re.MULTILINE)
 _TAG_PATTERN = re.compile(r"<[^>]+>")
 _ISLAND_PATTERN = re.compile(
@@ -88,6 +93,8 @@ class UnitEntry:
     sentences: int
     sentence_times: list[float]
     excerpt: str
+    segment: str | None = None
+    """Purpose of the suppressed segment covering this unit, or None if it is ordinary."""
 
 
 @dataclass(frozen=True)
@@ -153,6 +160,7 @@ class TranscriptIndex:
                     "sentences": u.sentences,
                     "sentence_times": u.sentence_times,
                     "excerpt": u.excerpt,
+                    **({"segment": u.segment} if u.segment else {}),
                 }
                 for u in self.units
             ],
@@ -265,6 +273,7 @@ def build_transcript_index(
     sentence_onsets: list[float] | None = None,
     has_video: bool = False,
     concepts: list[dict[str, object]] | None = None,
+    hints: SegmentHints | None = None,
 ) -> TranscriptIndex:
     """
     Build the transcript index from a formatted transcript body.
@@ -368,7 +377,21 @@ def build_transcript_index(
             )
         )
 
+    if hints is not None and hints.segments:
+        # Mark rather than remove. The reader keeps every word and can see what was set
+        # aside and why; only the analysis stages actually drop these.
+        units = [
+            replace(unit, segment=covering.purpose.value)
+            if (covering := hints.suppressed_at(unit.start)) is not None
+            else unit
+            for unit in units
+        ]
+        marked = sum(1 for unit in units if unit.segment)
+        log.info("Marked %d of %d units as suppressed segments", marked, len(units))
+
     reported_duration = duration if duration is not None and duration >= last_end - 0.5 else None
+    # Concepts resolve against the marked units, so a mention landing in a suppressed
+    # stretch still resolves — the analysis simply should not have produced one.
     resolved_concepts = _resolve_concepts(concepts or [], units)
     return TranscriptIndex(
         media_url=url,
@@ -597,7 +620,11 @@ def attach_transcript_index(item: Item) -> Item:
     The visible prose is untouched; the index binds to existing citation spans by
     their `data-timestamp` values.
     """
-    from deep_transcribe.transcription_metadata import get_concepts, get_speaker_roster
+    from deep_transcribe.transcription_metadata import (
+        get_concepts,
+        get_segment_hints,
+        get_speaker_roster,
+    )
 
     if not item.body:
         raise InvalidInput(f"Item must have a body: {item}")
@@ -613,6 +640,7 @@ def attach_transcript_index(item: Item) -> Item:
         sentence_onsets=_resolve_sentence_onsets(item),
         has_video=has_video,
         concepts=get_concepts(item),
+        hints=parse_hints(get_segment_hints(item)),
     )
     return item.derived_copy(body=f"{body.rstrip()}\n\n{render_index_island(index)}\n")
 
@@ -829,3 +857,36 @@ def test_minify_preserves_json_island(tmp_path: Path) -> None:
     match = re.search(f'id="{INDEX_ELEMENT_ID}">(.*?)</script>', result.stdout, re.DOTALL)
     assert match
     assert json.loads(match.group(1)) == index.to_json_dict()
+
+
+def test_hints_mark_units_without_removing_them() -> None:
+    from deep_transcribe.segment_hints import parse_hints
+
+    hints = parse_hints({"segments": [{"at": "0:00 - 0:06", "purpose": "teaser"}]})
+
+    index = build_transcript_index(
+        _TEST_BODY,
+        roster=["Alice", "Bob"],
+        duration=20.0,
+        hints=hints,
+    )
+
+    # Every unit is still present: the reader keeps the words, the analysis drops them.
+    assert len(index.units) == 4
+    assert [u.segment for u in index.units] == ["teaser", "teaser", None, None]
+
+    payload = index.to_json_dict()
+    units = payload["units"]
+    assert isinstance(units, list)
+    assert units[0]["segment"] == "teaser"
+    # An ordinary unit carries no key at all, so the island does not grow for nothing.
+    assert "segment" not in units[2]
+
+
+def test_no_hints_leaves_the_index_exactly_as_it_was() -> None:
+    plain = build_transcript_index(_TEST_BODY, roster=["Alice", "Bob"], duration=20.0)
+
+    assert all(u.segment is None for u in plain.units)
+    units = plain.to_json_dict()["units"]
+    assert isinstance(units, list)
+    assert all("segment" not in u for u in units)

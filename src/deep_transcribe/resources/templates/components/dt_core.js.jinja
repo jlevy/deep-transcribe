@@ -45,6 +45,59 @@
     }
   }
 
+  /* Suppressed stretches — a teaser, an ad read, an outro — are marked in the index
+     rather than removed, because the reader should be able to see what was set aside
+     and why. Each run of them collapses behind one line saying what it is, and opens on
+     click. The analysis never saw them; this is only about the page. */
+  const SEGMENT_NAMES = {
+    teaser: "Teaser",
+    intro: "Introduction",
+    promo: "Promotion",
+    outro: "Outro",
+    other: "Set aside",
+  };
+
+  function collapseSegments(index) {
+    const runs = [];
+    let current = null;
+    for (const unit of index.units) {
+      if (!unit.segment || !unit.el) {
+        current = null;
+        continue;
+      }
+      if (current && current.segment === unit.segment) current.units.push(unit);
+      else {
+        current = { segment: unit.segment, units: [unit] };
+        runs.push(current);
+      }
+    }
+    for (const run of runs) {
+      const first = run.units[0].el;
+      if (!first || !first.parentElement) continue;
+      const wrap = document.createElement("div");
+      wrap.className = "dt-segment dt-collapsed";
+      wrap.dataset.segment = run.segment;
+      const head = document.createElement("button");
+      head.type = "button";
+      head.className = "dt-segment-head";
+      const name = SEGMENT_NAMES[run.segment] || SEGMENT_NAMES.other;
+      const seconds = run.units[run.units.length - 1].end - run.units[0].start;
+      head.textContent = `${name} — ${Math.round(seconds / 60)} min, left out of the analysis`;
+      head.setAttribute("aria-expanded", "false");
+      head.addEventListener("click", () => {
+        const collapsed = !wrap.classList.contains("dt-collapsed");
+        wrap.classList.toggle("dt-collapsed", collapsed);
+        head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      });
+      first.parentElement.insertBefore(wrap, first);
+      wrap.appendChild(head);
+      const body = document.createElement("div");
+      body.className = "dt-segment-body";
+      wrap.appendChild(body);
+      for (const unit of run.units) if (unit.el) body.appendChild(unit.el);
+    }
+  }
+
   function bindFrames(index, scope) {
     const byTime = new Map();
     scope.querySelectorAll("img.frame-capture").forEach((img) => {
@@ -376,6 +429,7 @@
     }
     const scope = document.querySelector(".long-text") || document.body;
     bindUnits(index, scope);
+    collapseSegments(index);
     bindFrames(index, scope);
     bindSections(index, scope);
     const model = buildModel(index);

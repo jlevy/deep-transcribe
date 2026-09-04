@@ -636,6 +636,40 @@ body.yt-open #dt-rail {
   display: none;
 }
 
+/* ---- Suppressed segments in the transcript ---- */
+
+/* Set aside, not deleted: a marked run collapses behind one line naming what it is,
+   and opens on click. Grayed rather than hidden so the reader can see the shape of
+   what the analysis skipped. */
+.dt-segment {
+  border-left: 2px solid var(--color-hint);
+  margin: 1.4rem 0;
+  padding-left: var(--dt-pad);
+}
+
+.dt-segment-head {
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--dt-text-faint);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-tiny);
+}
+
+.dt-segment.dt-collapsed .dt-segment-body {
+  display: none;
+}
+
+/* Expanded, the words themselves stay quiet: they are context, not the transcript. */
+.dt-segment-body {
+  color: var(--dt-text-support);
+}
+
 /* A theme's own graph sits above its concepts, set in from the group's edge so it
    reads as belonging to the theme rather than to the panel. */
 .dt-theme-graph {
@@ -936,6 +970,12 @@ body.yt-open #dt-rail {
 
   /* Collapsing is a screen affordance; paper shows every theme's concepts. */
   .dt-theme-group.dt-collapsed .dt-theme-body {
+    display: block;
+  }
+
+  /* A suppressed segment prints, labelled, because a printed transcript that silently
+     omits ten minutes is worse than one that shows them set aside. */
+  .dt-segment.dt-collapsed .dt-segment-body {
     display: block;
   }
 
