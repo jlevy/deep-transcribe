@@ -4,14 +4,14 @@ id: is-01kxjaq0b6qbc56qsyemfq06qa
 title: Add portable transcript HTML and ZIP bundle exports
 kind: feature
 status: open
-priority: 2
-version: 1
+priority: 1
+version: 3
 labels:
   - html
   - portability
 dependencies: []
-parent_id: is-01kxj4xxyfwmxmk3z9mebcf92x
+parent_id: is-01m1n2x04sy0v4w4t2jgpf7msp
 created_at: 2026-07-15T07:26:29.221Z
-updated_at: 2026-07-15T07:26:29.221Z
+updated_at: 2026-09-04T02:10:28.149Z
 ---
-Provide an explicitly portable export path. A single-file variant should inline or otherwise eliminate required sibling assets within a practical size limit; large exports should fall back to or additionally produce a ZIP bundle with a clear HTML entry point. Do not embed the original source media by default. Define behavior for frame compression, size thresholds, and offline timestamp links.
+VERIFIED FEASIBLE (audit 2026-09-03 against a real minified export): a single-file standalone HTML is a small, tractable change. Tailwind is ALREADY compiled and inlined by the minify step. What remains load-bearing: six woff2 faces from cdn.jsdelivr fontsource, the feather-icons script, Google Fonts preconnects, the YouTube thumbnail, and the local .assets frame captures. Inline the fonts as base64 (or fall back to a system stack), replace feather with inline SVG for the handful of icons used, and inline the thumbnail and frames as data URIs. YouTube embed and timestamp links stay external by design — that is the video itself. Estimated single-file size for a short piece is ~1-2 MB; long transcripts with many frames argue for the ZIP bundle variant as the alternative. Ship behind a flag (e.g. --standalone) alongside the existing --elements.
