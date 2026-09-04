@@ -58,8 +58,10 @@ Run `deep-transcribe --help` for the current stage list and Deepgram model optio
 ## Long Recordings
 
 Hours-long sources work end to end.
-Full-length podcasts and interviews have been run through the whole pipeline, and the
-design holds well past that: **12 hours or more is supported**.
+The longest recording verified through the whole pipeline is a five-and-a-quarter-hour
+interview. Nothing in the design imposes a ceiling below twelve hours, but no recording
+that long has been run yet, so treat twelve hours as the design target rather than a
+tested limit.
 
 Nothing about the transcript is chunked or stitched together.
 Speech-to-text sends the audio as a single request, so timestamps come back on one
@@ -162,7 +164,7 @@ iterations.
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
-| Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses the cached transcript and everything through section headings |
+| Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses the cached transcript and speaker correction; repeats paragraph formatting and section headings, about 45 minutes on a five-hour recording |
 | Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
