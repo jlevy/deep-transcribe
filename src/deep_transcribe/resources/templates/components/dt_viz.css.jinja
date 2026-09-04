@@ -23,6 +23,9 @@
   --dt-sp-6-vivid: #e8590c;
   --dt-sp-7-vivid: #647ce8;
   --dt-rail-width: 3.4rem;
+  /* Two radii only: small controls and larger surfaces. */
+  --dt-radius: 0.25rem;
+  --dt-radius-lg: 0.4rem;
 }
 
 [data-theme="dark"] {
@@ -47,9 +50,12 @@
 .dt-s6 { --dt-c: var(--dt-sp-6); --dt-cv: var(--dt-sp-6-vivid); }
 .dt-s7 { --dt-c: var(--dt-sp-7); --dt-cv: var(--dt-sp-7-vivid); }
 
-/* Speaker labels in the prose pick up their speaker's color. */
+/* Speaker labels in the prose pick up their speaker's color and the sans
+   face, so only the spoken words are serif. */
 strong.dt-speaker-label {
   color: var(--dt-c);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
 }
 
 .dt-ui {
@@ -99,7 +105,7 @@ strong.dt-speaker-label {
 
 .dt-time-chip {
   margin-left: 0.45rem;
-  border-radius: 0.2rem;
+  border-radius: var(--dt-radius);
   padding: 0 0.2rem;
   cursor: pointer;
   transition: background-color 0.12s ease-in-out, color 0.12s ease-in-out;
@@ -194,7 +200,7 @@ strong.dt-speaker-label {
   width: var(--dt-rail-width);
   z-index: 40;
   display: none;
-  border-radius: 0.4rem;
+  border-radius: var(--dt-radius-lg);
   outline: none;
   opacity: 0;
   transform: translateX(0.6rem);
@@ -272,7 +278,7 @@ body.yt-open #dt-rail {
   opacity: 0.16;
   border-top: 1px solid var(--color-hint-strong);
   border-bottom: 1px solid var(--color-hint-strong);
-  border-radius: 0.2rem;
+  border-radius: var(--dt-radius);
   pointer-events: none;
 }
 
@@ -321,7 +327,7 @@ body.yt-open #dt-rail {
   padding: 0.5rem 0.7rem;
   background: var(--color-tooltip-bg);
   color: #fff;
-  border-radius: 0.4rem;
+  border-radius: var(--dt-radius-lg);
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
   font-size: var(--font-size-tiny);
@@ -337,12 +343,27 @@ body.yt-open #dt-rail {
   opacity: 1;
 }
 
+/* Transcript text inside a tooltip mirrors the prose: colored bold label,
+   serif body. The tooltip ground is dark in both themes, so labels use the
+   vivid speaker variant. */
+.dt-tip .dt-tip-text {
+  margin-top: 0.35rem;
+  font-family: var(--font-serif);
+  font-size: var(--font-size-smaller);
+  line-height: 1.45;
+}
+
+.dt-tip .dt-tip-text .dt-speaker-label {
+  color: var(--dt-cv, inherit);
+  font-family: var(--font-sans);
+}
+
 .dt-tip .dt-tip-frame {
   display: block;
   width: 13rem;
   max-width: 100%;
   margin-top: 0.4rem;
-  border-radius: 0.3rem;
+  border-radius: var(--dt-radius);
 }
 
 .dt-tip .dt-tip-head {
@@ -443,7 +464,7 @@ body.yt-open #dt-rail {
 
 .dt-bar {
   height: 0.55rem;
-  border-radius: 0.3rem;
+  border-radius: var(--dt-radius);
   background: var(--dt-cv, var(--color-hint));
   min-width: 2px;
 }
@@ -495,7 +516,6 @@ body.yt-open #dt-rail {
 
 .dt-graph-node rect {
   fill: var(--color-bg-alt-solid);
-  stroke: var(--color-hint-strong);
   stroke-width: 1.2;
 }
 
@@ -506,12 +526,26 @@ body.yt-open #dt-rail {
   fill: var(--color-text);
 }
 
-/* Kind is encoded on the node border and the definition badge. */
-.dt-kind-topic rect { stroke: var(--color-primary); }
-.dt-kind-entity rect { stroke: var(--dt-sp-5); }
-.dt-kind-term rect { stroke: var(--dt-sp-7); }
-.dt-kind-claim rect { stroke: var(--dt-sp-1); }
-.dt-kind-decision rect { stroke: var(--dt-sp-4); }
+/* The kind tag inside a graph node, echoing the definition-list chips. */
+.dt-graph-node .dt-graph-kind {
+  text-anchor: start;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  fill: var(--dt-kind-c, var(--color-hint-strong));
+}
+
+/* Kind is encoded in one color, shared by the graph node border and the
+   kind chip. */
+.dt-kind-topic { --dt-kind-c: var(--color-primary); }
+.dt-kind-entity { --dt-kind-c: var(--dt-sp-5); }
+.dt-kind-term { --dt-kind-c: var(--dt-sp-7); }
+.dt-kind-claim { --dt-kind-c: var(--dt-sp-1); }
+.dt-kind-decision { --dt-kind-c: var(--dt-sp-4); }
+
+.dt-graph-node rect,
+[class*="dt-kind-"] rect {
+  stroke: var(--dt-kind-c, var(--color-hint-strong));
+}
 
 .dt-selected .dt-ribbon-span,
 .dt-selected.dt-graph-node rect {
@@ -543,9 +577,9 @@ body.yt-open #dt-rail {
   font-variant-caps: var(--caps-caps-variant);
   letter-spacing: var(--caps-spacing);
   font-weight: var(--font-weight-sans-medium);
-  color: var(--color-hint-strong);
-  border: 1px solid var(--color-border-hint);
-  border-radius: 0.25rem;
+  color: var(--dt-kind-c, var(--color-hint-strong));
+  border: 1px solid var(--dt-kind-c, var(--color-hint-strong));
+  border-radius: var(--dt-radius);
   padding: 0 0.3rem;
 }
 
@@ -573,7 +607,7 @@ body.yt-open #dt-rail {
 .dt-mention {
   background: var(--color-hover-bg);
   outline: 2px solid var(--color-border-hint);
-  border-radius: 0.25rem;
+  border-radius: var(--dt-radius);
 }
 
 .dt-rail-concept-span {
@@ -616,7 +650,7 @@ body.yt-open #dt-rail {
     width: min(11rem, calc(100vw - var(--dt-col-ml, 2rem) - 48rem - var(--dt-rail-width) - 3.6rem));
     max-width: 11rem;
     margin: 0;
-    border-radius: 0.3rem;
+    border-radius: var(--dt-radius);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
     transition: box-shadow 0.15s ease-in-out, transform 0.2s ease-in-out;
   }
@@ -676,6 +710,7 @@ body.yt-open #dt-rail {
 
   strong.dt-speaker-label {
     color: inherit;
+    font-family: inherit;
   }
 }
 

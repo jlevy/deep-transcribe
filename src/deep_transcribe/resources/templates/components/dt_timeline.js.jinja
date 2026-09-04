@@ -84,7 +84,7 @@
       const w = Math.max(2, x(section.end) - x0);
       const block = svgEl("rect", {
         class: "dt-ov-section",
-        x: x0, y: SECTION_Y, width: w, height: SECTION_H, rx: 3,
+        x: x0, y: SECTION_Y, width: w, height: SECTION_H, rx: 4,
         "data-section": section.id,
       });
       model.tooltip.attach(block, () =>
@@ -125,7 +125,21 @@
       const name = model.speakerById.get(units[i].speaker)?.name || "";
       const speaker = units[i].speaker;
       const segStart = model.formatTime(units[i].start);
-      model.tooltip.attach(seg, () => tipContent(model.speakerClass(speaker), name, segStart));
+      const segUnits = units.slice(i, j + 1);
+      model.tooltip.attach(seg, () => {
+        const content = tipContent(model.speakerClass(speaker), name, segStart);
+        const text = document.createElement("div");
+        text.className = "dt-tip-text";
+        const label = document.createElement("strong");
+        label.className = `dt-speaker-label ${model.speakerClass(speaker)}`;
+        label.textContent = `${name}: `;
+        text.appendChild(label);
+        let excerpt = segUnits.map((u) => u.excerpt).join(" ");
+        if (excerpt.length > 300) excerpt = `${excerpt.slice(0, 299).replace(/\s+\S*$/, "")}…`;
+        text.appendChild(document.createTextNode(excerpt));
+        content.appendChild(text);
+        return content;
+      });
       const start = units[i].start;
       seg.addEventListener("click", () => model.seek(start));
       group.appendChild(seg);

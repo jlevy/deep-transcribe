@@ -78,7 +78,7 @@
           y: y - 4,
           width: Math.max(3, x(concept.span[1]) - x(concept.span[0])),
           height: 8,
-          rx: 3,
+          rx: 4,
         })
       );
       for (const mention of concept.mentions) {
@@ -111,8 +111,9 @@
     const x = (t) => 10 + ((t - start) / length) * (width - 30);
 
     const nodes = concepts.map((concept) => {
-      const w = Math.min(190, concept.label.length * charWidth + 22);
-      return { concept, x: x(concept.mentions[0].t), w };
+      const tagWidth = concept.kind.length * 6.2 + 8;
+      const w = Math.min(230, concept.label.length * charWidth + tagWidth + 26);
+      return { concept, x: x(concept.mentions[0].t), w, tagWidth };
     });
     const rows = [];
     for (const node of nodes) {
@@ -160,11 +161,21 @@
         "data-concept": node.concept.id,
       });
       group.appendChild(
-        svgEl("rect", { x: node.x, y, width: node.w, height: nodeHeight, rx: 6 })
+        svgEl("rect", { x: node.x, y, width: node.w, height: nodeHeight, rx: 4 })
+      );
+      group.appendChild(
+        svgEl(
+          "text",
+          { class: "dt-graph-kind", x: node.x + 8, y: y + nodeHeight / 2 + 3.5 },
+          node.concept.kind.toUpperCase()
+        )
       );
       const label = svgEl(
         "text",
-        { x: node.x + node.w / 2, y: y + nodeHeight / 2 + 4 },
+        {
+          x: node.x + node.tagWidth + (node.w - node.tagWidth) / 2,
+          y: y + nodeHeight / 2 + 4,
+        },
         node.concept.label.length > 26
           ? node.concept.label.slice(0, 25) + "…"
           : node.concept.label
