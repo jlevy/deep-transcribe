@@ -51,8 +51,8 @@
 
   function buildRibbon(concepts) {
     const { start, length } = timeSpan();
-    const rowHeight = 22;
-    const labelWidth = 168;
+    const rowHeight = 25;
+    const labelWidth = 185;
     const width = 720;
     const height = concepts.length * rowHeight + 18;
     const svg = svgEl("svg", {
@@ -105,9 +105,9 @@
   function buildGraph(concepts) {
     const { start, length } = timeSpan();
     const width = 720;
-    const nodeHeight = 26;
+    const nodeHeight = 29;
     const rowGap = 14;
-    const charWidth = 6.6;
+    const charWidth = 7.4;
     const x = (t) => 10 + ((t - start) / length) * (width - 30);
 
     const nodes = concepts.map((concept) => {
@@ -228,7 +228,7 @@
       const chip = el("span", "dt-timestamp dt-time-chip", model.formatTime(concept.span[0]));
       chip.addEventListener("click", (event) => {
         event.stopPropagation();
-        model.seek(concept.span[0]);
+        model.playAt(concept.span[0]);
       });
       term.appendChild(chip);
       term.addEventListener("click", () => select(concept.id));
