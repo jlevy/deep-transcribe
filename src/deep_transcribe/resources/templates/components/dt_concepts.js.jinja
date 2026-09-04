@@ -199,7 +199,6 @@
       entry.appendChild(buildConceptTrack(concept));
       const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
-      term.appendChild(el("span", "dt-timestamp", model.formatTime(concept.span[0])));
       const detail = el("div", "dt-concept-gloss", concept.gloss);
       if (concept.research && concept.research.summary) {
         const research = el("div", "dt-concept-research", concept.research.summary);
