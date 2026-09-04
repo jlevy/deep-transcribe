@@ -367,6 +367,19 @@ def build_transcript_index(
     )
 
 
+MIN_MENTION_WORDS = 3
+"""
+A mention has to point at a unit that says something.
+
+An extractor asked to cite where a concept comes up will sometimes land on the
+acknowledgment that follows it — "Mhmm.", "Yeah.", "Right." A one-word unit cannot be
+about anything, and one of them an hour away from the rest stretches the concept's span
+across most of the recording: on a 5.3-hour interview, eight such mentions pushed six of
+twenty-four concepts past 15% of the running time. Three words is the smallest bar that
+clears those without touching real short answers ("I'd say mass immigration.").
+"""
+
+
 def _resolve_concepts(
     concepts: list[dict[str, object]], units: list[UnitEntry]
 ) -> list[dict[str, object]]:
@@ -399,6 +412,16 @@ def _resolve_concepts(
         if not mention_units:
             log.warning("Dropping concept %r: no valid mentions", concept.get("id"))
             continue
+        substantive = [u for u in mention_units if u.words >= MIN_MENTION_WORDS]
+        # Keep everything if a concept only ever lands on short units, rather than
+        # losing the concept over a rule meant to trim its outliers.
+        if substantive and len(substantive) < len(mention_units):
+            log.info(
+                "Dropping %d acknowledgment mention(s) for concept %r",
+                len(mention_units) - len(substantive),
+                concept.get("id"),
+            )
+            mention_units = substantive
         raw_relations = concept.get("relations")
         relation_dicts = [
             cast("dict[str, object]", r)
@@ -661,6 +684,69 @@ def test_build_index_appends_unknown_labels_to_roster() -> None:
 
     assert [s.name for s in index.speakers] == ["Alice", "Bob"]
     assert index.speakers[1].id == "s1"
+
+
+def test_acknowledgment_mentions_do_not_stretch_a_span() -> None:
+    def unit(key: str, start: float, end: float, words: int) -> UnitEntry:
+        return UnitEntry(
+            uid=f"p{key}",
+            key=key,
+            speaker="s0",
+            section="sec0",
+            start=start,
+            end=end,
+            words=words,
+            sentences=1,
+            sentence_times=[start],
+            excerpt="",
+        )
+
+    units = [
+        unit("1.00", 1.0, 40.0, 90),
+        unit("50.00", 50.0, 90.0, 80),
+        unit("9000.00", 9000.0, 9002.0, 1),  # "Mhmm." an hour later
+    ]
+    concept: dict[str, object] = {
+        "id": "c1",
+        "label": "A concept",
+        "kind": "topic",
+        "mentions": ["1.00", "50.00", "9000.00"],
+    }
+
+    [resolved] = _resolve_concepts([concept], units)
+
+    assert [m["key"] for m in cast("list[dict[str, object]]", resolved["mentions"])] == [
+        "1.00",
+        "50.00",
+    ]
+    assert resolved["span"] == [1.0, 90.0]
+
+
+def test_a_concept_of_only_short_mentions_keeps_them() -> None:
+    units = [
+        UnitEntry(
+            uid="p1",
+            key="1.00",
+            speaker="s0",
+            section=None,
+            start=1.0,
+            end=3.0,
+            words=2,
+            sentences=1,
+            sentence_times=[1.0],
+            excerpt="",
+        )
+    ]
+    concept: dict[str, object] = {
+        "id": "c1",
+        "label": "Terse",
+        "kind": "topic",
+        "mentions": ["1.00"],
+    }
+
+    [resolved] = _resolve_concepts([concept], units)
+
+    assert len(cast("list[object]", resolved["mentions"])) == 1
 
 
 def test_extract_sentence_onsets_ignores_citations() -> None:
