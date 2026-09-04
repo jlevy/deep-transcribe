@@ -1,67 +1,18 @@
-/* Deep Transcribe timeline and analytics styles.
-   Everything injected by the dt_* modules carries .dt-ui so one print rule
-   can hide the interactive chrome and keep the printed PDF unchanged. */
+/* ============================================================================
+   Deep Transcribe view components.
 
-:root {
-  /* Speaker palette: 8 hues. --dt-sp-N is the text-safe variant (WCAG AA on
-     the theme background); --dt-sp-N-vivid is the brighter fill variant used
-     for bands, bars, and markers in both themes. */
-  --dt-sp-0: #0b7285;
-  --dt-sp-1: #9a5b00;
-  --dt-sp-2: #6741d9;
-  --dt-sp-3: #c2255c;
-  --dt-sp-4: #28803a;
-  --dt-sp-5: #1971c2;
-  --dt-sp-6: #c23d08;
-  --dt-sp-7: #495d92;
-  --dt-sp-0-vivid: #15aabf;
-  --dt-sp-1-vivid: #e8890c;
-  --dt-sp-2-vivid: #7950f2;
-  --dt-sp-3-vivid: #e64980;
-  --dt-sp-4-vivid: #37b24d;
-  --dt-sp-5-vivid: #228be6;
-  --dt-sp-6-vivid: #e8590c;
-  --dt-sp-7-vivid: #647ce8;
-  --dt-rail-width: 3.4rem;
-  /* Two radii only: small controls and larger surfaces. */
-  --dt-radius: 0.25rem;
-  --dt-radius-lg: 0.4rem;
-  /* The only text colors in the dt UI. Everything renders in one of these
-     three roles, or in an accent from --dt-c/--dt-cv (speakers) or
-     --dt-kind-c (concept kinds):
-       --dt-text          content: headings, values, glosses, axis numbers
-       --dt-text-support  supporting labels: table headers, research notes
-       --dt-text-faint    de-emphasized: timestamps in brackets */
-  --dt-text: var(--color-text);
-  --dt-text-support: var(--color-hint-strong);
-  --dt-text-faint: var(--color-tertiary);
-}
+   All tokens — colors, radii, durations, shadows, z-layers, sizes — come from
+   dt_tokens.css.jinja, which is also where the design rules are written down.
+   No literals here beyond structural geometry; tests/test_design_tokens.py
+   enforces the contract. Everything injected by the dt_* modules carries
+   .dt-ui, and one print block keeps the printed PDF exactly as it was.
+   ============================================================================ */
 
-[data-theme="dark"] {
-  /* Same hues, lightened to stay AA against the dark background. */
-  --dt-sp-0: #3bc9db;
-  --dt-sp-1: #ffc078;
-  --dt-sp-2: #b197fc;
-  --dt-sp-3: #faa2c1;
-  --dt-sp-4: #8ce99a;
-  --dt-sp-5: #74c0fc;
-  --dt-sp-6: #ffa94d;
-  --dt-sp-7: #a5b4d4;
-}
+/* ---- Prose: speaker labels and reading measure ---- */
 
-/* One class per speaker slot; components read the indirection vars. */
-.dt-s0 { --dt-c: var(--dt-sp-0); --dt-cv: var(--dt-sp-0-vivid); }
-.dt-s1 { --dt-c: var(--dt-sp-1); --dt-cv: var(--dt-sp-1-vivid); }
-.dt-s2 { --dt-c: var(--dt-sp-2); --dt-cv: var(--dt-sp-2-vivid); }
-.dt-s3 { --dt-c: var(--dt-sp-3); --dt-cv: var(--dt-sp-3-vivid); }
-.dt-s4 { --dt-c: var(--dt-sp-4); --dt-cv: var(--dt-sp-4-vivid); }
-.dt-s5 { --dt-c: var(--dt-sp-5); --dt-cv: var(--dt-sp-5-vivid); }
-.dt-s6 { --dt-c: var(--dt-sp-6); --dt-cv: var(--dt-sp-6-vivid); }
-.dt-s7 { --dt-c: var(--dt-sp-7); --dt-cv: var(--dt-sp-7-vivid); }
-
-/* Speaker labels in the prose pick up their speaker's color and the sans
-   face, so only the spoken words are serif. On screen the label sits on its
-   own line without the colon; print keeps the inline "Name:" form. */
+/* Speaker labels are sans and speaker-colored, so only the spoken words are
+   serif. On screen the label sits on its own line without the colon; print
+   keeps the inline "Name:" form. */
 strong.dt-speaker-label {
   color: var(--dt-c);
   font-family: var(--font-sans);
@@ -78,9 +29,8 @@ strong.dt-speaker-label {
     display: none;
   }
 
-  /* Slightly tighter leading for reading; paragraph gaps stay as they are. */
   .long-text {
-    line-height: 1.42;
+    line-height: var(--dt-leading);
   }
 }
 
@@ -89,64 +39,62 @@ strong.dt-speaker-label {
   font-feature-settings: var(--font-features-sans);
 }
 
-/* ---- Shared panel treatment (matches the transcript outline: no box) ---- */
+/* ---- Panels and headings ---- */
 
-@media screen {
-  .description.dt-summary {
-    padding: 0 1rem;
-    margin: 1.5rem 0 2rem;
-  }
-}
-
+/* Panels are unboxed and share one padding; their inner edge is the text
+   edge everything else aligns to. */
 .dt-panel {
   margin: 1.5rem 0 2rem;
-  padding: 1rem;
+  padding: var(--dt-pad);
   font-size: var(--font-size-small);
 }
 
-/* Heading hierarchy, screen only (print keeps the serif layout):
-   H1 — every top section and the page title: all-caps, centered sans.
-   H2 — transcript sections: the sans panel-title treatment. */
 @media screen {
+  /* The summary joins the system: sans (it is extracted content, not
+     transcript), padded to the shared text edge. */
+  .description.dt-summary {
+    padding: 0 var(--dt-pad);
+    margin: 1.5rem 0 2rem;
+    font-family: var(--font-sans);
+    font-feature-settings: var(--font-features-sans);
+    font-size: var(--font-size-small);
+  }
+
+  /* H1: all-caps centered sans for every top section. The !important flags
+     override the outline title's stored inline style. */
   .dt-panel-title,
   .long-text .transcript-outline-title {
     font-family: var(--font-sans) !important;
     font-feature-settings: var(--font-features-sans);
     font-style: normal !important;
-    font-weight: 600 !important;
-    font-size: 1rem !important;
-    letter-spacing: 0.07em;
+    font-weight: var(--dt-title-weight) !important;
+    font-size: var(--dt-h1-size) !important;
+    letter-spacing: var(--dt-h1-spacing);
     text-transform: uppercase;
     text-align: center !important;
     color: var(--dt-text) !important;
     margin: 0 0 1rem !important;
   }
 
+  /* H2: transcript sections take the sans title treatment. */
   .long-text .original h2 {
     font-family: var(--font-sans);
     font-feature-settings: var(--font-features-sans);
     font-style: normal;
-    font-weight: 600;
-    font-size: 1.1rem;
+    font-weight: var(--dt-title-weight);
+    font-size: var(--dt-h2-size);
     color: var(--dt-text);
   }
 
-  /* The transcript prose sits on the panels' 1rem text edge, never wider. */
+  /* The transcript prose sits on the panels' text edge, never wider. */
   .long-text .original .original {
-    padding: 0 1rem;
-  }
-
-  /* Serif is reserved for the literal transcript text and the page title;
-     the summary is extracted content, so it reads in sans. */
-  .description.dt-summary {
-    font-family: var(--font-sans);
-    font-feature-settings: var(--font-features-sans);
-    font-size: var(--font-size-small);
+    padding: 0 var(--dt-pad);
   }
 }
 
-/* The one way a timestamp renders: light gray, sans, a step smaller, and in
-   brackets — exactly like the transcript's own citations. */
+/* ---- Timestamps ---- */
+
+/* The one inline-timestamp treatment; clicking opens the video. */
 .dt-timestamp {
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
@@ -169,7 +117,7 @@ strong.dt-speaker-label {
   border-radius: var(--dt-radius);
   padding: 0 0.2rem;
   cursor: pointer;
-  transition: background-color 0.12s ease-in-out, color 0.12s ease-in-out;
+  transition: background-color var(--dt-t-fast) ease-in-out, color var(--dt-t-fast) ease-in-out;
 }
 
 .dt-time-chip:hover {
@@ -177,7 +125,7 @@ strong.dt-speaker-label {
   background: var(--color-hover-bg);
 }
 
-/* ---- Horizontal Timeline overview panel ---- */
+/* ---- Timeline overview panel ---- */
 
 .dt-overview {
   display: block;
@@ -190,13 +138,12 @@ strong.dt-speaker-label {
 }
 
 .dt-ov-axis-tick {
-  stroke: var(--color-hint-strong);
+  stroke: var(--dt-text-support);
   stroke-width: 1.4;
 }
 
-/* Axis numbers are the content of the timeline, so they keep full
-   prominence and the design system's own size; only timestamps inline with
-   other text are grayed and bracketed. */
+/* Axis numbers are the sanctioned bare-timestamp exception: here time is the
+   content, so full prominence and no brackets. */
 .dt-ov-axis-label {
   font-size: var(--font-size-tiny);
   font-family: var(--font-sans);
@@ -209,7 +156,7 @@ strong.dt-speaker-label {
   stroke: var(--color-hint);
   stroke-width: 1;
   cursor: pointer;
-  transition: stroke 0.15s ease-in-out, fill 0.15s ease-in-out;
+  transition: stroke var(--dt-t-med) ease-in-out, fill var(--dt-t-med) ease-in-out;
 }
 
 .dt-ov-section.dt-hot {
@@ -234,11 +181,12 @@ strong.dt-speaker-label {
 
 .dt-ov-frame {
   fill: var(--color-bg-solid);
-  stroke: var(--color-hint-strong);
+  stroke: var(--dt-text-support);
   stroke-width: 1;
   cursor: pointer;
 }
 
+/* White dots cannot visibly brighten, so frames respond by stroke. */
 .dt-ov-frame:hover,
 .dt-ov-frame.dt-hot {
   stroke: var(--color-primary);
@@ -259,13 +207,13 @@ strong.dt-speaker-label {
   bottom: 3.5rem;
   right: 0.9rem;
   width: var(--dt-rail-width);
-  z-index: 40;
+  z-index: var(--dt-z-rail);
   display: none;
   border-radius: var(--dt-radius-lg);
   outline: none;
   opacity: 0;
   transform: translateX(0.6rem);
-  transition: opacity 0.35s ease-in-out, transform 0.35s ease-in-out;
+  transition: opacity var(--dt-t-slow) ease-in-out, transform var(--dt-t-slow) ease-in-out;
   pointer-events: none;
 }
 
@@ -276,7 +224,7 @@ strong.dt-speaker-label {
 }
 
 #dt-rail:focus-visible {
-  box-shadow: 0 0 0 3px var(--color-primary);
+  box-shadow: var(--dt-ring-focus);
 }
 
 /* Make room for the open video popover, which parks at bottom right. */
@@ -305,7 +253,7 @@ body.yt-open #dt-rail {
 .dt-rail-seg {
   fill: var(--dt-cv, var(--color-hint));
   opacity: 0.85;
-  transition: opacity 0.15s ease-in-out;
+  transition: opacity var(--dt-t-med) ease-in-out;
 }
 
 #dt-rail:hover .dt-rail-seg {
@@ -313,14 +261,14 @@ body.yt-open #dt-rail {
 }
 
 .dt-rail-section-tick {
-  stroke: var(--color-text);
+  stroke: var(--dt-text);
   stroke-width: 1;
   opacity: 0.55;
 }
 
 .dt-rail-frame-tick {
   fill: var(--color-bg-solid);
-  stroke: var(--color-hint-strong);
+  stroke: var(--dt-text-support);
   stroke-width: 1;
   cursor: pointer;
 }
@@ -337,8 +285,8 @@ body.yt-open #dt-rail {
   width: 100%;
   background: var(--color-selection);
   opacity: 0.16;
-  border-top: 1px solid var(--color-hint-strong);
-  border-bottom: 1px solid var(--color-hint-strong);
+  border-top: 1px solid var(--dt-text-support);
+  border-bottom: 1px solid var(--dt-text-support);
   border-radius: var(--dt-radius);
   pointer-events: none;
 }
@@ -361,10 +309,17 @@ body.yt-open #dt-rail {
   border-left-color: var(--color-primary);
 }
 
-/* Every tooltip target shares one hover treatment: a slight darken with a
-   fast, clean transition. Applied automatically by the tooltip component. */
+.dt-rail-concept-span {
+  fill: var(--color-primary);
+  opacity: 0.8;
+}
+
+/* ---- Hover and tooltip ---- */
+
+/* Every tooltip target shares one hover treatment, applied automatically by
+   the tooltip component (and opted into by chips). */
 .dt-hoverable {
-  transition: filter 0.12s ease-in-out;
+  transition: filter var(--dt-t-fast) ease-in-out;
 }
 
 .dt-hoverable:hover {
@@ -379,9 +334,9 @@ body.yt-open #dt-rail {
   stroke: var(--color-primary);
 }
 
-/* The one tooltip: dark-on-light on a slightly-off page background with a
-   drop shadow and square corners; fades in and out, never intercepts the
-   pointer. */
+/* The one tooltip: dark-on-light on the slightly-off page background, a
+   hairline border, drop shadow, square corners. Fades in and out, never
+   intercepts the pointer. */
 .dt-tip {
   position: fixed;
   left: 0;
@@ -391,29 +346,28 @@ body.yt-open #dt-rail {
   background: var(--color-bg-alt-solid);
   color: var(--dt-text);
   border: 1px solid var(--color-border-hint);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--dt-shadow-tip);
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
   font-size: var(--font-size-tiny);
-  line-height: 1.35;
+  line-height: var(--dt-leading-tip);
   pointer-events: none;
-  z-index: 70;
+  z-index: var(--dt-z-tip);
   opacity: 0;
-  transition: opacity 0.18s ease-in-out;
+  transition: opacity var(--dt-t-med) ease-in-out;
 }
 
 .dt-tip.dt-tip-visible {
   opacity: 1;
 }
 
-/* Transcript text inside a tooltip mirrors the prose: colored bold label,
-   serif body. The tooltip ground is dark in both themes, so labels use the
-   vivid speaker variant. */
+/* Transcript text inside a tooltip mirrors the prose: colored sans label,
+   serif words. */
 .dt-tip .dt-tip-text {
   margin-top: 0.35rem;
   font-family: var(--font-serif);
   font-size: var(--font-size-smaller);
-  line-height: 1.45;
+  line-height: var(--dt-leading-tip-text);
 }
 
 .dt-tip .dt-tip-text .dt-speaker-label {
@@ -434,6 +388,11 @@ body.yt-open #dt-rail {
   gap: 0.45rem;
   font-weight: var(--font-weight-sans-bold);
   margin-bottom: 0.15rem;
+}
+
+.dt-tip .dt-tip-sub {
+  color: var(--dt-text-support);
+  margin-bottom: 0.1rem;
 }
 
 .dt-tip .dt-tip-time {
@@ -461,7 +420,7 @@ body.yt-open #dt-rail {
   align-self: center;
 }
 
-/* ---- Speaker analytics panel ---- */
+/* ---- Speakers panel ---- */
 
 .dt-stats table {
   width: 100%;
@@ -531,7 +490,7 @@ body.yt-open #dt-rail {
   min-width: 2px;
 }
 
-/* ---- Concept views ---- */
+/* ---- Concepts and Claims panels ---- */
 
 .dt-graph {
   display: block;
@@ -559,14 +518,8 @@ body.yt-open #dt-rail {
   pointer-events: stroke;
 }
 
-/* Kind is encoded in one color, shared by the graph node border and the
-   kind chip. */
-.dt-kind-topic { --dt-kind-c: var(--color-primary); }
-.dt-kind-entity { --dt-kind-c: var(--dt-text-support); }
-.dt-kind-claim { --dt-kind-c: var(--dt-sp-1); }
-
 .dt-concept-chip.dt-selected {
-  box-shadow: 0 0 0 1.5px var(--dt-kind-c, var(--color-primary));
+  box-shadow: var(--dt-ring-selected);
 }
 
 .dt-dimmed {
@@ -627,16 +580,15 @@ body.yt-open #dt-rail {
   gap: 0.5rem;
 }
 
-/* The one concept chip: kind tag | bar | value, outlined in the kind color.
-   Fonts and borders are identical everywhere; the compact variant only
-   tightens spacing so graph rows fit. */
+/* The one concept chip: kind tag | bar | value, outlined in the kind color
+   over a pale kind tint. Identical in the list, the Claims panel, and the
+   graph. */
 .dt-concept-chip {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--dt-kind-c, var(--color-hint-strong));
   border-radius: var(--dt-radius);
-  /* A very pale tint of the kind color, theme-aware. */
-  background: color-mix(in srgb, var(--dt-kind-c, var(--color-hint-strong)) 7%, var(--color-bg-solid));
+  background: color-mix(in srgb, var(--dt-kind-c, var(--color-hint-strong)) var(--dt-kind-tint), var(--color-bg-solid));
   cursor: pointer;
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
@@ -656,11 +608,7 @@ body.yt-open #dt-rail {
   align-self: stretch;
   display: flex;
   align-items: center;
-}
-
-/* Small caps have no descenders, so optical center sits a hair high. */
-.dt-concept-chip .dt-chip-kind > span,
-.dt-concept-chip .dt-chip-kind {
+  /* Small caps have no descenders, so optical center sits a hair high. */
   transform: translateY(-0.5px);
 }
 
@@ -699,11 +647,6 @@ body.yt-open #dt-rail {
   border-radius: var(--dt-radius);
 }
 
-.dt-rail-concept-span {
-  fill: var(--color-primary);
-  opacity: 0.8;
-}
-
 /* ---- Column placement: slide left to reserve the right rail area ---- */
 
 /* Once the dt views are active, the reading column gives up strict centering
@@ -712,11 +655,11 @@ body.yt-open #dt-rail {
    TOC's edge instead. Print never sees any of this. */
 @media screen and (min-width: 1150px) {
   body.dt-on {
-    --dt-col-ml: max(2rem, calc((100vw - 48rem) / 2 - 8rem));
+    --dt-col-ml: max(2rem, calc((100vw - 48rem) / 2 - var(--dt-col-shift)));
   }
 
   body.dt-on .content-with-toc.has-toc {
-    --dt-col-ml: max(19rem, calc((100vw - 48rem) / 2 - 8rem));
+    --dt-col-ml: max(19rem, calc((100vw - 48rem) / 2 - var(--dt-col-shift)));
   }
 
   body.dt-on .long-text {
@@ -740,21 +683,21 @@ body.yt-open #dt-rail {
     max-width: 11rem;
     margin: 0;
     border-radius: var(--dt-radius);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-    transition: box-shadow 0.15s ease-in-out, transform 0.2s ease-in-out;
+    box-shadow: var(--dt-shadow-card);
+    transition: box-shadow var(--dt-t-med) ease-in-out, transform var(--dt-t-med) ease-in-out;
   }
 
   /* Hover (or rail hover) lifts a frame above overlapping neighbors; the
      .dt-raised class is kept briefly after the pointer leaves, tooltip-style,
      before the deck settles back. */
   body.dt-frames-gutter .long-text img.frame-capture.dt-raised {
-    z-index: 30 !important;
+    z-index: var(--dt-z-raised) !important;
     transform: scale(1.04);
   }
 
   body.dt-frames-gutter .long-text img.frame-capture:hover,
   body.dt-frames-gutter .long-text img.frame-capture.dt-hot {
-    box-shadow: 0 0 0 2px var(--color-primary), 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--dt-shadow-card-hot);
   }
 }
 
@@ -764,7 +707,7 @@ body.yt-open #dt-rail {
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 35;
+  z-index: var(--dt-z-connectors);
 }
 
 .dt-connector {
@@ -814,6 +757,7 @@ body.yt-open #dt-rail {
   #dt-rail,
   .dt-rail-seg,
   .dt-ov-section,
+  .dt-time-chip,
   body.dt-frames-gutter .long-text img.frame-capture {
     transition: none !important;
   }

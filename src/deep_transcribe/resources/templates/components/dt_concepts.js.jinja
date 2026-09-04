@@ -53,36 +53,6 @@
     document.dispatchEvent(new CustomEvent("dt:conceptselect", { detail: { id: selected } }));
   }
 
-  /* Tooltip for one mention: who is speaking there and what they say. */
-  function mentionTipContent(mention) {
-    const unit = model.index.units.find((u) => u.key === mention.key);
-    const content = el("div", "");
-    const head = el("div", "dt-tip-head");
-    if (unit && unit.speaker != null) {
-      head.appendChild(el("span", `dt-tip-dot ${model.speakerClass(unit.speaker)}`));
-      head.appendChild(
-        document.createTextNode(model.speakerById.get(unit.speaker)?.name || "")
-      );
-    }
-    const time = el("span", "dt-tip-time", model.formatTime(mention.t));
-    head.appendChild(time);
-    content.appendChild(head);
-    if (unit) {
-      const text = el("div", "dt-tip-text");
-      if (unit.speaker != null) {
-        const label = el(
-          "strong",
-          `dt-speaker-label ${model.speakerClass(unit.speaker)}`,
-          `${model.speakerById.get(unit.speaker)?.name || ""}: `
-        );
-        text.appendChild(label);
-      }
-      text.appendChild(document.createTextNode(unit.excerpt));
-      content.appendChild(text);
-    }
-    return content;
-  }
-
   /* Full-width mini timeline for one concept: track, kind-colored span, and
      mention dots that show the transcript at that moment on hover. */
   function buildConceptTrack(concept) {
@@ -95,7 +65,19 @@
     for (const mention of concept.mentions) {
       const dot = el("span", "dt-track-dot");
       dot.style.left = `${(mention.t / duration) * 100}%`;
-      model.tooltip.attach(dot, () => mentionTipContent(mention));
+      model.tooltip.attach(dot, () => {
+        const unit = model.index.units.find((u) => u.key === mention.key);
+        const name =
+          unit && unit.speaker != null
+            ? model.speakerById.get(unit.speaker)?.name || ""
+            : "";
+        return model.tipContent({
+          speakerClass: unit && unit.speaker != null ? model.speakerClass(unit.speaker) : null,
+          name,
+          time: model.formatTime(mention.t),
+          text: unit ? unit.excerpt : null,
+        });
+      });
       dot.addEventListener("click", (event) => {
         event.stopPropagation();
         model.playAt(mention.t);
@@ -109,7 +91,7 @@
      outlined in the kind's color. Used identically in the definition list,
      the Claims panel, and the graph (compact spacing there). */
   function makeConceptChip(concept) {
-    const chip = el("span", `dt-concept-chip dt-kind-${concept.kind}`);
+    const chip = el("span", `dt-concept-chip dt-kind-${concept.kind} dt-hoverable`);
     chip.dataset.concept = concept.id;
     chip.appendChild(el("span", "dt-chip-kind", concept.kind));
     chip.appendChild(el("span", "dt-chip-label", concept.label));

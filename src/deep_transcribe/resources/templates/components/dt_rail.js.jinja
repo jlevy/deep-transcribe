@@ -90,7 +90,7 @@
 
     for (const frame of model.index.frames) {
       const tick = svgEl("circle", {
-        class: "dt-rail-frame-tick",
+        class: "dt-rail-frame-tick dt-hoverable",
         cx: FRAME_TICK_X, cy: timeToY(frame.t, height), r: 3,
         "data-frame": frame.uid,
       });
@@ -108,27 +108,6 @@
     }
   }
 
-  function frameTipContent(frame) {
-    const content = document.createElement("div");
-    const head = document.createElement("div");
-    head.className = "dt-tip-head";
-    head.appendChild(document.createTextNode("Frame"));
-    const time = document.createElement("span");
-    time.className = "dt-tip-time";
-    time.textContent = model.formatTime(frame.t);
-    head.appendChild(time);
-    content.appendChild(head);
-    const src = frame.el ? frame.el.currentSrc || frame.el.src : frame.src;
-    if (src) {
-      const img = document.createElement("img");
-      img.src = src;
-      img.alt = "";
-      img.className = "dt-tip-frame";
-      content.appendChild(img);
-    }
-    return content;
-  }
-
   function showTip(clientY, target) {
     const rect = rail.getBoundingClientRect();
 
@@ -136,7 +115,12 @@
     if (target && target.classList && target.classList.contains("dt-rail-frame-tick")) {
       const frame = model.index.frames.find((f) => f.uid === target.dataset.frame);
       if (frame) {
-        model.tooltip.show({ x: rect.left, y: clientY, placement: "left" }, frameTipContent(frame));
+        const content = model.tipContent({
+          name: "Frame",
+          time: model.formatTime(frame.t),
+          image: frame.el ? frame.el.currentSrc || frame.el.src : frame.src,
+        });
+        model.tooltip.show({ x: rect.left, y: clientY, placement: "left" }, content);
         return;
       }
     }
@@ -144,31 +128,16 @@
     const t = yToTime(clientY - rect.top, rect.height);
     const unit = model.unitAtTime(t);
     if (!unit) return;
-
-    const content = document.createElement("div");
     const section = model.index.sections.find((s) => t >= s.start && t < s.end);
-    const head = document.createElement("div");
-    head.className = "dt-tip-head";
-    if (unit.speaker != null) {
-      const dot = document.createElement("span");
-      dot.className = `dt-tip-dot ${model.speakerClass(unit.speaker)}`;
-      head.appendChild(dot);
-      head.appendChild(
-        document.createTextNode(model.speakerById.get(unit.speaker)?.name || "")
-      );
-    }
-    const time = document.createElement("span");
-    time.className = "dt-tip-time";
-    time.textContent = model.formatTime(t);
-    head.appendChild(time);
-    content.appendChild(head);
-    if (section) {
-      const sectionLine = document.createElement("div");
-      sectionLine.className = "dt-tip-time";
-      sectionLine.textContent = section.heading;
-      content.appendChild(sectionLine);
-    }
-    content.appendChild(document.createTextNode(unit.excerpt));
+    const name =
+      unit.speaker != null ? model.speakerById.get(unit.speaker)?.name || "" : "";
+    const content = model.tipContent({
+      speakerClass: unit.speaker != null ? model.speakerClass(unit.speaker) : null,
+      name,
+      time: model.formatTime(t),
+      subtitle: section ? section.heading : null,
+      text: unit.excerpt,
+    });
     model.tooltip.show({ x: rect.left, y: clientY, placement: "left" }, content);
   }
 

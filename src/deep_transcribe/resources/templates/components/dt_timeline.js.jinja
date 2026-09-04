@@ -23,25 +23,6 @@
   let markerEl = null;
   let width = 0;
 
-  /* Small structured tooltip body: optional speaker dot, a name, a time. */
-  function tipContent(speakerClass, name, time) {
-    const content = document.createElement("div");
-    const head = document.createElement("div");
-    head.className = "dt-tip-head";
-    if (speakerClass) {
-      const dot = document.createElement("span");
-      dot.className = `dt-tip-dot ${speakerClass}`;
-      head.appendChild(dot);
-    }
-    head.appendChild(document.createTextNode(name));
-    const timeEl = document.createElement("span");
-    timeEl.className = "dt-tip-time";
-    timeEl.textContent = time;
-    head.appendChild(timeEl);
-    content.appendChild(head);
-    return content;
-  }
-
   function svgEl(name, attrs, text) {
     const el = document.createElementNS(SVG_NS, name);
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -88,7 +69,10 @@
         "data-section": section.id,
       });
       model.tooltip.attach(block, () =>
-        tipContent(null, section.heading, `${model.formatTime(section.start)}–${model.formatTime(section.end)}`)
+        model.tipContent({
+          name: section.heading,
+          time: `${model.formatTime(section.start)}–${model.formatTime(section.end)}`,
+        })
       );
       block.addEventListener("click", () => model.seek(section.start));
       group.appendChild(block);
@@ -127,18 +111,14 @@
       const segStart = model.formatTime(units[i].start);
       const segUnits = units.slice(i, j + 1);
       model.tooltip.attach(seg, () => {
-        const content = tipContent(model.speakerClass(speaker), name, segStart);
-        const text = document.createElement("div");
-        text.className = "dt-tip-text";
-        const label = document.createElement("strong");
-        label.className = `dt-speaker-label ${model.speakerClass(speaker)}`;
-        label.textContent = `${name}: `;
-        text.appendChild(label);
         let excerpt = segUnits.map((u) => u.excerpt).join(" ");
         if (excerpt.length > 300) excerpt = `${excerpt.slice(0, 299).replace(/\s+\S*$/, "")}…`;
-        text.appendChild(document.createTextNode(excerpt));
-        content.appendChild(text);
-        return content;
+        return model.tipContent({
+          speakerClass: model.speakerClass(speaker),
+          name,
+          time: segStart,
+          text: excerpt,
+        });
       });
       const start = units[i].start;
       seg.addEventListener("click", () => model.seek(start));
@@ -157,18 +137,13 @@
         "data-frame": frame.uid,
       });
       const frameTime = model.formatTime(frame.t);
-      model.tooltip.attach(dot, () => {
-        const content = tipContent(null, "Frame", frameTime);
-        const src = frame.el ? frame.el.currentSrc || frame.el.src : frame.src;
-        if (src) {
-          const img = document.createElement("img");
-          img.src = src;
-          img.alt = "";
-          img.className = "dt-tip-frame";
-          content.appendChild(img);
-        }
-        return content;
-      });
+      model.tooltip.attach(dot, () =>
+        model.tipContent({
+          name: "Frame",
+          time: frameTime,
+          image: frame.el ? frame.el.currentSrc || frame.el.src : frame.src,
+        })
+      );
       dot.addEventListener("click", (event) => {
         event.stopPropagation();
         model.playAt(frame.t);

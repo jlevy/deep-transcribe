@@ -9,7 +9,7 @@ author: Joshua Levy with Claude assistance
 
 **Author:** Joshua Levy with Claude assistance
 
-**Status:** Draft (awaiting review before the refactor begins)
+**Status:** Implemented
 
 ## Overview
 
@@ -18,11 +18,11 @@ tooltips, timestamps, and typography each converged on one deliberate treatment.
 The rules now live implicitly across `dt_viz.css.jinja` and the dt modules, where they
 grew, which makes them easy to drift from.
 
-This spec does two things.
-First, it writes the design system down as the authoritative reference.
-Second, it plans a small consolidation refactor — no visual changes — that moves every
-rule into declared tokens and shared helpers so the system is enforced by structure
-rather than by review.
+Per owner direction the design system is self-documenting: the authoritative
+reference lives in `dt_tokens.css.jinja` itself, where every token is declared with
+its rule beside it and `tests/test_design_tokens.py` enforces the contract.
+This spec keeps a summary of the rules and records the consolidation refactor that
+moved every literal into tokens and shared helpers.
 
 ## Design System Reference
 
@@ -116,23 +116,23 @@ Narrow screens stay centered; print is never affected.
 No visual changes.
 Each step lands separately with the print-parity and test gates green.
 
-- [ ] **Step 1 — Token extraction.** Move every token (speaker palette, kind colors,
+- [x] **Step 1 — Token extraction.** Move every token (speaker palette, kind colors,
   text roles, radii, spacing constants) into a dedicated `dt_tokens.css.jinja` with the
   documentation above as comments, imported first by the template.
-- [ ] **Step 2 — Literal sweep.** Audit `dt_viz.css.jinja` for raw hex values, sizes,
+- [x] **Step 2 — Literal sweep.** Audit `dt_viz.css.jinja` for raw hex values, sizes,
   and one-off grays that bypass tokens; promote or eliminate each.
   The only hex literals allowed live in the tokens file.
-- [ ] **Step 3 — Shared content builders.** The speaker-head and transcript-excerpt
+- [x] **Step 3 — Shared content builders.** The speaker-head and transcript-excerpt
   tooltip builders exist in three modules (rail, timeline, concepts); extract one helper
   set onto the core model.
-- [ ] **Step 4 — Hover audit.** Every interactive element either gets a tooltip (which
+- [x] **Step 4 — Hover audit.** Every interactive element either gets a tooltip (which
   applies the standard hover automatically) or explicitly opts into the same hover
   class; remove bespoke hover rules.
-- [ ] **Step 5 — Enforcement test.** A Python test walks the component sources and fails
+- [x] **Step 5 — Enforcement test.** A Python test walks the component sources and fails
   on: hex colors outside the tokens file, `font-family` declarations outside the
   sanctioned rules, radii other than the two tokens, and any `title=` attribute in dt
   module code.
-- [ ] **Step 6 — Regression pass.** Re-render the SNL test bed in light and dark at 1280
+- [x] **Step 6 — Regression pass.** Re-render the SNL test bed in light and dark at 1280
   and 1500 widths, re-run the print comparison against the committed PDF, and spot-check
   the tooltip, selection, and seek contracts in-browser.
 

@@ -3,6 +3,7 @@
 {% block custom_styles %}
 {{ super() }}
 <style>
+{% include "components/dt_tokens.css.jinja" %}
 {% include "components/dt_viz.css.jinja" %}
 .timestamp-link {
   background-color: transparent !important;

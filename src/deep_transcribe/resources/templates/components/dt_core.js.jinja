@@ -147,6 +147,55 @@
     document.dispatchEvent(new CustomEvent(name, { detail }));
   }
 
+  /* The one tooltip body builder, shared by every module. Renders, in order:
+     a head (speaker dot, name, bracketed time), an optional subtitle, an
+     optional transcript excerpt (colored sans label, serif words), and an
+     optional image. */
+  function buildTipContent(opts) {
+    const content = document.createElement("div");
+    const head = document.createElement("div");
+    head.className = "dt-tip-head";
+    if (opts.speakerClass) {
+      const dot = document.createElement("span");
+      dot.className = `dt-tip-dot ${opts.speakerClass}`;
+      head.appendChild(dot);
+    }
+    if (opts.name) head.appendChild(document.createTextNode(opts.name));
+    if (opts.time) {
+      const time = document.createElement("span");
+      time.className = "dt-tip-time";
+      time.textContent = opts.time;
+      head.appendChild(time);
+    }
+    content.appendChild(head);
+    if (opts.subtitle) {
+      const subtitle = document.createElement("div");
+      subtitle.className = "dt-tip-sub";
+      subtitle.textContent = opts.subtitle;
+      content.appendChild(subtitle);
+    }
+    if (opts.text) {
+      const text = document.createElement("div");
+      text.className = "dt-tip-text";
+      if (opts.name && opts.speakerClass) {
+        const label = document.createElement("strong");
+        label.className = `dt-speaker-label ${opts.speakerClass}`;
+        label.textContent = `${opts.name}: `;
+        text.appendChild(label);
+      }
+      text.appendChild(document.createTextNode(opts.text));
+      content.appendChild(text);
+    }
+    if (opts.image) {
+      const img = document.createElement("img");
+      img.src = opts.image;
+      img.alt = "";
+      img.className = "dt-tip-frame";
+      content.appendChild(img);
+    }
+    return content;
+  }
+
   /* Panel containers straddle the server-rendered outline so injected panels
      land in the agreed order (Timeline, Speakers / outline / Concepts, Claims)
      without moving stored content. */
@@ -254,6 +303,7 @@
     bindFrames(index, scope);
     bindSections(index, scope);
     const model = buildModel(index);
+    model.tipContent = buildTipContent;
     decorateSpeakerLabels(model);
     document.body.classList.add("dt-on");
     dressSummary(scope);
