@@ -643,6 +643,7 @@ def test_format_results_copies_frame_assets() -> None:
             assert ".theme-toggle" in html_text
             assert ".timestamp-link:hover" in html_text
             assert ".timestamp-link a" in html_text
-            assert "color: var(--color-secondary) !important" in html_text
+            # Screen and print timestamps share the light-gray treatment.
+            assert "color: var(--color-secondary) !important" not in html_text
             assert "display: none !important" in html_text
             assert 'id="yt-popover"' in html_text

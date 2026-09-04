@@ -143,6 +143,18 @@
   /* Panel containers straddle the server-rendered outline so injected panels
      land in the agreed order (Timeline, Speakers / outline / Concepts, Claims)
      without moving stored content. */
+  /* The synopsis joins the design system on screen: a Summary heading and
+     panel-aligned padding. Both are screen-only, so print stays unchanged. */
+  function dressSummary(scope) {
+    const description = scope.querySelector(".description");
+    if (!description) return;
+    description.classList.add("dt-summary");
+    const heading = document.createElement("div");
+    heading.className = "dt-panel-title dt-ui";
+    heading.textContent = "Summary";
+    description.prepend(heading);
+  }
+
   function mountPanelContainers(scope) {
     const top = document.createElement("div");
     top.id = "dt-top-panels";
@@ -195,7 +207,32 @@
     emit();
   }
 
+  /* YouTube refuses embedded playback on pages opened via file:// (no HTTP
+     referer -> player error 153), so there the popover is bypassed entirely:
+     timestamp links open YouTube directly at the right time in a new tab.
+     A document-level capture handler runs before the popover's per-anchor
+     capture listener, so stopping propagation here lets the plain link win. */
+  function enableFileProtocolFallback() {
+    const isYouTubeLink = (href) =>
+      /(^https?:\/\/)?(www\.)?(youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)/.test(href);
+    document.querySelectorAll("a[href]").forEach((a) => {
+      if (isYouTubeLink(a.getAttribute("href") || "")) {
+        a.target = "_blank";
+        a.rel = "noopener";
+      }
+    });
+    document.addEventListener(
+      "click",
+      (event) => {
+        const a = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        if (a && isYouTubeLink(a.getAttribute("href") || "")) event.stopPropagation();
+      },
+      { capture: true }
+    );
+  }
+
   function init() {
+    if (window.location.protocol === "file:") enableFileProtocolFallback();
     const index = parseIndex();
     if (!index) {
       window.DeepTranscript = Object.freeze({ ready: false });
@@ -207,6 +244,7 @@
     bindSections(index, scope);
     const model = buildModel(index);
     decorateSpeakerLabels(model);
+    dressSummary(scope);
     const containers = mountPanelContainers(scope);
     model.panels = containers;
     model.makePanel = makePanel;

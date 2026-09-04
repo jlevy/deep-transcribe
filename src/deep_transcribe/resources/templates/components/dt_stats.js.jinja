@@ -58,35 +58,23 @@
       row.appendChild(barCell);
       body.appendChild(row);
     }
+
+    const all = Object.values(totals.by_speaker);
+    const sum = (key) => all.reduce((n, t) => n + t[key], 0);
+    const totalsRow = document.createElement("tr");
+    totalsRow.className = "dt-totals-row";
+    totalsRow.append(
+      cell("td", "All speakers"),
+      cell("td", String(sum("turns")), "dt-num"),
+      cell("td", String(totals.words), "dt-num"),
+      cell("td", String(sum("sentences")), "dt-num"),
+      cell("td", model.formatTime(totals.seconds), "dt-num"),
+      cell("td", "100%", "dt-num"),
+      cell("td", "100%", "dt-num"),
+      cell("td", "", "dt-bar-cell")
+    );
+    body.appendChild(totalsRow);
     return table;
-  }
-
-  function buildFlow(model) {
-    const units = model.index.units;
-    const strip = document.createElement("div");
-    strip.className = "dt-flow";
-    strip.setAttribute("aria-label", "Talk flow");
-    if (!units.length) return strip;
-
-    // Merge consecutive same-speaker units into turns.
-    const turns = [];
-    for (const unit of units) {
-      const last = turns[turns.length - 1];
-      if (last && last.speaker === unit.speaker) last.end = unit.end;
-      else turns.push({ speaker: unit.speaker, start: unit.start, end: unit.end });
-    }
-    const total = units[units.length - 1].end - units[0].start;
-    for (const turn of turns) {
-      const seg = document.createElement("div");
-      seg.className = `dt-flow-seg ${model.speakerClass(turn.speaker)}`;
-      seg.style.flexGrow = String(Math.max(0.001, turn.end - turn.start));
-      const name = model.speakerById.get(turn.speaker)?.name || "";
-      seg.title = `${name} · ${model.formatTime(turn.start)}`;
-      seg.addEventListener("click", () => model.seek(turn.start));
-      strip.appendChild(seg);
-    }
-    void total;
-    return strip;
   }
 
   function init(event) {
@@ -96,20 +84,8 @@
 
     const panel = model.makePanel("Speakers");
     panel.classList.add("dt-stats");
-    panel.append(buildTable(model), buildFlow(model));
+    panel.append(buildTable(model));
 
-    const caption = document.createElement("div");
-    caption.className = "dt-flow-caption";
-    caption.append(
-      cell("span", model.formatTime(units[0].start)),
-      cell(
-        "span",
-        model.durationEstimated
-          ? `~${model.formatTime(model.duration)}`
-          : model.formatTime(model.duration)
-      )
-    );
-    panel.appendChild(caption);
 
     model.panels.top.appendChild(panel);
   }

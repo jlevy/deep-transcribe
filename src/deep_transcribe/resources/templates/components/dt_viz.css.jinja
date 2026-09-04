@@ -14,14 +14,14 @@
   --dt-sp-5: #1971c2;
   --dt-sp-6: #c23d08;
   --dt-sp-7: #495d92;
-  --dt-sp-0-vivid: #22b8cf;
-  --dt-sp-1-vivid: #f59f00;
-  --dt-sp-2-vivid: #845ef7;
-  --dt-sp-3-vivid: #f06595;
-  --dt-sp-4-vivid: #40c057;
-  --dt-sp-5-vivid: #339af0;
-  --dt-sp-6-vivid: #f76707;
-  --dt-sp-7-vivid: #748ffc;
+  --dt-sp-0-vivid: #15aabf;
+  --dt-sp-1-vivid: #e8890c;
+  --dt-sp-2-vivid: #7950f2;
+  --dt-sp-3-vivid: #e64980;
+  --dt-sp-4-vivid: #37b24d;
+  --dt-sp-5-vivid: #228be6;
+  --dt-sp-6-vivid: #e8590c;
+  --dt-sp-7-vivid: #647ce8;
   --dt-rail-width: 3.4rem;
 }
 
@@ -59,6 +59,13 @@ strong.dt-speaker-label {
 
 /* ---- Shared panel treatment (matches the transcript outline: no box) ---- */
 
+@media screen {
+  .description.dt-summary {
+    padding: 0 1rem;
+    margin: 1.5rem 0 2rem;
+  }
+}
+
 .dt-panel {
   margin: 1.5rem 0 2rem;
   padding: 1rem;
@@ -71,16 +78,30 @@ strong.dt-speaker-label {
   margin-bottom: 0.75rem;
 }
 
-.dt-time-chip {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-mono-tiny);
-  color: var(--color-secondary);
-  background: var(--color-bg-alt);
-  border-radius: 0.25rem;
-  padding: 0 0.3rem;
-  margin-left: 0.45rem;
-  cursor: pointer;
+/* The one way a timestamp renders: light gray, sans, a step smaller, and in
+   brackets — exactly like the transcript's own citations. */
+.dt-timestamp {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-tiny);
+  font-weight: normal;
+  color: var(--color-tertiary);
   white-space: nowrap;
+}
+
+.dt-timestamp::before {
+  content: "[";
+}
+
+.dt-timestamp::after {
+  content: "]";
+}
+
+.dt-time-chip {
+  margin-left: 0.45rem;
+  border-radius: 0.2rem;
+  padding: 0 0.2rem;
+  cursor: pointer;
 }
 
 .dt-time-chip:hover {
@@ -101,10 +122,12 @@ strong.dt-speaker-label {
   stroke-width: 1;
 }
 
+/* Axis numbers are the content of the timeline, so they keep full
+   prominence; only timestamps inline with other text are grayed. */
 .dt-ov-axis-label {
   font-size: 9px;
-  font-family: var(--font-mono);
-  fill: var(--color-tertiary);
+  font-family: var(--font-sans);
+  fill: var(--color-secondary);
 }
 
 .dt-ov-section {
@@ -262,22 +285,32 @@ body.yt-open #dt-rail {
   border-left-color: var(--color-primary);
 }
 
-.dt-rail-tip {
+/* The one tooltip: fixed, fades in and out, never intercepts the pointer. */
+.dt-tip {
   position: fixed;
-  right: calc(var(--dt-rail-width) + 1.6rem);
+  left: 0;
+  top: 0;
   max-width: 17rem;
   padding: 0.5rem 0.7rem;
   background: var(--color-tooltip-bg);
   color: #fff;
   border-radius: 0.4rem;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
   font-size: var(--font-size-tiny);
   line-height: 1.35;
   pointer-events: none;
-  z-index: 60;
+  z-index: 70;
   backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.18s ease-in-out;
 }
 
-.dt-rail-tip .dt-tip-head {
+.dt-tip.dt-tip-visible {
+  opacity: 1;
+}
+
+.dt-tip .dt-tip-head {
   display: flex;
   align-items: baseline;
   gap: 0.45rem;
@@ -285,10 +318,19 @@ body.yt-open #dt-rail {
   margin-bottom: 0.15rem;
 }
 
-.dt-rail-tip .dt-tip-time {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-mono-tiny);
+.dt-tip .dt-tip-time {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-tiny);
+  font-weight: normal;
   opacity: 0.85;
+}
+
+.dt-tip .dt-tip-time::before {
+  content: "[";
+}
+
+.dt-tip .dt-tip-time::after {
+  content: "]";
 }
 
 .dt-tip-dot {
@@ -347,6 +389,12 @@ body.yt-open #dt-rail {
   word-break: normal;
 }
 
+.dt-stats tr.dt-totals-row td {
+  border-top: 1px solid var(--color-border-hint);
+  font-weight: var(--font-weight-sans-medium);
+  color: var(--color-secondary);
+}
+
 .dt-stats .dt-speaker-name {
   color: var(--dt-c);
   font-weight: var(--font-weight-sans-bold);
@@ -363,36 +411,6 @@ body.yt-open #dt-rail {
   border-radius: 0.3rem;
   background: var(--dt-cv, var(--color-hint));
   min-width: 2px;
-}
-
-/* Talk-flow strip: the conversation's speaker sequence, left to right. */
-.dt-flow {
-  display: flex;
-  margin-top: 0.9rem;
-  height: 1.1rem;
-  border-radius: 0.3rem;
-  overflow: hidden;
-}
-
-.dt-flow-seg {
-  background: var(--dt-cv, var(--color-hint));
-  opacity: 0.9;
-  cursor: pointer;
-  min-width: 1px;
-  transition: opacity 0.15s ease-in-out;
-}
-
-.dt-flow-seg:hover {
-  opacity: 1;
-}
-
-.dt-flow-caption {
-  margin-top: 0.35rem;
-  color: var(--color-hint-strong);
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-mono-tiny);
 }
 
 /* ---- Concept views ---- */
@@ -482,18 +500,16 @@ body.yt-open #dt-rail {
 }
 
 .dt-concept-kind {
-  font-size: var(--font-size-mono-tiny);
-  font-family: var(--font-mono);
+  font-size: var(--font-size-tiny);
+  font-family: var(--font-sans);
+  text-transform: var(--caps-transform);
+  font-variant-caps: var(--caps-caps-variant);
+  letter-spacing: var(--caps-spacing);
+  font-weight: var(--font-weight-sans-medium);
   color: var(--color-hint-strong);
   border: 1px solid var(--color-border-hint);
   border-radius: 0.25rem;
   padding: 0 0.3rem;
-}
-
-.dt-concept-time {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-mono-tiny);
-  color: var(--color-tertiary);
 }
 
 .dt-concept-gloss {
@@ -606,9 +622,9 @@ body.yt-open #dt-rail {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dt-tip,
   #dt-rail,
   .dt-rail-seg,
-  .dt-flow-seg,
   .dt-ov-section,
   body.dt-frames-gutter .long-text img.frame-capture {
     transition: none !important;

@@ -7,7 +7,12 @@
 .timestamp-link,
 .timestamp-link:hover {
   background-color: transparent !important;
-  color: var(--color-secondary) !important;
+  color: var(--color-tertiary) !important;
+  font-size: var(--font-size-tiny);
+}
+
+.timestamp-link:hover a {
+  color: var(--color-primary);
 }
 
 .timestamp-link a,
@@ -70,6 +75,7 @@
 {{ super() }}
 <script>
 {% include "components/dt_core.js.jinja" %}
+{% include "components/dt_tip.js.jinja" %}
 {% include "components/dt_timeline.js.jinja" %}
 {% include "components/dt_rail.js.jinja" %}
 {% include "components/dt_stats.js.jinja" %}

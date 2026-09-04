@@ -20,6 +20,25 @@
   let svg = null;
   let markerEl = null;
 
+  /* Small structured tooltip body: optional speaker dot, a name, a time. */
+  function tipContent(speakerClass, name, time) {
+    const content = document.createElement("div");
+    const head = document.createElement("div");
+    head.className = "dt-tip-head";
+    if (speakerClass) {
+      const dot = document.createElement("span");
+      dot.className = `dt-tip-dot ${speakerClass}`;
+      head.appendChild(dot);
+    }
+    head.appendChild(document.createTextNode(name));
+    const timeEl = document.createElement("span");
+    timeEl.className = "dt-tip-time";
+    timeEl.textContent = time;
+    head.appendChild(timeEl);
+    content.appendChild(head);
+    return content;
+  }
+
   function svgEl(name, attrs, text) {
     const el = document.createElementNS(SVG_NS, name);
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -49,7 +68,7 @@
         svgEl("line", { class: "dt-ov-axis", x1: x(t), x2: x(t), y1: AXIS_Y - 3, y2: AXIS_Y + 3 })
       );
       group.appendChild(
-        svgEl("text", { class: "dt-ov-axis-label", x: x(t) + 2, y: AXIS_Y - 4 }, model.formatTime(t))
+        svgEl("text", { class: "dt-ov-axis-label", x: x(t) + 2, y: AXIS_Y - 4 }, `[${model.formatTime(t)}]`)
       );
     }
     return group;
@@ -65,7 +84,9 @@
         x: x0, y: SECTION_Y, width: w, height: SECTION_H, rx: 3,
         "data-section": section.id,
       });
-      block.appendChild(svgEl("title", {}, section.heading));
+      model.tooltip.attach(block, () =>
+        tipContent(null, section.heading, `${model.formatTime(section.start)}–${model.formatTime(section.end)}`)
+      );
       block.addEventListener("click", () => model.seek(section.start));
       group.appendChild(block);
       const maxChars = Math.floor((w - 8) / CHAR_WIDTH);
@@ -99,9 +120,9 @@
         x: x0, y: BAND_Y, width: Math.max(1, x(units[j].end) - x0), height: BAND_H,
       });
       const name = model.speakerById.get(units[i].speaker)?.name || "";
-      seg.appendChild(
-        svgEl("title", {}, `${name} · ${model.formatTime(units[i].start)}`)
-      );
+      const speaker = units[i].speaker;
+      const segStart = model.formatTime(units[i].start);
+      model.tooltip.attach(seg, () => tipContent(model.speakerClass(speaker), name, segStart));
       const start = units[i].start;
       seg.addEventListener("click", () => model.seek(start));
       group.appendChild(seg);
@@ -118,7 +139,8 @@
         cx: x(frame.t), cy: FRAME_Y, r: 3.2,
         "data-frame": frame.uid,
       });
-      dot.appendChild(svgEl("title", {}, `Frame at ${model.formatTime(frame.t)}`));
+      const frameTime = model.formatTime(frame.t);
+      model.tooltip.attach(dot, () => tipContent(null, "Frame", frameTime));
       dot.addEventListener("click", (event) => {
         event.stopPropagation();
         model.playAt(frame.t);
@@ -140,9 +162,8 @@
       const section = sectionsByHeading.get(strong.textContent.trim().toLowerCase());
       if (!section) return;
       const chip = document.createElement("span");
-      chip.className = "dt-time-chip dt-ui";
+      chip.className = "dt-timestamp dt-time-chip dt-ui";
       chip.textContent = model.formatTime(section.start);
-      chip.title = "Jump to this section";
       chip.addEventListener("click", () => model.seek(section.start));
       chip.addEventListener("mouseenter", () => setHotSection(section.id));
       chip.addEventListener("mouseleave", () => setHotSection(null));

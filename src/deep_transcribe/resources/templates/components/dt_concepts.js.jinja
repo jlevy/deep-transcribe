@@ -90,6 +90,8 @@
           event.stopPropagation();
           model.seek(mention.t);
         });
+        const mentionTime = model.formatTime(mention.t);
+        model.tooltip.attach(dot, () => `${concept.label} · ${mentionTime}`);
         group.appendChild(dot);
       }
       group.addEventListener("click", () => select(concept.id));
@@ -145,7 +147,9 @@
           class: "dt-graph-edge",
           d: `M ${x0} ${y0} C ${x0} ${y0 + bend}, ${x1} ${y1 - bend}, ${x1} ${y1}`,
         });
-        edge.appendChild(svgEl("title", {}, `${node.concept.label} ${relation.type} ${target.concept.label}`));
+        model.tooltip.attach(edge, () =>
+          `${node.concept.label} → ${relation.type} → ${target.concept.label}`
+        );
         svg.appendChild(edge);
       }
     }
@@ -166,7 +170,7 @@
           : node.concept.label
       );
       group.appendChild(label);
-      group.appendChild(svgEl("title", {}, `${node.concept.label} — ${node.concept.gloss}`));
+      model.tooltip.attach(group, () => `${node.concept.label} — ${node.concept.gloss}`);
       group.addEventListener("click", () => select(node.concept.id));
       svg.appendChild(group);
     }
@@ -180,7 +184,7 @@
       term.dataset.concept = concept.id;
       term.appendChild(el("span", "dt-concept-kind", concept.kind));
       term.appendChild(document.createTextNode(concept.label));
-      const time = el("span", "dt-concept-time", model.formatTime(concept.span[0]));
+      const time = el("span", "dt-timestamp", model.formatTime(concept.span[0]));
       term.appendChild(time);
       term.addEventListener("click", () => select(concept.id));
       const detail = el("dd", "dt-concept-gloss", concept.gloss);
@@ -221,8 +225,7 @@
           );
         }
       }
-      const chip = el("span", "dt-time-chip", model.formatTime(concept.span[0]));
-      chip.title = "Jump to this claim";
+      const chip = el("span", "dt-timestamp dt-time-chip", model.formatTime(concept.span[0]));
       chip.addEventListener("click", (event) => {
         event.stopPropagation();
         model.seek(concept.span[0]);
