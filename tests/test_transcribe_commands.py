@@ -294,6 +294,8 @@ def test_clearing_a_hint_reaches_the_stored_resource_on_disk(
     assert "purpose: teaser" in before_clear[0]
     assert "segments" not in after
     assert "speaker_roster" in after
+
+
 DETECTED_CLIP_START = 4.56
 DETECTED_CLIP_END = 108.55
 """The span the detector found on the measured recording, used as the fixed detection."""
