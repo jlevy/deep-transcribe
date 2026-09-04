@@ -54,6 +54,24 @@ eight sponsors in its description.
 So description metadata cannot be treated as evidence that an ad exists in the audio,
 and name matching would have suppressed real conversation.
 
+**A preview clip is detectable mechanically, not by inference.** The `Episode highlight`
+chapter was measured against the rest of the conversation: 14 of its 15 substantive
+sentences are near-verbatim repeats of later material (similarity 0.97–1.00), drawn from
+seven separate points spread across the five hours — 0:04, 0:38, 0:41, 2:03, 2:44, 3:12,
+and 4:23.
+
+That is a far stronger signal than any model judgment.
+A teaser is literally assembled from later audio, so near-duplicate matching against
+subsequent text identifies it with near-certainty.
+The failure mode a model would have — mistaking a host legitimately restating a theme
+for a teaser — cannot occur, because genuine restatement is paraphrase, not fourteen
+verbatim sentences sourced from seven different places.
+
+Intro material is different again: it is original speech in a recognizable register
+(`The following is a conversation with…`), so it is classified rather than matched.
+Sponsor reads, when present, are the case with no metadata and no duplication to lean
+on, and are the one kind that genuinely needs a model reading for a change in register.
+
 **Therefore the transcript is the ground truth and metadata is only a hint.** When a
 segment changes character — a monologue becomes an interview, an interview breaks for a
 read — it is obvious in the text.
@@ -113,6 +131,17 @@ chaptered, so the model reads the transcript and proposes segments that split an
 existing one. This is a much smaller and better-grounded task than scanning five hours
 cold: for each candidate it cites citation keys, exactly as concept mentions do, and
 anything that does not resolve is dropped.
+
+**Each purpose is found the way it is actually detectable**, rather than routing
+everything through one model prompt:
+
+| purpose | how it is found |
+| --- | --- |
+| `preview` | near-duplicate matching against later text; mechanical and near-certain |
+| `intro` | classification of the opening segment’s register |
+| `sponsor` | model reading for a change in register; no other signal is reliable |
+| `outro` | classification of the closing segment |
+| `content` | whatever remains |
 
 **Without chapters, detection produces the whole partition.** The same classification
 runs over the transcript alone, which is the general case for local recordings and
