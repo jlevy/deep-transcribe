@@ -68,7 +68,7 @@
     const step = axisStep();
     for (let t = 0; t <= model.duration; t += step) {
       group.appendChild(
-        svgEl("line", { class: "dt-ov-axis", x1: x(t), x2: x(t), y1: AXIS_Y - 3, y2: AXIS_Y + 3 })
+        svgEl("line", { class: "dt-ov-axis-tick", x1: x(t), x2: x(t), y1: AXIS_Y - 4, y2: AXIS_Y + 4 })
       );
       group.appendChild(
         svgEl("text", { class: "dt-ov-axis-label", x: x(t) + 3, y: AXIS_Y - 5 }, model.formatTime(t))
@@ -143,7 +143,18 @@
         "data-frame": frame.uid,
       });
       const frameTime = model.formatTime(frame.t);
-      model.tooltip.attach(dot, () => tipContent(null, "Frame", frameTime));
+      model.tooltip.attach(dot, () => {
+        const content = tipContent(null, "Frame", frameTime);
+        const src = frame.el ? frame.el.currentSrc || frame.el.src : frame.src;
+        if (src) {
+          const img = document.createElement("img");
+          img.src = src;
+          img.alt = "";
+          img.className = "dt-tip-frame";
+          content.appendChild(img);
+        }
+        return content;
+      });
       dot.addEventListener("click", (event) => {
         event.stopPropagation();
         model.playAt(frame.t);

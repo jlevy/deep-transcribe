@@ -118,8 +118,13 @@ strong.dt-speaker-label {
 }
 
 .dt-ov-axis {
-  stroke: var(--color-border-hint);
+  stroke: var(--color-hint);
   stroke-width: 1;
+}
+
+.dt-ov-axis-tick {
+  stroke: var(--color-hint-strong);
+  stroke-width: 1.4;
 }
 
 /* Axis numbers are the content of the timeline, so they keep full
@@ -296,7 +301,15 @@ body.yt-open #dt-rail {
 }
 
 .dt-hoverable:hover {
-  filter: brightness(0.9);
+  filter: brightness(1.15) saturate(1.25);
+}
+
+/* Near-white blocks can't visibly brighten; they respond with fill and
+   stroke instead. */
+.dt-ov-section.dt-hoverable:hover {
+  filter: none;
+  fill: var(--color-hover-bg);
+  stroke: var(--color-primary);
 }
 
 /* The one tooltip: fixed, fades in and out, never intercepts the pointer. */
@@ -322,6 +335,14 @@ body.yt-open #dt-rail {
 
 .dt-tip.dt-tip-visible {
   opacity: 1;
+}
+
+.dt-tip .dt-tip-frame {
+  display: block;
+  width: 13rem;
+  max-width: 100%;
+  margin-top: 0.4rem;
+  border-radius: 0.3rem;
 }
 
 .dt-tip .dt-tip-head {
@@ -560,10 +581,31 @@ body.yt-open #dt-rail {
   opacity: 0.8;
 }
 
+/* ---- Column placement: slide left to reserve the right rail area ---- */
+
+/* Once the dt views are active, the reading column gives up strict centering
+   on all but narrow screens so the frame gutter and the rail keep room on the
+   right. --dt-col-ml is the column's left margin; with a TOC it floors at the
+   TOC's edge instead. Print never sees any of this. */
+@media screen and (min-width: 1150px) {
+  body.dt-on {
+    --dt-col-ml: max(2rem, calc((100vw - 48rem) / 2 - 8rem));
+  }
+
+  body.dt-on .content-with-toc.has-toc {
+    --dt-col-ml: max(19rem, calc((100vw - 48rem) / 2 - 8rem));
+  }
+
+  body.dt-on .long-text {
+    margin-left: var(--dt-col-ml) !important;
+    margin-right: auto !important;
+  }
+}
+
 /* ---- Frame captures: gutter layout and connectors ---- */
 
-/* Applied by dt_frames only on wide viewports; cleared when narrow. */
-@media (min-width: 1450px) {
+/* Applied by dt_frames only on wide-enough viewports; cleared when narrow. */
+@media (min-width: 1150px) {
   body.dt-frames-gutter .long-text {
     position: relative;
   }
@@ -571,7 +613,7 @@ body.yt-open #dt-rail {
   body.dt-frames-gutter .long-text img.frame-capture {
     position: absolute;
     left: calc(100% + 1.2rem);
-    width: calc(50vw - 24rem - var(--dt-rail-width) - 3.6rem);
+    width: min(11rem, calc(100vw - var(--dt-col-ml, 2rem) - 48rem - var(--dt-rail-width) - 3.6rem));
     max-width: 11rem;
     margin: 0;
     border-radius: 0.3rem;

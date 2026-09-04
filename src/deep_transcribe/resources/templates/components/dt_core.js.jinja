@@ -244,6 +244,7 @@
     bindSections(index, scope);
     const model = buildModel(index);
     decorateSpeakerLabels(model);
+    document.body.classList.add("dt-on");
     dressSummary(scope);
     const containers = mountPanelContainers(scope);
     model.panels = containers;
