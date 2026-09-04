@@ -41,8 +41,18 @@ _ISLAND_PATTERN = re.compile(
 
 _EXCERPT_MAX_CHARS = 140
 
-CONCEPT_KINDS = frozenset({"topic", "entity", "term", "claim", "decision"})
+CONCEPT_KINDS = frozenset({"topic", "entity", "claim"})
 """Closed vocabulary for concept kinds."""
+
+CONCEPT_KIND_ALIASES = {"decision": "claim", "term": "topic"}
+"""Retired kinds fold into the fixed ontology, so older extractions normalize."""
+
+
+def normalize_concept_kind(kind: object) -> str:
+    name = str(kind or "topic")
+    name = CONCEPT_KIND_ALIASES.get(name, name)
+    return name if name in CONCEPT_KINDS else "topic"
+
 
 CONCEPT_RELATION_TYPES = frozenset(
     {"leads-to", "contrasts-with", "elaborates", "example-of", "depends-on"}
@@ -409,7 +419,7 @@ def _resolve_concepts(
             {
                 "id": str(concept.get("id")),
                 "label": str(concept.get("label") or concept.get("id")),
-                "kind": str(concept.get("kind") or "topic"),
+                "kind": normalize_concept_kind(concept.get("kind")),
                 "gloss": str(concept.get("gloss") or ""),
                 "mentions": [{"t": u.start, "key": u.key} for u in mention_units],
                 "span": [

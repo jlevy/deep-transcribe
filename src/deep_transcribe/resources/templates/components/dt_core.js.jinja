@@ -61,6 +61,13 @@
       const name = model.speakerById.get(unit.speaker)?.name;
       if (strong && name && strong.textContent.replace(/:\s*$/, "").trim() === name) {
         strong.classList.add("dt-speaker-label", model.speakerClass(unit.speaker));
+        // Isolate the colon so screen styles can drop it while print keeps
+        // the original inline "Name:" form byte for byte.
+        strong.textContent = name;
+        const colon = document.createElement("span");
+        colon.className = "dt-colon";
+        colon.textContent = ":";
+        strong.appendChild(colon);
       }
     }
   }

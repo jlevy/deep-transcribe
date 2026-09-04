@@ -51,11 +51,28 @@
 .dt-s7 { --dt-c: var(--dt-sp-7); --dt-cv: var(--dt-sp-7-vivid); }
 
 /* Speaker labels in the prose pick up their speaker's color and the sans
-   face, so only the spoken words are serif. */
+   face, so only the spoken words are serif. On screen the label sits on its
+   own line without the colon; print keeps the inline "Name:" form. */
 strong.dt-speaker-label {
   color: var(--dt-c);
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
+}
+
+@media screen {
+  strong.dt-speaker-label {
+    display: block;
+    margin-bottom: 0.05rem;
+  }
+
+  strong.dt-speaker-label .dt-colon {
+    display: none;
+  }
+
+  /* Slightly tighter leading for reading; paragraph gaps stay as they are. */
+  .long-text {
+    line-height: 1.42;
+  }
 }
 
 .dt-ui {
@@ -475,7 +492,6 @@ body.yt-open #dt-rail {
 .dt-graph {
   display: block;
   width: 100%;
-  height: auto;
   margin: 0.5rem 0 1rem;
 }
 
@@ -507,50 +523,41 @@ body.yt-open #dt-rail {
   stroke-width: 1;
 }
 
+.dt-graph {
+  position: relative;
+}
+
+.dt-graph-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+.dt-graph-chip {
+  position: absolute;
+  white-space: nowrap;
+}
+
 .dt-graph-edge {
   fill: none;
   stroke: var(--color-hint);
   stroke-width: 1.2;
   opacity: 0.6;
-}
-
-.dt-graph-node rect {
-  fill: var(--color-bg-alt-solid);
-  stroke-width: 1.2;
-}
-
-.dt-graph-node text {
-  text-anchor: middle;
-  font-size: 13px;
-  font-family: var(--font-sans);
-  fill: var(--color-text);
-}
-
-/* The kind tag inside a graph node, echoing the definition-list chips. */
-.dt-graph-node .dt-graph-kind {
-  text-anchor: start;
-  font-size: 9.5px;
-  letter-spacing: 0.04em;
-  fill: var(--dt-kind-c, var(--color-hint-strong));
+  pointer-events: stroke;
 }
 
 /* Kind is encoded in one color, shared by the graph node border and the
    kind chip. */
 .dt-kind-topic { --dt-kind-c: var(--color-primary); }
 .dt-kind-entity { --dt-kind-c: var(--dt-sp-5); }
-.dt-kind-term { --dt-kind-c: var(--dt-sp-7); }
 .dt-kind-claim { --dt-kind-c: var(--dt-sp-1); }
-.dt-kind-decision { --dt-kind-c: var(--dt-sp-4); }
 
-.dt-graph-node rect,
-[class*="dt-kind-"] rect {
-  stroke: var(--dt-kind-c, var(--color-hint-strong));
+.dt-selected .dt-ribbon-span {
+  opacity: 1;
 }
 
-.dt-selected .dt-ribbon-span,
-.dt-selected.dt-graph-node rect {
-  opacity: 1;
-  stroke-width: 2;
+.dt-concept-chip.dt-selected {
+  box-shadow: 0 0 0 1.5px var(--dt-kind-c, var(--color-primary));
 }
 
 .dt-dimmed {
@@ -570,17 +577,48 @@ body.yt-open #dt-rail {
   margin-top: 0.5rem;
 }
 
-.dt-concept-kind {
-  font-size: var(--font-size-tiny);
+/* The one concept chip: kind tag | bar | value, outlined in the kind color.
+   Fonts and borders are identical everywhere; the compact variant only
+   tightens spacing so graph rows fit. */
+.dt-concept-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--dt-kind-c, var(--color-hint-strong));
+  border-radius: var(--dt-radius);
+  background: var(--color-bg-alt-solid);
+  cursor: pointer;
   font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  white-space: nowrap;
+}
+
+.dt-concept-chip .dt-chip-kind {
+  font-size: var(--font-size-tiny);
+  font-weight: var(--font-weight-sans-medium);
   text-transform: var(--caps-transform);
   font-variant-caps: var(--caps-caps-variant);
   letter-spacing: var(--caps-spacing);
-  font-weight: var(--font-weight-sans-medium);
   color: var(--dt-kind-c, var(--color-hint-strong));
-  border: 1px solid var(--dt-kind-c, var(--color-hint-strong));
-  border-radius: var(--dt-radius);
-  padding: 0 0.3rem;
+  border-right: 1px solid var(--dt-kind-c, var(--color-hint-strong));
+  padding: 0.1rem 0.35rem;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.dt-concept-chip .dt-chip-label {
+  font-size: var(--font-size-smaller);
+  font-weight: var(--font-weight-sans-medium);
+  color: var(--color-text);
+  padding: 0.1rem 0.45rem;
+}
+
+.dt-chip-compact .dt-chip-kind {
+  padding: 0 0.28rem;
+}
+
+.dt-chip-compact .dt-chip-label {
+  padding: 0 0.35rem;
 }
 
 .dt-concept-gloss {
@@ -711,6 +749,11 @@ body.yt-open #dt-rail {
   strong.dt-speaker-label {
     color: inherit;
     font-family: inherit;
+    display: inline;
+  }
+
+  strong.dt-speaker-label .dt-colon {
+    display: inline;
   }
 }
 

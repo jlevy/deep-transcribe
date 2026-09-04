@@ -32,14 +32,18 @@
     return { start, length: Math.max(1, model.duration - start) };
   }
 
-  function select(id) {
-    selected = selected === id ? null : id;
+  function applySelection() {
     for (const scope of [root, ...rootExtras]) {
       scope.querySelectorAll("[data-concept]").forEach((node) => {
         node.classList.toggle("dt-selected", node.dataset.concept === selected);
         node.classList.toggle("dt-dimmed", selected != null && node.dataset.concept !== selected);
       });
     }
+  }
+
+  function select(id) {
+    selected = selected === id ? null : id;
+    applySelection();
     for (const unit of model.index.units) {
       if (!unit.el) continue;
       const concept = model.index.concepts.find((c) => c.id === selected);
@@ -49,17 +53,17 @@
     document.dispatchEvent(new CustomEvent("dt:conceptselect", { detail: { id: selected } }));
   }
 
-  function buildRibbon(concepts) {
+  function buildRibbon(concepts, width) {
     const { start, length } = timeSpan();
     const rowHeight = 25;
-    const labelWidth = 185;
-    const width = 720;
+    const labelWidth = Math.min(220, width * 0.26);
     const height = concepts.length * rowHeight + 18;
     const svg = svgEl("svg", {
       class: "dt-ribbon",
       viewBox: `0 0 ${width} ${height}`,
       role: "img",
     });
+    svg.style.height = `${height}px`;
     const x = (t) => labelWidth + ((t - start) / length) * (width - labelWidth - 8);
 
     concepts.forEach((concept, row) => {
@@ -100,104 +104,101 @@
     return svg;
   }
 
-  /* Deterministic time-layered layout: x from first mention, rows packed
-     greedily so labels never collide. */
-  function buildGraph(concepts) {
-    const { start, length } = timeSpan();
-    const width = 720;
-    const nodeHeight = 29;
-    const rowGap = 14;
-    const charWidth = 7.4;
-    const x = (t) => 10 + ((t - start) / length) * (width - 30);
-
-    const nodes = concepts.map((concept) => {
-      const tagWidth = concept.kind.length * 6.2 + 8;
-      const w = Math.min(230, concept.label.length * charWidth + tagWidth + 26);
-      return { concept, x: x(concept.mentions[0].t), w, tagWidth };
+  /* The one concept chip: kind tag, dividing bar, medium-weight value, all
+     outlined in the kind's color. Used identically in the definition list,
+     the Claims panel, and the graph (compact spacing there). */
+  function makeConceptChip(concept, compact) {
+    const chip = el(
+      "span",
+      `dt-concept-chip dt-kind-${concept.kind}${compact ? " dt-chip-compact" : ""}`
+    );
+    chip.dataset.concept = concept.id;
+    chip.appendChild(el("span", "dt-chip-kind", concept.kind));
+    chip.appendChild(el("span", "dt-chip-label", concept.label));
+    chip.addEventListener("click", (event) => {
+      event.stopPropagation();
+      select(concept.id);
     });
+    return chip;
+  }
+
+  /* Deterministic time-layered graph: the actual chip elements are positioned
+     over an SVG that draws only the relation edges, so graph nodes and
+     standalone chips are identical by construction. Chips are measured in the
+     document, then packed into rows by first-mention time. */
+  function buildGraph(concepts, width) {
+    const wrap = el("div", "dt-graph");
+    const edges = svgEl("svg", { class: "dt-graph-edges" });
+    wrap.appendChild(edges);
+    const nodes = concepts.map((concept) => {
+      const chip = makeConceptChip(concept, true);
+      chip.classList.add("dt-graph-chip");
+      model.tooltip.attach(chip, () => `${concept.label} — ${concept.gloss}`);
+      wrap.appendChild(chip);
+      return { concept, chip };
+    });
+    return { wrap, edges, nodes, width };
+  }
+
+  function layoutGraph(graph) {
+    const { wrap, edges, nodes, width } = graph;
+    const { start, length } = timeSpan();
+    const rowGap = 12;
+    const x = (t) => 8 + ((t - start) / length) * (width - 24);
     const rows = [];
+    let chipHeight = 0;
     for (const node of nodes) {
-      let row = rows.findIndex((endX) => node.x > endX + 12);
+      node.w = node.chip.offsetWidth;
+      chipHeight = Math.max(chipHeight, node.chip.offsetHeight);
+      node.x = Math.max(8, Math.min(x(node.concept.mentions[0].t), width - node.w - 8));
+      let row = rows.findIndex((endX) => node.x > endX + 10);
       if (row === -1) {
         row = rows.length;
         rows.push(-Infinity);
       }
-      node.x = Math.min(node.x, width - node.w - 10);
       node.row = row;
       rows[row] = node.x + node.w;
     }
-    const height = rows.length * (nodeHeight + rowGap) + 16;
-    const svg = svgEl("svg", {
-      class: "dt-graph",
-      viewBox: `0 0 ${width} ${height}`,
-      role: "img",
-    });
-    const nodeById = new Map(nodes.map((n) => [n.concept.id, n]));
-    const yOf = (n) => n.row * (nodeHeight + rowGap) + 10;
+    const rowHeight = chipHeight + rowGap;
+    for (const node of nodes) {
+      node.y = 6 + node.row * rowHeight;
+      node.chip.style.left = `${node.x}px`;
+      node.chip.style.top = `${node.y}px`;
+    }
+    const height = rows.length * rowHeight + 6;
+    wrap.style.height = `${height}px`;
+    edges.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    edges.style.height = `${height}px`;
 
+    const byId = new Map(nodes.map((n) => [n.concept.id, n]));
+    edges.textContent = "";
     for (const node of nodes) {
       for (const relation of node.concept.relations) {
-        const target = nodeById.get(relation.to);
+        const target = byId.get(relation.to);
         if (!target) continue;
         const x0 = node.x + node.w / 2;
-        const y0 = yOf(node) + nodeHeight / 2;
+        const y0 = node.y + chipHeight / 2;
         const x1 = target.x + target.w / 2;
-        const y1 = yOf(target) + nodeHeight / 2;
-        const bend = (y1 - y0) * 0.3 + (y1 === y0 ? 26 : 0);
-        const edge = svgEl("path", {
+        const y1 = target.y + chipHeight / 2;
+        const bend = (y1 - y0) * 0.3 + (y1 === y0 ? 24 : 0);
+        const path = svgEl("path", {
           class: "dt-graph-edge",
           d: `M ${x0} ${y0} C ${x0} ${y0 + bend}, ${x1} ${y1 - bend}, ${x1} ${y1}`,
         });
-        model.tooltip.attach(edge, () =>
+        model.tooltip.attach(path, () =>
           `${node.concept.label} → ${relation.type} → ${target.concept.label}`
         );
-        svg.appendChild(edge);
+        edges.appendChild(path);
       }
     }
-    for (const node of nodes) {
-      const y = yOf(node);
-      const group = svgEl("g", {
-        class: `dt-graph-node dt-kind-${node.concept.kind}`,
-        "data-concept": node.concept.id,
-      });
-      group.appendChild(
-        svgEl("rect", { x: node.x, y, width: node.w, height: nodeHeight, rx: 4 })
-      );
-      group.appendChild(
-        svgEl(
-          "text",
-          { class: "dt-graph-kind", x: node.x + 8, y: y + nodeHeight / 2 + 3.5 },
-          node.concept.kind.toUpperCase()
-        )
-      );
-      const label = svgEl(
-        "text",
-        {
-          x: node.x + node.tagWidth + (node.w - node.tagWidth) / 2,
-          y: y + nodeHeight / 2 + 4,
-        },
-        node.concept.label.length > 26
-          ? node.concept.label.slice(0, 25) + "…"
-          : node.concept.label
-      );
-      group.appendChild(label);
-      model.tooltip.attach(group, () => `${node.concept.label} — ${node.concept.gloss}`);
-      group.addEventListener("click", () => select(node.concept.id));
-      svg.appendChild(group);
-    }
-    return svg;
   }
 
   function buildDefinitions(concepts) {
     const list = el("dl", "dt-concept-defs");
     for (const concept of concepts) {
-      const term = el("dt", `dt-concept-term dt-kind-${concept.kind}`);
-      term.dataset.concept = concept.id;
-      term.appendChild(el("span", "dt-concept-kind", concept.kind));
-      term.appendChild(document.createTextNode(concept.label));
-      const time = el("span", "dt-timestamp", model.formatTime(concept.span[0]));
-      term.appendChild(time);
-      term.addEventListener("click", () => select(concept.id));
+      const term = el("dt", "dt-concept-term");
+      term.appendChild(makeConceptChip(concept));
+      term.appendChild(el("span", "dt-timestamp", model.formatTime(concept.span[0])));
       const detail = el("dd", "dt-concept-gloss", concept.gloss);
       if (concept.research && concept.research.summary) {
         const research = el("div", "dt-concept-research", concept.research.summary);
@@ -219,15 +220,13 @@
   /* Claims and decisions get their own focused panel, with each entry
      attributed to the speakers who made it. */
   function buildClaims(concepts) {
-    const claims = concepts.filter((c) => c.kind === "claim" || c.kind === "decision");
+    const claims = concepts.filter((c) => c.kind === "claim");
     if (!claims.length) return null;
     const panel = model.makePanel("Claims");
     const list = el("dl", "dt-concept-defs");
     for (const concept of claims) {
-      const term = el("dt", `dt-concept-term dt-kind-${concept.kind}`);
-      term.dataset.concept = concept.id;
-      term.appendChild(el("span", "dt-concept-kind", concept.kind));
-      term.appendChild(document.createTextNode(concept.label));
+      const term = el("dt", "dt-concept-term");
+      term.appendChild(makeConceptChip(concept));
       for (const speakerId of concept.speakers) {
         const name = model.speakerById.get(speakerId)?.name;
         if (name) {
@@ -242,7 +241,6 @@
         model.playAt(concept.span[0]);
       });
       term.appendChild(chip);
-      term.addEventListener("click", () => select(concept.id));
       list.append(term, el("dd", "dt-concept-gloss", concept.gloss));
     }
     panel.appendChild(list);
@@ -256,10 +254,26 @@
 
     root = model.makePanel("Concepts");
     root.classList.add("dt-concepts");
-    root.appendChild(buildRibbon(concepts));
-    root.appendChild(buildGraph(concepts));
+    const charts = document.createElement("div");
+    root.appendChild(charts);
     root.appendChild(buildDefinitions(concepts));
     model.panels.bottom.appendChild(root);
+
+    // Charts render at the panel's real pixel width, like the Timeline, so
+    // their type sits on the design system's own sizes.
+    let chartWidth = 0;
+    const renderCharts = () => {
+      const width = Math.floor(charts.getBoundingClientRect().width);
+      if (!width || width === chartWidth) return;
+      chartWidth = width;
+      charts.textContent = "";
+      const graph = buildGraph(concepts, width);
+      charts.append(buildRibbon(concepts, width), graph.wrap);
+      layoutGraph(graph);
+      applySelection();
+    };
+    new ResizeObserver(renderCharts).observe(charts);
+    renderCharts();
 
     const claimsPanel = buildClaims(concepts);
     if (claimsPanel) {

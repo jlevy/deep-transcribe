@@ -13,8 +13,8 @@ from kash.model import Item, ItemType, Param, common_params
 from kash.utils.errors import ApiResultError, InvalidInput
 
 from deep_transcribe.transcript_index import (
-    CONCEPT_KINDS,
     CONCEPT_RELATION_TYPES,
+    normalize_concept_kind,
     scan_raw_units,
 )
 
@@ -30,8 +30,8 @@ EXTRACTION_PROMPT = dedent("""
     You are given a transcript as numbered turns, each with a citation key (its start
     time in seconds) and a speaker. Extract the key concepts of the conversation.
 
-    A concept is a topic, entity, term, claim, or decision that the conversation
-    actually discusses. Prefer a short list of load-bearing concepts over an
+    A concept is a topic, an entity, or a claim that the conversation actually
+    discusses. Prefer a short list of load-bearing concepts over an
     exhaustive inventory; at most {max_concepts}.
 
     Return ONLY a JSON object of this exact shape:
@@ -40,7 +40,7 @@ EXTRACTION_PROMPT = dedent("""
       {{
         "id": "kebab-case-slug",
         "label": "Short display label",
-        "kind": "topic|entity|term|claim|decision",
+        "kind": "topic|entity|claim",
         "gloss": "One sentence saying what this is and why it matters here.",
         "mentions": ["<citation key>", "<citation key>"],
         "relations": [{{"to": "other-concept-id", "type": "leads-to|contrasts-with|elaborates|example-of|depends-on"}}]{research_field}
@@ -54,8 +54,7 @@ EXTRACTION_PROMPT = dedent("""
       outside facts to glosses.
     - Relations are optional and must use only the listed types and other concept ids.
     - Capture the most consequential claims and decisions speakers make as kind
-      "claim" or "decision", wording each gloss as what is asserted or decided and by
-      whom.
+      "claim", wording each gloss as what is asserted or decided and by whom.
     - Use each id once.
     {research_rules}
     Transcript turns:
@@ -109,7 +108,7 @@ def _parse_concepts(response: str) -> list[dict[str, Any]]:
             log.warning("Skipping concept with missing or duplicate id: %r", concept_id)
             continue
         seen_ids.add(concept_id)
-        kind = str(concept.get("kind") or "topic")
+        kind = normalize_concept_kind(concept.get("kind"))
         raw_mentions = concept.get("mentions")
         mentions = (
             [str(m) for m in cast(list[object], raw_mentions)]
@@ -127,7 +126,7 @@ def _parse_concepts(response: str) -> list[dict[str, Any]]:
             {
                 "id": concept_id,
                 "label": str(concept.get("label") or concept_id),
-                "kind": kind if kind in CONCEPT_KINDS else "topic",
+                "kind": kind,
                 "gloss": str(concept.get("gloss") or ""),
                 "mentions": mentions,
                 "relations": relations,
@@ -214,7 +213,7 @@ def test_parse_concepts_filters_and_normalizes() -> None:
                 {
                     "id": "suite-upgrade",
                     "label": "Suite upgrade",
-                    "kind": "decision",
+                    "kind": "claim",
                     "gloss": "The fix for the lost booking.",
                     "mentions": ["36.03", "60.82"],
                     "relations": [
@@ -233,6 +232,7 @@ def test_parse_concepts_filters_and_normalizes() -> None:
 
     assert [c["id"] for c in concepts] == ["suite-upgrade", "weird-kind"]
     assert concepts[0]["relations"] == [{"to": "reservation-glitch", "type": "leads-to"}]
+    assert concepts[0]["kind"] == "claim"
     assert concepts[1]["kind"] == "topic"
 
 
