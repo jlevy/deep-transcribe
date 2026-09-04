@@ -5,7 +5,7 @@ title: Transcript segments with default suppression
 kind: feature
 status: open
 priority: 1
-version: 13
+version: 14
 spec_path: docs/project/specs/active/plan-2026-09-04-transcript-segments.md
 labels: []
 dependencies: []
@@ -20,7 +20,7 @@ child_order_hints:
   - is-01m1na58vampj3d053x9qddjf3
   - is-01m1nq9wwxfa8c5v3h4ngk3z68
 created_at: 2026-09-04T02:24:48.871Z
-updated_at: 2026-09-04T08:07:01.788Z
+updated_at: 2026-09-04T09:07:59.066Z
 ---
 MEASURED against Lex #501 (5.3h) before designing:
 - 23 YouTube chapters with exact boundaries and human titles, including 'Episode highlight' (0:00-1:27) and 'Introduction' (1:27-2:56). Excellent free skeleton.
@@ -33,35 +33,33 @@ DESIGN: segments partition the whole timeline; each states a purpose (content/pr
 
 ## Notes
 
-DESIGN REFRAMED by the user (2026-09-04), and it is simpler than what the spec drafted.
+SEGMENTS FOUNDATION LANDED, following the user's reframing: the loop matters, full
+automation does not.
 
-Segment handling does NOT have to be fully automated. What matters is the loop:
+  dt-g4qm  hints file format, parser, writer, validation      1c1f02f
+           CLI `--segments PATH`                              1f56b83
+  dt-n3gh  suppressed units excluded from chunking, and       070cd61
+           suppressed sections excluded from split_body
+  dt-hesk  index marks units, transcript collapses runs       5172ce1
 
-  run the tool -> look at the output -> revise the hints -> rerun
+The cache cut, which is the load-bearing part: hints ride to the same late boundary as
+the processing instructions (_attach_late_inputs). Everything above it — transcription,
+speaker correction, paragraphs, section headings — keeps its identity when a hint
+changes; everything below is redone. Hints are carried to that boundary as YAML TEXT
+rather than a mapping, so the action's identity is a plain string and two files that
+differ only in key order hash the same.
 
-and the rerun must be cheap: it must not redo the parts that are already correct,
-above all the transcript. An agent can drive this loop itself — run, inspect, fix the
-hints, rerun — as long as rerunning is not a fresh five-hour pipeline.
+STILL TO VERIFY (dt-kap1), and it is the claim the whole design rests on: that editing a
+hint and rerunning actually reuses the expensive stages. A hints file for the Lex #501
+teaser is ready at /Volumes/spud-ext1/tmp/dt-scratch/segments-lex501.yml marking
+0:00:00-0:02:12, which is three unrelated topics — AI progress, risk and the Overton
+window, the peak human experience — before the interview starts at "From Manual
+Programming to Agentic Engineering". Rerun the same command with `--segments` against
+the finished dt-final workspace and check which stages re-run. Expect: transcription,
+speaker correction, paragraphs and sections all cached; frames re-run (they sit below
+the boundary, ~4 min, wasteful but tolerable); outline, synopsis, concepts, index and
+export re-run, which is the point.
 
-WHAT THIS IMPLIES ARCHITECTURALLY, and it is the load-bearing constraint:
-
-Hints must be an input to a LATE stage. Content-addressed caching already gives cheap
-reruns for free, but only for stages upstream of the changed input. So the cut is:
-
-  NEVER re-run when hints change   download, transcription, speaker correction (33.5 min
-                                   at 5.3 h), break_into_paragraphs (12.8 min),
-                                   backfill_timestamps, section headings, frame captures
-  RE-RUN when hints change         concepts (~13 min), outline (~6 min), synopsis (~1 min),
-                                   index, export
-
-That is roughly 20 minutes per iteration against 60+ for the untouched stages, and the
-expensive half is exactly the half that hints have no business changing. If a hint ever
-feeds a stage above that line, the loop stops being usable.
-
-So a hint marks a time range and a purpose, and the effect is: excluded from analysis,
-and grayed/collapsed rather than deleted in the views. Detection can propose hints; the
-file is the contract and a human or agent can write it by hand.
-
-Automatic detection becomes a convenience that writes a first draft of the hints file,
-not a prerequisite. dt-88st (detect_segments) drops in priority accordingly; dt-g4qm
-(the file format and IO) rises, because the format IS the interface.
+If frame captures turn out to dominate the rerun cost, the fix is to move
+insert_frame_captures above the boundary — but note that puts img tags into the outline
+prompt's input, which is why it is not already there.
