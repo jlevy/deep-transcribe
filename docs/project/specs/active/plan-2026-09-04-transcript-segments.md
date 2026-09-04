@@ -54,23 +54,52 @@ eight sponsors in its description.
 So description metadata cannot be treated as evidence that an ad exists in the audio,
 and name matching would have suppressed real conversation.
 
-**A preview clip is detectable mechanically, not by inference.** The `Episode highlight`
-chapter was measured against the rest of the conversation: 14 of its 15 substantive
-sentences are near-verbatim repeats of later material (similarity 0.97–1.00), drawn from
-seven separate points spread across the five hours — 0:04, 0:38, 0:41, 2:03, 2:44, 3:12,
-and 4:23.
+**A preview clip leaves a measurable trace, which is evidence rather than proof.** The
+`Episode highlight` chapter was compared against the rest of the conversation: 14 of its
+15 substantive sentences are near-verbatim repeats of later material, drawn from seven
+separate points spread across the five hours — 0:04, 0:38, 0:41, 2:03, 2:44, 3:12, and
+4:23.
 
-That is a far stronger signal than any model judgment.
-A teaser is literally assembled from later audio, so near-duplicate matching against
-subsequent text identifies it with near-certainty.
-The failure mode a model would have — mistaking a host legitimately restating a theme
-for a teaser — cannot occur, because genuine restatement is paraphrase, not fourteen
-verbatim sentences sourced from seven different places.
+The similarity was high here (0.97–1.00) because a teaser reuses the same audio, so
+speech-to-text produces nearly the same words.
+But speech-to-text is not deterministic in the way exact matching would need: the same
+audio can transcribe differently under different surrounding context, and a teaser that
+was re-edited, re-recorded, or laid under music will diverge further.
+So similarity is a strong signal to be thresholded loosely, never an equality test.
+
+What makes it dependable is applying it **per section rather than per sentence**. Asking
+whether a whole section substantially repeats material appearing later is a judgment a
+model makes well, and a fuzzy-match score over that section is exactly the evidence it
+needs to make it.
+Neither alone is trustworthy; together they are, and the failure mode a
+model would face on its own — mistaking a host restating a theme for a teaser — is
+precisely what the similarity evidence rules out.
 
 Intro material is different again: it is original speech in a recognizable register
 (`The following is a conversation with…`), so it is classified rather than matched.
-Sponsor reads, when present, are the case with no metadata and no duplication to lean
-on, and are the one kind that genuinely needs a model reading for a change in register.
+Promotional breaks — sponsor reads, but equally a plug to subscribe or buy a book — are
+the case with no metadata and no duplication to lean on, and are the one kind that
+genuinely needs a model reading for a change in register.
+
+**A transition usually leaves a gap, and the timestamps can see it.** Segments are
+normally separated by something other than speech — a music string, a beat of silence, an
+edit point — and that shows up as time between one sentence ending and the next
+beginning.
+
+Measured here, the teaser-to-intro boundary at 1:27 carries roughly a 17-second gap,
+consistent with a musical transition, and it is one of the largest anywhere in the
+episode.
+
+The caveat is that gaps alone would produce false positives: comparable gaps appear
+mid-conversation, where a speaker simply pauses, laughs, or thinks.
+Gap size is corroboration for a boundary that other evidence already suggests, not a
+detector on its own.
+
+It is also more approximate than it needs to be.
+The pipeline keeps a timestamp for each sentence’s *start*, so a gap has to be inferred
+by estimating how long the previous sentence took to say.
+Speech-to-text returns per-word timings including where each word ends, which would make
+these gaps exact rather than estimated — that data is currently discarded.
 
 **Therefore the transcript is the ground truth and metadata is only a hint.** When a
 segment changes character — a monologue becomes an interview, an interview breaks for a
@@ -111,45 +140,60 @@ segments:
 | purpose | suppressed by default | what it is |
 | --- | --- | --- |
 | `content` | no | the conversation itself |
-| `preview` | **yes** | a highlight or teaser replaying material from later |
+| `preview` | fuzzy similarity against later text as evidence, judged per section |  |
 | `intro` | **yes** | host framing before the conversation starts |
-| `sponsor` | **yes** | an advertising or promotional read |
+| `promo` | **yes** | an advertising or promotional break: a sponsor read, but equally a plug to subscribe, buy a book, or join something |
 | `outro` | **yes** | closing remarks, credits, appeals |
 
 `source` records how the segment was determined — `chapter` or `detected` — so a reader
 can see which boundaries came from the publisher and which from inference.
 `suppressed` is a default implied by `purpose` and may be overridden per segment.
 
-### Building segments
+### Building segments: one windowed pass, then a cheap classification
 
-**Chapters first, when they exist.** Chapters give exact boundaries and human titles for
-free, and yt-dlp already returns them.
-They become the initial partition, and each is classified by purpose.
+Segments are not a new detection problem.
+The pipeline already inserts section headings with a windowed pass over the transcript,
+and a section boundary is exactly what a segment boundary is.
+So the work is to make that existing pass aware that a promotional break deserves its
+own section, then walk the resulting headings and label each one.
 
-**Detection fills the gaps.** Sponsor reads and similar interjections are usually not
-chaptered, so the model reads the transcript and proposes segments that split an
-existing one. This is a much smaller and better-grounded task than scanning five hours
-cold: for each candidate it cites citation keys, exactly as concept mentions do, and
-anything that does not resolve is dropped.
+**Pass one — sectioning (extended, not new).** `insert_section_headings` runs
+`LLM.default_fast` over `WINDOW_128_PARA` with the `adds_headings` diff filter, which
+accepts only insertions inside heading tags.
+That filter is the reason this is safe to extend: whatever the prompt asks for, the
+model cannot alter a word of the transcript — the worst case is a heading in an odd
+place.
 
-**Each purpose is found the way it is actually detectable**, rather than routing
-everything through one model prompt:
+The prompt gains one requirement: when the speaker breaks from the conversation into an
+advertising or promotional read, that break starts its own section and the conversation
+resumes with another after it.
+A promo absorbed into a surrounding topical section cannot be suppressed cleanly later,
+so the boundary has to exist before anything can be labeled.
 
-| purpose | how it is found |
-| --- | --- |
-| `preview` | near-duplicate matching against later text; mechanical and near-certain |
-| `intro` | classification of the opening segment’s register |
-| `sponsor` | model reading for a change in register; no other signal is reliable |
-| `outro` | classification of the closing segment |
-| `content` | whatever remains |
+**Pass two — classification (small and cheap).** The result is a list of headings, not
+five hours of text.
+For this episode that is on the order of tens of entries, so a single
+call can read the heading list with a little context under each — the opening sentence
+and its timestamp — and assign a purpose to every one.
+Scoring a short labeled list is a far easier task than finding structure in a
+transcript, and a wrong answer is a mislabeled section rather than a missing one.
 
-**Without chapters, detection produces the whole partition.** The same classification
-runs over the transcript alone, which is the general case for local recordings and
-sources without chapter metadata.
+**Chapters, where they exist, are evidence for pass two rather than a separate path.** A
+chapter titled `Episode highlight` or `Introduction` is a strong prior for the section
+that covers it, and chapter boundaries can be offered to pass one as suggested split
+points. Chapters never mark promos, so they cannot replace either pass.
 
-Because the model is asked to *classify a labeled structure* rather than *find
-everything*, the prompt can be short, specific, and cheap — and a wrong answer is a
-mislabeled segment rather than a missing one.
+**Scale.** The 5.3-hour episode is about 1,263 paragraphs, so roughly 10 windows on the
+fast model; twelve hours is roughly 23. Classification stays one call regardless of
+length. Both scale linearly and cheaply, which is the point of reusing the windowed pass
+rather than asking one model to read everything.
+
+**The known weakness is the window seam.** `WINDOW_128_PARA` shifts by its full size
+with no overlap, so a promo straddling a boundary is seen as two partial fragments,
+neither obviously a promo.
+Options, in order of preference: give the sectioning window a small overlap; or let pass
+two merge adjacent sections it labels the same way, which repairs a split promo without
+touching the windowing.
 
 ### Boundary snapping
 
