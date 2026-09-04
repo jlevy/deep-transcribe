@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from kash.model import Item
 
 from deep_transcribe import transcribe_commands
-from deep_transcribe.disk_space import InsufficientDiskSpace, _mount_point
+from deep_transcribe.disk_space import InsufficientDiskSpace, volume_for
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 MEASURED_SECONDS = 18900
@@ -151,7 +151,7 @@ def test_a_full_volume_stops_before_the_download_starts(
 
     reported = str(raised.value)
     assert reached == [], "the download started anyway"
-    assert f"Not enough free space on {_mount_point(ws_root)} " in reported, reported
+    assert f"Not enough free space on {volume_for(ws_root)} " in reported, reported
     assert "about 4.2 GB needed for a 5h15m recording" in reported, reported
     assert "1.1 GB free" in reported, reported
     assert "--workspace on another volume" in reported, reported
@@ -263,9 +263,9 @@ def test_frame_capture_stops_before_writing_the_first_jpg(
             )
 
     reported = str(raised.value)
-    assert (
-        f"Not enough free space on {_mount_point(workspace_path)} for frame capture" in reported
-    ), reported
+    assert f"Not enough free space on {volume_for(workspace_path)} for frame capture" in reported, (
+        reported
+    )
     assert "about 500 MB needed, 200 MB free" in reported, reported
     assert asked and all(str(path).startswith(str(workspace_path)) for path in asked), (
         f"frame capture checked the wrong volume: {asked}"

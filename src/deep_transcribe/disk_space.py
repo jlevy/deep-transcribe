@@ -80,6 +80,16 @@ def _nearest_existing(path: Path) -> Path:
     return current
 
 
+def volume_for(path: Path) -> Path:
+    """
+    The volume `path` lives on, named the way the user's own disk tools name it.
+
+    Tolerates a path that does not exist yet, so it can name the volume in a message about
+    a workspace the run was going to create.
+    """
+    return _mount_point(_nearest_existing(path))
+
+
 def free_bytes(path: Path) -> int:
     """Free space on the volume holding `path`, whether or not `path` exists yet."""
     return shutil.disk_usage(_nearest_existing(path)).free
@@ -134,7 +144,7 @@ def source_duration(item: Item) -> float | None:
 def _report(
     workspace_path: Path, what: str, needed: int, available: int, qualifier: str = ""
 ) -> str:
-    volume = _mount_point(_nearest_existing(workspace_path))
+    volume = volume_for(workspace_path)
     return (
         f"Not enough free space on {volume} {what}: "
         f"about {fmt_size(needed)} needed{qualifier}, {fmt_size(available)} free. "
@@ -232,7 +242,7 @@ def test_the_message_names_the_volume_the_sizes_and_the_way_out(tmp_path: Path) 
     )
 
     assert reported == (
-        f"Not enough free space on {_mount_point(tmp_path)} to download this source: "
+        f"Not enough free space on {volume_for(tmp_path)} to download this source: "
         "about 4.2 GB needed for a 5h15m recording, 1.1 GB free. "
         "Free space or use --workspace on another volume."
     )

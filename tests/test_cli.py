@@ -789,3 +789,108 @@ def test_a_disk_space_stop_is_one_line_and_not_a_traceback(
         "the traceback was dropped entirely; it must still reach the log file"
     )
     assert "Error: Not enough" not in reported, f"double-labelled the message: {reported}"
+
+
+def _mapped_failure_reaches_the_console(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: BaseException,
+) -> tuple[int | None, str, str]:
+    """Drive `main()` through one mapped failure, returning the exit code, console, and log."""
+    code, reported, records = _drive_main_through_a_failed_run(tmp_path, monkeypatch, failure)
+    return code, reported, _console_text(records)
+
+
+def test_a_disk_full_download_reports_the_disk_and_not_the_video(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The reported run: twenty minutes of downloading, then a yt-dlp `UnavailableVideoError`
+    traceback ending in `[Errno 28] No space left on device`, then a friendly line. The
+    outer exception blames the video; only the cause is actionable.
+    """
+    import errno
+
+    from yt_dlp.utils import UnavailableVideoError
+
+    try:
+        try:
+            raise OSError(errno.ENOSPC, "No space left on device", str(tmp_path / "v.mp4.part"))
+        except OSError as cause:
+            raise UnavailableVideoError("Video unavailable") from cause
+    except UnavailableVideoError as error:
+        code, reported, console = _mapped_failure_reaches_the_console(tmp_path, monkeypatch, error)
+
+    assert code != 0
+    assert "Ran out of space on " in reported, reported
+    assert "Free space or use --workspace on another volume." in reported, reported
+    assert "private" not in reported, f"blamed the video for a full disk: {reported}"
+    assert "Traceback" not in console, f"the console still dumps a traceback:\n{console}"
+
+
+def test_a_download_failure_names_the_url_and_what_to_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from yt_dlp.utils import DownloadError
+
+    failure = DownloadError("ERROR: [youtube] abc: Video unavailable")
+    code, reported, console = _mapped_failure_reaches_the_console(tmp_path, monkeypatch, failure)
+
+    assert code != 0
+    assert "Could not download https://example.com/video:" in reported, reported
+    assert "Video unavailable." in reported, reported
+    assert "private/geo-blocked" in reported, reported
+    assert "Traceback" not in console, f"the console still dumps a traceback:\n{console}"
+
+
+def test_an_extractor_failure_is_one_line_without_the_bug_report_paragraph(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    yt-dlp asks the user to file a github issue for a private video. Passing that through
+    sends people to the wrong repository for a problem only they can fix.
+    """
+    from yt_dlp.utils import ExtractorError
+
+    failure = ExtractorError("Private video. Sign in if you have been granted access", video_id="a")
+    code, reported, console = _mapped_failure_reaches_the_console(tmp_path, monkeypatch, failure)
+
+    assert code != 0
+    assert "Private video. Sign in if you have been granted access." in reported, reported
+    assert "github.com/yt-dlp" not in reported, reported
+    assert "Traceback" not in console, f"the console still dumps a traceback:\n{console}"
+
+
+def test_a_network_failure_names_the_host_it_could_not_reach(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    kash fetches with httpx, so a connection failure arrives as a `TransportError` carrying
+    the request it was making — which is the only place the host is written down.
+    """
+    import httpx
+
+    request = httpx.Request("GET", "https://rr3---sn-x.googlevideo.com/videoplayback?id=1")
+    failure = httpx.ConnectError("[Errno 8] nodename nor servname provided", request=request)
+    code, reported, console = _mapped_failure_reaches_the_console(tmp_path, monkeypatch, failure)
+
+    assert code != 0
+    assert "Could not reach rr3---sn-x.googlevideo.com:" in reported, reported
+    assert "Check your network connection and try again." in reported, reported
+    assert "Traceback" not in console, f"the console still dumps a traceback:\n{console}"
+
+
+def test_an_unmapped_failure_still_gets_the_traceback_it_always_had(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The point of mapping is not to quieten failures, it is to explain the ones understood.
+    A structural bug in this codebase has no actionable one-liner, so nothing about its
+    reporting changes — and if this ever passes by accident, the mapping has grown too eager.
+    """
+    failure = ValueError("something structural went wrong")
+    code, reported, console = _mapped_failure_reaches_the_console(tmp_path, monkeypatch, failure)
+
+    assert code != 0
+    assert "Error: something structural went wrong" in reported, reported
+    assert "Traceback" in console, f"an unknown failure lost its traceback:\n{console}"

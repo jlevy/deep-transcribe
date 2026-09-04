@@ -865,13 +865,14 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
     except Exception as error:
         from kash.config.logger import get_log_settings
 
-        from deep_transcribe.disk_space import InsufficientDiskSpace
+        from deep_transcribe.media_errors import explain_error
 
-        # A preflight that stopped the run already knows the whole story, and a traceback
-        # into our own check tells the user nothing they can act on. Log it at info so the
+        # A recognized failure already knows the whole story, and a traceback through
+        # yt-dlp's internals tells the user nothing they can act on. Log it at info so the
         # detail still reaches the log file — whose path is printed either way — while the
-        # console gets the one line. Anything unrecognized keeps the full report.
-        explained = str(error) if isinstance(error, InsufficientDiskSpace) else None
+        # console gets the one line. Anything unrecognized keeps the full report, because a
+        # confident wrong summary is worse than a stack trace.
+        explained = explain_error(error, source=args.source, workspace_path=workspace)
         if explained is None:
             log.error("Error running deep transcription", exc_info=error)
         else:
