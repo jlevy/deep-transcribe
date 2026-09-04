@@ -419,3 +419,54 @@ def test_cli_golden_keeps_the_version_placeholder() -> None:
     assert not re.search(r"deep-transcribe v\d+\.\d+\.\d+", text), (
         "A literal version was baked into the CLI golden; restore v[VERSION]."
     )
+
+
+def test_results_point_at_the_suggested_hints_beside_the_transcript(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """
+    The suggestion is written into the kash workspace, which sits one level inside the
+    root the user passed on the command line. Checking the wrong one means a detected
+    highlight reel is found and then never mentioned.
+    """
+    from deep_transcribe.cli_main import display_results
+    from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
+
+    root = tmp_path / "run"
+    workspace = root / "workspace"
+    docs = workspace / "docs"
+    docs.mkdir(parents=True)
+    transcript = docs / "t.doc.md"
+    transcript.write_text("x")
+    html = workspace / "exports" / "t.html"
+    html.parent.mkdir(parents=True)
+    html.write_text("<html></html>")
+    (workspace / SUGGESTED_SEGMENTS_NAME).write_text("segments: []\n")
+
+    display_results(root, transcript, html, as_json=True)
+
+    import json as _json
+
+    payload = _json.loads(capsys.readouterr().out)
+    assert payload["suggested_segments"] == str((workspace / SUGGESTED_SEGMENTS_NAME).resolve())
+
+
+def test_results_omit_the_hint_path_when_nothing_was_suggested(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from deep_transcribe.cli_main import display_results
+
+    root = tmp_path / "run"
+    docs = root / "workspace" / "docs"
+    docs.mkdir(parents=True)
+    transcript = docs / "t.doc.md"
+    transcript.write_text("x")
+    html = root / "workspace" / "exports" / "t.html"
+    html.parent.mkdir(parents=True)
+    html.write_text("<html></html>")
+
+    display_results(root, transcript, html, as_json=True)
+
+    import json as _json
+
+    assert "suggested_segments" not in _json.loads(capsys.readouterr().out)

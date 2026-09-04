@@ -455,7 +455,10 @@ def display_results(
     """Display generated artifact paths."""
     from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
 
-    suggested = base_dir / SUGGESTED_SEGMENTS_NAME
+    # `base_dir` is the root the user passed; the kash workspace, where the pipeline
+    # writes, is a level inside it. The transcript is always in that workspace's docs
+    # directory, so it is the reliable way back to it.
+    suggested = transcript_path.parent.parent / SUGGESTED_SEGMENTS_NAME
     if as_json:
         result: dict[str, str] = {
             "workspace": str(base_dir.resolve()),
