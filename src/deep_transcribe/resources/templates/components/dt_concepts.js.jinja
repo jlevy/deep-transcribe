@@ -189,6 +189,47 @@
     }
   }
 
+  /* Chip positions are pixel measurements — the row packing compares measured chip
+     widths, and the edge paths share that coordinate space — so a resized panel needs a
+     real re-layout rather than rescaled percentages. Re-laying reuses a graph's existing
+     chips and only moves them.
+
+     A collapsed group is display:none and so measures zero. Those are skipped here and
+     laid out on the way open instead. */
+  function layoutThemeGraphs() {
+    for (const group of conceptGroups) {
+      if (group.failed) continue;
+      const width = Math.floor(group.body.getBoundingClientRect().width);
+      if (!width || width === group.laidOutAt) continue;
+      // The wrap is in the document before layout runs, so the failure path has to hold
+      // it in a variable the catch can still see. group.graph is only set once layout has
+      // succeeded, which is exactly what left the old cleanup here unreachable.
+      let wrap = group.graph ? group.graph.wrap : null;
+      try {
+        if (group.graph) {
+          group.graph.width = width;
+          layoutGraph(group.graph);
+        } else {
+          const graph = buildGraph(group.concepts, width);
+          graph.span = spanOf(group.concepts);
+          graph.wrap.classList.add("dt-graph-screen", "dt-theme-graph");
+          wrap = graph.wrap;
+          group.body.prepend(wrap);
+          layoutGraph(graph);
+          group.graph = graph;
+        }
+        group.laidOutAt = width;
+      } catch (error) {
+        // A graph that will not lay out is worth losing; the list is not. Give up on this
+        // one for good rather than retrying it on every later resize.
+        if (wrap) wrap.remove();
+        group.graph = null;
+        group.failed = true;
+      }
+    }
+    applySelection();
+  }
+
   /* Long recordings arrive already grouped: the reduce pass names a theme for each
      concept and orders them by theme, so consecutive runs of one theme are the groups.
      Below the length where a flat list is still a map, groups start collapsed — a dozen
@@ -477,7 +518,9 @@
         if (!width || width === chartWidth) return;
         chartWidth = width;
         charts.textContent = "";
-        if (!perTheme) {
+        if (perTheme) {
+          layoutThemeGraphs();
+        } else {
           const graph = buildGraph(concepts, width);
           graph.wrap.classList.add("dt-graph-screen");
           charts.appendChild(graph.wrap);
@@ -486,28 +529,22 @@
         layoutGraph(printGraph);
         applySelection();
       };
+      // One observer for the panel, not one per graph: every theme graph is as wide as
+      // the panel, and a container observer also catches the width changes a window
+      // resize listener would miss.
       new ResizeObserver(renderCharts).observe(charts);
+      // Runs while the groups are still expanded, so their graphs can be measured and
+      // laid out before anything is hidden.
       renderCharts();
 
       if (perTheme) {
-        // Lay out while the groups are still expanded, then collapse: a hidden element
-        // measures as zero and the layout depends on measured chip widths.
-        for (const group of conceptGroups) {
-          try {
-            const width = Math.floor(group.body.getBoundingClientRect().width);
-            if (!width) continue;
-            const graph = buildGraph(group.concepts, width);
-            graph.span = spanOf(group.concepts);
-            graph.wrap.classList.add("dt-graph-screen", "dt-theme-graph");
-            group.body.prepend(graph.wrap);
-            layoutGraph(graph);
-            group.graph = graph;
-          } catch (error) {
-            // A graph that will not lay out is worth losing; the list is not.
-            if (group.graph && group.graph.wrap) group.graph.wrap.remove();
-          }
-        }
-        applySelection();
+        // A group that was collapsed through a resize got skipped, so lay it out as it
+        // opens. One delegated listener; by the time it runs the head's own handler has
+        // already toggled the class, and a group that is still collapsed measures zero
+        // and is skipped again.
+        root.addEventListener("click", (event) => {
+          if (event.target.closest(".dt-theme-head")) layoutThemeGraphs();
+        });
       }
       for (const group of conceptGroups) {
         if (group.collapse) {
