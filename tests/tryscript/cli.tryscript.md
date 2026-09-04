@@ -20,12 +20,13 @@ $ deep-transcribe --help
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
                        [--elements PARTS] [--no-minify] [--context TEXT]
-                       [--context-file PATH] [--instructions TEXT]
-                       [--instructions-file PATH] [--title TEXT]
-                       [--description TEXT] [--metadata YAML_OR_JSON]
-                       [--key-term TERM] [--speaker ID=NAME]
-                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
-                       [--models [PROFILE]] [--language LANGUAGE]
+                       [--context-file PATH] [--segments PATH]
+                       [--instructions TEXT] [--instructions-file PATH]
+                       [--title TEXT] [--description TEXT]
+                       [--metadata YAML_OR_JSON] [--key-term TERM]
+                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
+                       [--workspace WORKSPACE] [--models [PROFILE]]
+                       [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |
@@ -84,6 +85,9 @@ Natural-Language Guidance:
                         paragraphs
   --context-file PATH   UTF-8 prose to use as recording context; repeat to
                         join files
+  --segments PATH       YAML listing stretches to mark (teaser, intro, promo,
+                        outro); suppressed ones are left out of the analysis.
+                        Editing it and rerunning reuses the transcript
   --instructions TEXT   Trusted post-transcription processing instructions;
                         repeat to join paragraphs
   --instructions-file PATH
@@ -210,12 +214,13 @@ $ deep-transcribe --models invalid --workspace ./output 2>&1
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
                        [--elements PARTS] [--no-minify] [--context TEXT]
-                       [--context-file PATH] [--instructions TEXT]
-                       [--instructions-file PATH] [--title TEXT]
-                       [--description TEXT] [--metadata YAML_OR_JSON]
-                       [--key-term TERM] [--speaker ID=NAME]
-                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
-                       [--models [PROFILE]] [--language LANGUAGE]
+                       [--context-file PATH] [--segments PATH]
+                       [--instructions TEXT] [--instructions-file PATH]
+                       [--title TEXT] [--description TEXT]
+                       [--metadata YAML_OR_JSON] [--key-term TERM]
+                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
+                       [--workspace WORKSPACE] [--models [PROFILE]]
+                       [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |

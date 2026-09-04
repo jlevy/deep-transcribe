@@ -127,6 +127,7 @@ def test_processing_instructions_bypass_raw_and_formatting_cache_identity(
         _options: TranscribeOptions,
         *,
         processing_instructions: str | None,
+        **_late_inputs: object,
     ) -> Item:
         observed["formatting_instructions"] = get_processing_instructions(item)
         observed["overview_instructions"] = processing_instructions
@@ -159,7 +160,7 @@ def test_processing_instructions_get_a_distinct_overview_cache_boundary() -> Non
         store_path="docs/sectioned.doc.md",
     )
 
-    result = unwrap(transcribe_commands._attach_processing_instructions)(
+    result = unwrap(transcribe_commands._attach_late_inputs)(
         item,
         processing_instructions=instructions,
     )

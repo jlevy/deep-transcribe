@@ -25,7 +25,9 @@ from deep_transcribe.transcription_metadata import (
     parse_transcription_metadata,
     persist_item_metadata,
     remove_processing_instructions,
+    remove_segment_hints,
     set_processing_instructions,
+    set_segment_hints,
 )
 
 log = logging.getLogger(__name__)
@@ -87,12 +89,36 @@ def _identify_transcript_speakers(result: Item, web_search: bool = False) -> Ite
             "Output-only instructions for transcript overview stages.",
             type=str,
         ),
+        Param(
+            "segment_hints",
+            "Segment hints, as YAML text, marking stretches to set aside.",
+            type=str,
+        ),
     ),
 )
-def _attach_processing_instructions(item: Item, *, processing_instructions: str) -> Item:
-    """Create a cache boundary whose identity includes output-only instructions."""
+def _attach_late_inputs(
+    item: Item,
+    *,
+    processing_instructions: str | None,
+    segment_hints: str | None = None,
+) -> Item:
+    """
+    Create a cache boundary whose identity includes the analysis-only inputs.
+
+    Everything above this line — transcription, speaker correction, paragraphs, section
+    headings — keeps its identity when these change, and everything below is redone.
+    That is what makes editing a segment hint or an instruction and rerunning cost
+    minutes rather than the whole pipeline.
+    """
+    import yaml
+
     result = item.derived_copy(body=item.body)
-    set_processing_instructions(result, processing_instructions)
+    if processing_instructions is not None:
+        set_processing_instructions(result, processing_instructions)
+    if segment_hints:
+        # Carried as YAML text rather than a mapping so the action's identity is a plain
+        # string: two hint files that differ only in key order must hash the same.
+        set_segment_hints(result, yaml.safe_load(segment_hints))
     return result
 
 
@@ -137,7 +163,10 @@ def transcribe_with_options(
     # Hold them outside the cached transcription and speaker-formatting chain, then
     # restore them immediately before the overview stages that consume them.
     processing_instructions = remove_processing_instructions(item)
-    if processing_instructions is not None and item.store_path is not None:
+    segment_hints = remove_segment_hints(item)
+    if (
+        processing_instructions is not None or segment_hints is not None
+    ) and item.store_path is not None:
         # Kash hashes a stored input's file content when assembling an operation. Keep
         # the persisted source canonical too, or an in-memory removal alone cannot make
         # instruction-only reruns hit the raw action cache.
@@ -160,7 +189,11 @@ def transcribe_with_options(
             workspace.save(result, overwrite=True)
     finally:
         set_processing_instructions(item, processing_instructions)
-        if processing_instructions is not None and item.store_path is not None:
+        if segment_hints is not None:
+            set_segment_hints(item, segment_hints)
+        if (
+            processing_instructions is not None or segment_hints is not None
+        ) and item.store_path is not None:
             persist_item_metadata(item, workspace)
 
     if rerun_processing:
@@ -171,11 +204,13 @@ def transcribe_with_options(
                 result,
                 options,
                 processing_instructions=processing_instructions,
+                segment_hints=segment_hints,
             )
     return _process_transcript(
         result,
         options,
         processing_instructions=processing_instructions,
+        segment_hints=segment_hints,
     )
 
 
@@ -184,6 +219,7 @@ def _process_transcript(
     options: TranscribeOptions,
     *,
     processing_instructions: str | None,
+    segment_hints: object = None,
 ) -> Item:
     # Import dynamically for faster startup.
     from kash.actions.core.strip_html import strip_html
@@ -200,8 +236,9 @@ def _process_transcript(
     )
     from deep_transcribe.transcript_spacing import normalize_transcript_fragments
 
-    # Sanitize legacy raw-cache entries that may still carry output-only instructions.
+    # Sanitize legacy raw-cache entries that may still carry output-only inputs.
     remove_processing_instructions(result)
+    remove_segment_hints(result)
 
     # Apply formatting pipeline if requested
     if options.format:
@@ -223,10 +260,15 @@ def _process_transcript(
         result = research_paras(result)
 
     has_overview_stage = options.add_summary_bullets or options.add_description
-    if has_overview_stage and processing_instructions:
-        result = _attach_processing_instructions(
+    if (has_overview_stage and processing_instructions) or segment_hints is not None:
+        import yaml
+
+        result = _attach_late_inputs(
             result,
             processing_instructions=processing_instructions,
+            segment_hints=(
+                yaml.safe_dump(segment_hints, sort_keys=True) if segment_hints else None
+            ),
         )
 
     if options.add_summary_bullets:

@@ -246,6 +246,16 @@ def _add_transcription_arguments(
         help="UTF-8 prose to use as recording context; repeat to join files",
     )
     guidance.add_argument(
+        "--segments",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "YAML listing stretches to mark (teaser, intro, promo, outro); suppressed "
+            "ones are left out of the analysis. Editing it and rerunning reuses the "
+            "transcript"
+        ),
+    )
+    guidance.add_argument(
         "--instructions",
         action="append",
         default=[],
@@ -550,6 +560,29 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
         inline_data["speaker_roster"] = list(
             dict.fromkeys([*metadata.speaker_roster, *args.speaker_role])
         )
+    if getattr(args, "segments", None):
+        from deep_transcribe.segment_hints import format_time, load_hints
+
+        hints = load_hints(args.segments)
+        if hints.segments:
+            overlaps = hints.overlaps()
+            if overlaps:
+                log.warning(
+                    "%d segment hint pair(s) overlap; the earlier one wins where they do",
+                    len(overlaps),
+                )
+            inline_data["segments"] = {
+                "segments": [
+                    {
+                        "at": f"{format_time(h.start)} - {format_time(h.end)}",
+                        "purpose": h.purpose.value,
+                        **({"suppress": h.suppress} if h.suppress is not None else {}),
+                        **({"note": h.note} if h.note else {}),
+                    }
+                    for h in hints.segments
+                ]
+            }
+
     instruction_parts = (
         [metadata.processing_instructions or ""]
         + [path.read_text(encoding="utf-8").strip() for path in args.instructions_file]
