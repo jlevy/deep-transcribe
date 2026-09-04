@@ -371,6 +371,8 @@ def test_a_tag_with_no_video_id_is_stripped_too() -> None:
     from yt_dlp.utils import DownloadError
 
     message = explain_error(
-        DownloadError("ERROR: [generic] Unsupported URL"), source="https://x.test/a", workspace_path=None
+        DownloadError("ERROR: [generic] Unsupported URL"),
+        source="https://x.test/a",
+        workspace_path=None,
     )
     assert message is not None and ": Unsupported URL. " in message
