@@ -5,10 +5,11 @@ from kash.model import Format, Item, ItemType
 from kash.utils.common.url import Url
 
 from deep_transcribe.transcript_overview import (
-    CHUNK_SUMMARY_PROMPT,
+    CHUNK_SUMMARY_OPTIONS,
     DESCRIPTION_PROMPT,
+    OUTLINE_CHUNK_OPTIONS,
     OUTLINE_PROMPT,
-    SYNOPSIS_REDUCE_PROMPT,
+    SYNOPSIS_REDUCE_OPTIONS,
     add_transcript_description,
     add_transcript_outline,
     normalize_transcript_outline,
@@ -119,14 +120,15 @@ def test_outline_runs_per_chunk_and_never_sends_the_whole_document(tmp_path: Pat
     item = Item(type=ItemType.doc, format=Format.md_html, body=body)
     sent: list[str] = []
 
-    def fake_transform(prepared: Item, **_kwargs: object) -> Item:
+    def fake_complete(_model: object, options: object, prepared: Item) -> str:
         assert prepared.body
+        assert options is OUTLINE_CHUNK_OPTIONS  # the chunk prompt, not the whole-doc one
         sent.append(prepared.body)
-        return prepared.new_copy_with(body=f"- **Chunk {len(sent)}**\n  - A point")
+        return f"- **Chunk {len(sent)}**\n  - A point"
 
     with (
         _runtime(tmp_path),
-        patch("deep_transcribe.transcript_overview.llm_transform_item", fake_transform),
+        patch("deep_transcribe.transcript_overview._complete", fake_complete),
     ):
         outlined = add_transcript_outline(item)
 
@@ -141,13 +143,15 @@ def test_outline_runs_per_chunk_and_never_sends_the_whole_document(tmp_path: Pat
 
 def test_synopsis_reduces_chunk_summaries_for_long_media(tmp_path: Path) -> None:
     item = Item(type=ItemType.doc, format=Format.md_html, body=_long_body(9, 10))
-    prompts: list[str] = []
+    prompts: list[object] = []
 
-    def fake_complete(_model: object, prompt: str, body: str | None) -> str:
-        prompts.append(prompt)
-        if "Summaries, in order" in prompt:
+    def fake_complete(_model: object, options: object, prepared: Item) -> str:
+        prompts.append(options)
+        if options is SYNOPSIS_REDUCE_OPTIONS:
+            # The reduce reads the summaries, never the transcript.
+            assert prepared.body and "Point 0." not in prepared.body
             return "Reduced synopsis."
-        return f"Summary of {(body or '')[:1]}"
+        return f"Summary of {(prepared.body or '')[:1]}"
 
     with (
         _runtime(tmp_path),
@@ -156,8 +160,8 @@ def test_synopsis_reduces_chunk_summaries_for_long_media(tmp_path: Path) -> None
         described = add_transcript_description(item)
 
     assert len(prompts) == 4  # three chunk summaries, then one reduce
-    assert prompts.count(SYNOPSIS_REDUCE_PROMPT) == 1
-    assert prompts[:3] == [CHUNK_SUMMARY_PROMPT] * 3
+    assert prompts[:3] == [CHUNK_SUMMARY_OPTIONS] * 3
+    assert prompts[3] is SYNOPSIS_REDUCE_OPTIONS
     assert described.body and "Reduced synopsis." in described.body
 
 

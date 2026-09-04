@@ -33,28 +33,66 @@ DESCRIPTION_PROMPT = dedent("""
     {body}
     """).strip()
 
-OUTLINE_PROMPT = dedent("""
-    The input contains an optional trusted processing-instructions block followed by a
-    transcript. Apply only instructions relevant to the outline. Instructions about a
-    synopsis or another stage must not change the output form requested here.
-
-    Create a concise structural outline of the whole conversation:
-
-    - Use the existing section headings as the top-level bullets when they describe the
-      structure accurately; otherwise infer short descriptive section labels.
+_OUTLINE_RULES = dedent("""
+    - EVERY top-level bullet is a bold section label and nothing else. Every point about
+      that section is an indented sub-bullet beneath it. Never write a point as a
+      top-level bullet.
+    - Use the existing section headings as the section labels when they describe the
+      structure accurately; otherwise infer short descriptive labels.
     - Give each section two to four sub-bullets covering its key ideas, examples,
       suggestions, decisions, or open questions.
     - Preserve the order of the conversation and merge repetitive passages.
     - Prefer a useful map of the discussion over an exhaustive list of facts.
-    - Use only standard Markdown bullets. Bold each top-level section label.
+    - Use only standard Markdown bullets, two spaces of indent for sub-bullets.
     - Do not use headings, numbered lists, an introduction, or closing commentary.
     - Do not invent details or attribute a statement to someone unless the transcript
       supports that attribution.
 
+    The shape, exactly:
+
+    - **A section label**
+      - A point about it
+      - Another point
+    - **The next section label**
+      - A point about it
+    """).strip()
+
+OUTLINE_PROMPT = (
+    dedent("""
+    The input contains an optional trusted processing-instructions block followed by a
+    transcript. Apply only instructions relevant to the outline. Instructions about a
+    synopsis or another stage must not change the output form requested here.
+
+    Create a concise structural outline of the whole conversation.
+
+    {rules}
+
     Input:
 
-    {body}
-    """).strip()
+    {{body}}
+    """)
+    .strip()
+    .format(rules=_OUTLINE_RULES)
+)
+
+OUTLINE_CHUNK_PROMPT = (
+    dedent("""
+    The input contains an optional trusted processing-instructions block followed by ONE
+    STRETCH of a longer transcript. Apply only instructions relevant to the outline.
+
+    Outline this stretch, and only this stretch. The stretches before and after it are
+    outlined separately and the parts are joined in order, so do not introduce the
+    conversation, do not summarize it as a whole, and do not close it off.
+
+    {rules}
+
+    Input:
+
+    {{body}}
+    """)
+    .strip()
+    .format(rules=_OUTLINE_RULES)
+)
 
 CHUNK_SUMMARY_PROMPT = dedent("""
     The input contains an optional trusted processing-instructions block followed by one
@@ -102,6 +140,24 @@ OUTLINE_OPTIONS = LLMOptions(
     use_item_context=True,
     system_message=SYSTEM_MESSAGE,
     body_template=MessageTemplate(OUTLINE_PROMPT),
+)
+
+OUTLINE_CHUNK_OPTIONS = LLMOptions(
+    use_item_context=True,
+    system_message=SYSTEM_MESSAGE,
+    body_template=MessageTemplate(OUTLINE_CHUNK_PROMPT),
+)
+
+CHUNK_SUMMARY_OPTIONS = LLMOptions(
+    use_item_context=True,
+    system_message=SYSTEM_MESSAGE,
+    body_template=MessageTemplate(CHUNK_SUMMARY_PROMPT),
+)
+
+SYNOPSIS_REDUCE_OPTIONS = LLMOptions(
+    use_item_context=True,
+    system_message=SYSTEM_MESSAGE,
+    body_template=MessageTemplate(SYNOPSIS_REDUCE_PROMPT),
 )
 
 OUTLINE_STYLE = (
@@ -193,16 +249,27 @@ def wrap_transcript_description(item: Item, description: str) -> Item:
     return item.derived_copy(type=ItemType.doc, format=Format.md_html, body=body)
 
 
-def _complete(model: LLMName, prompt: str, body: str | None) -> str:
-    """One completion with an explicit prompt, for the synopsis's two different passes."""
+def _complete(model: LLMName, options: LLMOptions, prepared: Item) -> str:
+    """
+    One completion under explicit options, for the passes whose prompt is not the action's.
+
+    Folds in the same bounded source metadata `llm_transform_item` would, so a chunk call
+    can still name participants and disambiguate terms from the source.
+    """
+    from kash.exec.llm_transforms import llm_options_with_item_context
+    from kash.llm_utils.fuzzy_parsing import strip_markdown_fence
     from kash.llm_utils.llm_completion import llm_template_completion
 
-    return llm_template_completion(
+    resolved = (
+        llm_options_with_item_context(options, prepared) if options.use_item_context else options
+    )
+    result = llm_template_completion(
         model=model,
-        system_message=SYSTEM_MESSAGE,
-        input=body or "",
-        body_template=MessageTemplate(prompt),
+        system_message=resolved.system_message or SYSTEM_MESSAGE,
+        input=prepared.body or "",
+        body_template=resolved.body_template,
     ).content
+    return strip_markdown_fence(result).strip()
 
 
 @kash_action(
@@ -225,14 +292,17 @@ def add_transcript_outline(item: Item, model: LLMName = LLM.default_standard) ->
     chunks = split_body(item.body)
     parts: list[str] = []
     for position, chunk in enumerate(chunks):
-        outline_item = llm_transform_item(
-            prepare_transcript_for_model(item, chunk),
-            model=model,
-            format=Format.md_html,
+        prepared = prepare_transcript_for_model(item, chunk)
+        # A chunk is not the whole conversation and must not be outlined as one, so the
+        # chunked path uses its own prompt rather than the action's.
+        response = (
+            _complete(model, OUTLINE_CHUNK_OPTIONS, prepared)
+            if len(chunks) > 1
+            else llm_transform_item(prepared, model=model, format=Format.md_html).body
         )
-        assert outline_item.body
+        assert response
         try:
-            parts.append(normalize_transcript_outline(outline_item.body))
+            parts.append(normalize_transcript_outline(response))
         except ValueError:
             # One chunk that comes back without bullets costs its stretch of the
             # outline, not the whole outline.
@@ -276,13 +346,18 @@ def add_transcript_description(item: Item, model: LLMName = LLM.default_standard
 
     log.info("Summarizing %d chunk(s) before reducing to a synopsis", len(chunks))
     summaries = [
-        _complete(model, CHUNK_SUMMARY_PROMPT, prepare_transcript_for_model(item, chunk).body)
+        _complete(model, CHUNK_SUMMARY_OPTIONS, prepare_transcript_for_model(item, chunk))
         for chunk in chunks
     ]
-    kept = [summary.strip() for summary in summaries if summary.strip()]
+    kept = [summary for summary in (s.strip() for s in summaries) if summary]
     if not kept:
         raise ApiResultError("No chunk summaries to reduce into a synopsis")
     numbered = "\n\n".join(f"{i + 1}. {summary}" for i, summary in enumerate(kept))
-    return wrap_transcript_description(
-        item, _complete(model, SYNOPSIS_REDUCE_PROMPT, numbered).strip()
+    # The reduce reads the summaries, not the transcript, so it is article-sized at any
+    # recording length. It keeps the source metadata so it can still name participants.
+    reduced = _complete(
+        model,
+        SYNOPSIS_REDUCE_OPTIONS,
+        prepare_transcript_for_model(item, numbered).new_copy_with(body=numbered),
     )
+    return wrap_transcript_description(item, reduced)
