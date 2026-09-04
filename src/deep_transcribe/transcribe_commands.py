@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 # Keep kash imports minimal initially.
 from kash.exec import kash_action
@@ -30,6 +31,9 @@ from deep_transcribe.transcription_metadata import (
     set_segment_hints,
     strip_volatile_source_fields,
 )
+
+if TYPE_CHECKING:
+    from deep_transcribe.segment_hints import SegmentHints
 
 log = logging.getLogger(__name__)
 
@@ -643,22 +647,57 @@ SUGGESTED_SEGMENTS_NAME = "segments.suggested.yml"
 """Where a detected preview clip is written for the user to review."""
 
 
+def _hints_in_effect(item: Item, existing_hints: object) -> SegmentHints:
+    """
+    The hints governing this run, from wherever they are being carried.
+
+    The argument is what the caller lifted off the source item to keep it out of the
+    cached stages; the item's own metadata is where `_attach_late_inputs` puts the same
+    hints back, below the cache boundary. Both are read so the answer does not depend on
+    which of the two a caller happens to hold.
+    """
+    from deep_transcribe.segment_hints import SegmentHint, SegmentHints, parse_hints
+    from deep_transcribe.transcription_metadata import get_segment_hints
+
+    segments: list[SegmentHint] = []
+    for raw in (existing_hints, get_segment_hints(item)):
+        if raw is None:
+            continue
+        try:
+            segments.extend(parse_hints(raw).segments)
+        except ValueError as error:
+            log.warning(
+                "Cannot read the segment hints in effect, checking against the rest: %s", error
+            )
+    return SegmentHints(segments)
+
+
 def _suggest_segments(item: Item, existing_hints: object) -> None:
     """
     Draft a hints file when the opening turns out to be a highlight reel.
 
     Detection proposes; it never applies. The user asked for a loop where the output is
     looked at and the hints revised, so what a detector is good for is saving the first
-    edit — writing down a range someone would otherwise have to find by scrubbing. It
-    writes nothing when hints already exist, because overwriting the file someone is
-    iterating on is the one thing this must not do.
+    edit — writing down a range someone would otherwise have to find by scrubbing.
+
+    A detection the hints in effect already account for is not worth writing down: asking
+    someone to adopt the segment they just adopted teaches them to stop reading these
+    messages. So the clip is checked against those hints first, and the file is only ever
+    written when it is absent, since overwriting what someone is iterating on is the one
+    thing this must not do.
     """
-    if existing_hints is not None or not item.body:
+    if not item.body:
         return
     from kash.workspaces.workspaces import current_ws
 
     from deep_transcribe.preview_detection import detect_preview_clip
-    from deep_transcribe.segment_hints import SegmentHint, SegmentHints, SegmentPurpose, write_hints
+    from deep_transcribe.segment_hints import (
+        SegmentHint,
+        SegmentHints,
+        SegmentPurpose,
+        format_span_outward,
+        write_hints,
+    )
     from deep_transcribe.transcript_index import scan_raw_units
 
     try:
@@ -667,6 +706,17 @@ def _suggest_segments(item: Item, existing_hints: object) -> None:
         log.warning("Preview detection failed, continuing without a suggestion: %s", error)
         return
     if clip is None:
+        return
+
+    marked = _hints_in_effect(item, existing_hints).covering(clip.start, clip.end)
+    if marked:
+        log.info(
+            "The opening looks like a highlight reel (%s), and the segment hints in effect "
+            "already mark it as %s (%s). Nothing to suggest.",
+            format_span_outward(clip.start, clip.end),
+            marked.purpose.value,
+            format_span_outward(marked.start, marked.end),
+        )
         return
 
     path = current_ws().base_dir / SUGGESTED_SEGMENTS_NAME

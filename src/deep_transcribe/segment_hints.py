@@ -119,6 +119,15 @@ def format_span_outward(start: float, end: float) -> str:
     return f"{format_time(lo)} - {format_time(hi)}"
 
 
+SPAN_TOLERANCE_S = 3.0
+"""
+How far two spans may differ and still mean the same stretch of recording.
+
+Times survive a round trip through whole seconds, and a person marking a segment by eye
+types the timestamp they can read, so comparing spans exactly compares the wrong thing.
+"""
+
+
 @dataclass(frozen=True)
 class SegmentHint:
     """One marked stretch of the recording."""
@@ -159,6 +168,27 @@ class SegmentHints:
         """The suppressing hint covering this moment, if any."""
         for segment in self.segments:
             if segment.suppressed and segment.covers(t):
+                return segment
+        return None
+
+    def covering(
+        self, start: float, end: float, tolerance: float = SPAN_TOLERANCE_S
+    ) -> SegmentHint | None:
+        """
+        The hint that already accounts for this span, if there is one.
+
+        Used to tell a fresh detection from one the user has already acted on. The
+        tolerance is there because a written span is not the span it came from:
+        `format_span_outward` rounds to whole seconds, and a hand-edited file rounds to
+        whatever the person reading the transcript typed. A hint a few seconds shy of the
+        detected span still means the same stretch of tape.
+
+        Suppression is not consulted: a hint written over a stretch is a decision about
+        it either way, and re-proposing what someone deliberately left in would be the
+        same nuisance.
+        """
+        for segment in self.segments:
+            if segment.start <= start + tolerance and segment.end + tolerance >= end:
                 return segment
         return None
 
@@ -454,6 +484,33 @@ def test_suppressed_at_finds_the_covering_segment() -> None:
     assert hints.suppressed_at(60.0) is not None
     assert hints.suppressed_at(200.0) is None  # past the teaser
     assert hints.suppressed_at(650.0) is None  # inside the intro, which is not suppressed
+
+
+def test_covering_recognizes_a_span_already_marked() -> None:
+    """
+    A detected clip is compared against hints that were written and reparsed, so the
+    times no longer match to the decimal. What matters is whether someone has already
+    said something about that stretch.
+    """
+    hints = parse_hints(
+        {
+            "segments": [
+                # What the tool writes for a clip detected at 4.56 - 108.55.
+                {"at": "0:00:04 - 0:01:49", "purpose": "teaser"},
+                {"at": "1:00:00 - 1:02:30", "purpose": "promo", "suppress": False},
+            ]
+        }
+    )
+
+    assert hints.covering(4.56, 108.55) is not None
+    # Hand-typed round numbers a couple of seconds inside the clip still mean the clip.
+    assert parse_hints({"segments": [{"at": "0:00:06 - 0:01:47"}]}).covering(4.56, 108.55)
+    # A hint that only caught the opening paragraph has not accounted for the rest.
+    assert hints.covering(4.56, 600.0) is None
+    assert parse_hints({"segments": [{"at": "0:00:04 - 0:00:30"}]}).covering(4.56, 108.55) is None
+    # A stretch the user deliberately kept is still a stretch they decided about.
+    assert hints.covering(3605.0, 3740.0) is not None
+    assert SegmentHints().covering(4.56, 108.55) is None
 
 
 def test_overlaps_are_reported_not_rejected() -> None:

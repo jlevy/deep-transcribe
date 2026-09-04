@@ -1,5 +1,6 @@
 # pyright: reportPrivateUsage=false
 
+import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -293,3 +294,180 @@ def test_clearing_a_hint_reaches_the_stored_resource_on_disk(
     assert "purpose: teaser" in before_clear[0]
     assert "segments" not in after
     assert "speaker_roster" in after
+DETECTED_CLIP_START = 4.56
+DETECTED_CLIP_END = 108.55
+"""The span the detector found on the measured recording, used as the fixed detection."""
+
+
+def _fix_the_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Make detection return the clip measured on the real recording, always.
+
+    These tests say nothing about the detector and everything about what is done with
+    what it found, and a fixed clip keeps them offline and deterministic.
+    """
+    from deep_transcribe import preview_detection
+    from deep_transcribe.preview_detection import PreviewClip
+
+    clip = PreviewClip(
+        start=DETECTED_CLIP_START, end=DETECTED_CLIP_END, units=6, echoed_fraction=0.83
+    )
+
+    def fixed_detection(*_args: object, **_kwargs: object) -> PreviewClip:
+        return clip
+
+    monkeypatch.setattr(preview_detection, "detect_preview_clip", fixed_detection)
+
+
+def _transcript_item() -> Item:
+    from kash.model import Format
+
+    return Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        title="A recording",
+        body="The best moments, first. <span data-timestamp='4.56' />\n",
+    )
+
+
+def _own_workspace(tmp_path: Path) -> Path:
+    """
+    A workspace directory whose name no other test shares.
+
+    kash registers workspaces by directory name, so two tests both using `tmp_path /
+    "workspace"` resolve `current_ws()` to whichever one registered first — and then one
+    test reads the suggestion file the other wrote. Measured while writing these: the
+    "no coverage" cases passed against a deliberately broken fix because the file was
+    already sitting in a workspace from an earlier test.
+    """
+    return tmp_path / f"ws-{tmp_path.name}"
+
+
+def _suggestion_path(workspace_path: Path) -> Path:
+    """Where the suggestion goes, checked against the workspace the runtime actually used."""
+    from kash.workspaces import current_ws
+
+    from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
+
+    base_dir = current_ws().base_dir
+    assert base_dir.resolve() == workspace_path.resolve(), (
+        f"the runtime used workspace {base_dir}, not {workspace_path}"
+    )
+    return base_dir / SUGGESTED_SEGMENTS_NAME
+
+
+def _run_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, hints: object) -> Path:
+    """
+    Run the real processing pipeline the way a run with hints reaches the suggestion.
+
+    Driven through `_process_transcript` rather than the suggestion alone, because the
+    stage strips the hints off the item on the way in and `_attach_late_inputs` puts them
+    back: a check that only ever saw a hand-assembled item could pass while the real path
+    saw nothing. Every option is off, so nothing here calls a model.
+
+    Returns the path the suggestion would occupy, so a caller can assert either way.
+    """
+    from kash.exec import kash_runtime
+
+    _fix_the_detection(monkeypatch)
+    workspace_path = _own_workspace(tmp_path)
+
+    with kash_runtime(workspace_path):
+        transcribe_commands._process_transcript(
+            _transcript_item(),
+            TranscribeOptions.basic(),
+            processing_instructions=None,
+            segment_hints=hints,
+        )
+        return _suggestion_path(workspace_path)
+
+
+ADOPTED_HINTS = {"segments": [{"at": "0:00:04 - 0:01:49", "purpose": "teaser"}]}
+"""The suggestion for the detected clip, as the tool wrote it and the user adopted it."""
+
+
+def test_a_segment_the_user_already_marked_is_not_suggested_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    The user ran the tool, adopted the suggestion, and reran with `--segments`. Proposing
+    the same span again asks them to adopt what they already adopted, and teaches them to
+    ignore the message that will matter the next time detection finds something new.
+
+    The adopted span is the one the tool wrote for this clip, rounded outward to whole
+    seconds, which is why the comparison cannot be an exact one.
+
+    The log line is part of the behaviour, not decoration: silence here is also what a
+    version that never looked at the hints produces, and those two are not the same thing
+    — one of them goes on to suggest a genuinely new detection.
+    """
+    with caplog.at_level(logging.INFO, logger="deep_transcribe.transcribe_commands"):
+        path = _run_pipeline(tmp_path, monkeypatch, hints=ADOPTED_HINTS)
+
+    assert not path.exists(), f"re-offered a segment already marked: {path.read_text()}"
+    said = [r.getMessage() for r in caplog.records if r.name == transcribe_commands.__name__]
+    assert any("already mark" in message for message in said), (
+        f"nothing says the clip was found already marked in the hints in effect: {said}"
+    )
+
+
+def test_a_marked_segment_carried_only_on_the_item_is_not_suggested_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The same check, reading the other place hints live: on the item, where the stage below
+    the cache boundary puts them for the analysis to read. Whichever of the two a caller
+    holds, an adopted segment must not come back as a proposal.
+    """
+    from kash.exec import kash_runtime
+
+    from deep_transcribe.transcription_metadata import set_segment_hints
+
+    _fix_the_detection(monkeypatch)
+    item = _transcript_item()
+    set_segment_hints(item, ADOPTED_HINTS)
+    workspace_path = _own_workspace(tmp_path)
+
+    with kash_runtime(workspace_path):
+        transcribe_commands._suggest_segments(item, None)
+        path = _suggestion_path(workspace_path)
+
+    assert not path.exists(), f"re-offered a segment already marked: {path.read_text()}"
+
+
+@pytest.mark.parametrize(
+    "hints",
+    [
+        pytest.param(
+            {"segments": [{"at": "1:00:00 - 1:02:30", "purpose": "promo"}]},
+            id="a_hint_somewhere_else",
+        ),
+        pytest.param(
+            {"segments": [{"at": "0:00:04 - 0:00:30", "purpose": "teaser"}]},
+            id="a_hint_that_stops_short",
+        ),
+    ],
+)
+def test_hints_that_do_not_cover_the_clip_still_get_a_suggestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hints: dict[str, Any]
+) -> None:
+    """
+    Marking an ad read, or catching only the first paragraph of the reel, says nothing
+    about the rest of the opening. Those runs still want the draft.
+    """
+    path = _run_pipeline(tmp_path, monkeypatch, hints=hints)
+
+    assert path.exists()
+    text = path.read_text()
+    assert "0:00:04 - 0:01:49" in text
+    assert "purpose: teaser" in text
+
+
+def test_a_run_with_no_hints_at_all_gets_a_suggestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The first run, which is what the detector is there for."""
+    path = _run_pipeline(tmp_path, monkeypatch, hints=None)
+
+    assert path.exists()
+    assert "0:00:04 - 0:01:49" in path.read_text()
