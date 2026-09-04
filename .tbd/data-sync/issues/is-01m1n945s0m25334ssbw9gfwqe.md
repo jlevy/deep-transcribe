@@ -5,12 +5,12 @@ title: Support audio up to 12 hours end to end
 kind: feature
 status: open
 priority: 0
-version: 3
+version: 4
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T03:59:14.207Z
-updated_at: 2026-09-04T07:50:28.292Z
+updated_at: 2026-09-04T10:18:50.844Z
 ---
 Target: 12 hours of audio works end to end.
 
@@ -60,3 +60,35 @@ roughly 75 min at twelve hours.
 REMAINING at 12h, unchanged: frame captures (density cap, dt-wgaf) and output legibility
 (the timeline now wraps into 12 one-hour rows at that length, dt-1gl6). Nothing has
 actually run at twelve hours; the arithmetic and the audit both say it completes.
+CLEAN END-TO-END RUN COMPLETE (01:18 to 03:15, empty workspace, released kash 0.4.11 and
+kash-media 0.4.9 rather than local checkouts):
+
+  duration    5:15:51        units 1,439      sections 191
+  concepts    112 = 21.3/hour, against 24 = 4.6/hour before this work
+  themed      112 of 112, in 12 themes, ordered by the clock
+  spans       median 2.3 min; 3 of 112 exceed 15% of the recording
+
+The twelve themes, in the order the conversation reaches them:
+  0:03 The agentic turn in programming and open source
+  0:14 AI model politics, safety, and censorship
+  0:22 Linux, personal computing and autonomous agents
+  0:36 Redefining programming, language and machine creativity
+  0:39 Building the Omakase/Omachi distro and its culture
+  1:09 Coping with obsolescence
+  1:17 Scaling parallel agent workflows
+  2:13 Agent code quality and review practices
+  2:16 Living with agents day to day
+  2:50 Creativity, work and meaning in the AI era
+  3:15 Politics, controversy and public discourse
+  4:54 Health, mortality and the future
+
+A NEW FINDING worth acting on: "Building the Omakase/Omachi Distro" — the transcription
+renders Omarchy as Omakase, Omachi, Omarchi and Omakub across the recording, and the
+analysis inherits every spelling. Deepgram takes key terms, and this pipeline already has
+a --key-term flag, so passing the product names for a recording that is largely about
+one product would fix it at the source rather than asking the reduce pass to merge
+spellings it cannot know are the same. Worth a bead.
+
+This export predates frame thinning, the outline grouping, per-theme graphs and segment
+collapsing, all of which landed after the run started at 01:18 — its frame stage
+produced 501 frames with no thinning line. Those are verified against the rerun instead.
