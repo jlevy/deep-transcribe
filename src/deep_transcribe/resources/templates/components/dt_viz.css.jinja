@@ -529,6 +529,29 @@ body.yt-open #dt-rail {
   white-space: nowrap;
 }
 
+/* Two prebuilt layouts, one per medium: the screen graph tracks the panel
+   width, the print graph is laid out at --dt-print-width. The print copy
+   sits off-screen rather than hidden, since a display:none element cannot
+   be measured. */
+.dt-print-host {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+}
+
+@media print {
+  .dt-print-host {
+    position: static;
+    left: auto;
+    visibility: visible;
+  }
+
+  .dt-graph-screen {
+    display: none !important;
+  }
+}
+
 .dt-graph-edge {
   fill: none;
   stroke: var(--color-hint);
@@ -615,6 +638,20 @@ body.yt-open #dt-rail {
   font-size: var(--font-size-tiny);
   color: var(--dt-text-support);
   margin-top: 0.1rem;
+}
+
+/* Same vocabulary as the chips: small-caps type, bold target. */
+.dt-relation-type {
+  text-transform: var(--caps-transform);
+  font-variant-caps: var(--caps-caps-variant);
+  letter-spacing: var(--caps-spacing);
+  font-weight: var(--font-weight-sans-medium);
+  margin-right: 0.3rem;
+}
+
+.dt-relation-target {
+  font-weight: var(--font-weight-sans-bold);
+  color: var(--dt-text);
 }
 
 /* The one concept chip: kind tag | bar | value, outlined in the kind color
@@ -825,8 +862,28 @@ body.yt-open #dt-rail {
   .dt-graph,
   .dt-stats table,
   .dt-concept-entry,
-  .dt-concept-chip {
+  .dt-concept-chip,
+  .long-text .original p {
     break-inside: avoid;
+  }
+
+  /* A heading never ends a page alone. */
+  .dt-panel-title,
+  .long-text .original h2,
+  strong.dt-speaker-label {
+    break-after: avoid;
+  }
+
+  /* The transcript is the document's second half; start it fresh. */
+  .dt-transcript-heading {
+    break-before: page;
+  }
+
+  /* No single stranded line at a page boundary. */
+  .long-text p,
+  .dt-concept-gloss {
+    orphans: 2;
+    widows: 2;
   }
 
   /* Color fills must actually print. */

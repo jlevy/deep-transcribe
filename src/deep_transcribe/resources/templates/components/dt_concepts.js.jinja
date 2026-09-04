@@ -189,10 +189,17 @@
       const detail = el("div", "dt-concept-gloss", concept.gloss);
       // Print form of the edge tooltips: typed relations in words.
       if (concept.relations.length) {
-        const related = concept.relations
-          .map((r) => `${r.type.replace(/-/g, " ")}: ${byId.get(r.to)?.label || r.to}`)
-          .join(" · ");
-        detail.appendChild(el("div", "dt-concept-relations dt-print-only", related));
+        const relations = el("div", "dt-concept-relations dt-print-only");
+        concept.relations.forEach((relation, i) => {
+          if (i > 0) relations.appendChild(document.createTextNode(" · "));
+          relations.appendChild(
+            el("span", "dt-relation-type", relation.type.replace(/-/g, " "))
+          );
+          relations.appendChild(
+            el("span", "dt-relation-target", byId.get(relation.to)?.label || relation.to)
+          );
+        });
+        detail.appendChild(relations);
       }
       if (concept.research && concept.research.summary) {
         const research = el("div", "dt-concept-research", concept.research.summary);
@@ -262,25 +269,34 @@
       root.appendChild(buildDefinitions(concepts));
       model.panels.bottom.appendChild(root);
 
-      // Charts render at the panel's real pixel width, like the Timeline, so
-      // their type sits on the design system's own sizes. Printing re-renders
-      // at the print width so type keeps its real size on paper.
+      // The graph positions real chips absolutely, so its layout is width
+      // bound. Rather than depend on print events (headless printing fires
+      // none), both layouts are built up front — one at the panel's width,
+      // one at --dt-print-width — and CSS shows whichever medium applies.
+      const printWidth =
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--dt-print-width")
+        ) || 660;
+      const printHost = el("div", "dt-print-host");
+      printHost.style.width = `${printWidth}px`;
+      root.insertBefore(printHost, charts.nextSibling);
+      const printGraph = buildGraph(concepts, printWidth);
+      printGraph.wrap.classList.add("dt-graph-print");
+      printHost.appendChild(printGraph.wrap);
+
       let chartWidth = 0;
-      let forcedWidth = 0;
       const renderCharts = () => {
-        const width = forcedWidth || Math.floor(charts.getBoundingClientRect().width);
+        const width = Math.floor(charts.getBoundingClientRect().width);
         if (!width || width === chartWidth) return;
         chartWidth = width;
         charts.textContent = "";
         const graph = buildGraph(concepts, width);
+        graph.wrap.classList.add("dt-graph-screen");
         charts.appendChild(graph.wrap);
         layoutGraph(graph);
+        layoutGraph(printGraph);
         applySelection();
       };
-      document.addEventListener("dt:printmode", (e) => {
-        forcedWidth = e.detail.on ? e.detail.width : 0;
-        renderCharts();
-      });
       new ResizeObserver(renderCharts).observe(charts);
       renderCharts();
     }
