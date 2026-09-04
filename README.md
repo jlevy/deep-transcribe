@@ -261,6 +261,21 @@ without re-encoding.
 A five-hour podcast transcribes in about a minute; the wall-clock time of a long run
 goes to downloading and to the LLM stages.
 
+Analysis scales with the recording rather than against a fixed budget.
+The concept map, outline and synopsis run over half-hour chunks cut at section
+boundaries and are then stitched together, so no stage sends the whole document and a
+five-hour conversation yields a map of a hundred or so concepts grouped into themes,
+not the two dozen that suit a short talk.
+
+A long recording is often not all conversation.
+Parts that are not — an opening highlight reel, a read advertisement, an outro — can be
+marked in a hints file and passed with `--segments`.
+Marked stretches are left out of the analysis and collapsed rather than deleted in the
+transcript, and rerunning after an edit reuses the transcript and everything through
+section headings, so the loop of looking at the output and revising the hints costs
+minutes.
+A run that finds an opening repeated later drafts the file for you.
+
 ## Output
 
 Each run reports:

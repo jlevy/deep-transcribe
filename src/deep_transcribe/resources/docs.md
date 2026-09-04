@@ -159,6 +159,7 @@ iterations.
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
+| Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses the cached transcript and everything through section headings |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |
@@ -174,6 +175,50 @@ synopsis and outline stages.
 Use `--rerun-processing` when inputs outside the item metadata changed, such as a saved
 model profile, or when a complete semantic regeneration is the actual goal.
 Use `--rerun` only when a fresh Deepgram result is wanted.
+
+### Set Aside Parts That Are Not the Conversation
+
+A long recording is often not all conversation.
+Many podcasts open with a highlight reel cut from the interview that follows, break for
+read advertisements, and close with an outro.
+Those stretches distort the analysis: a teaser is the same words as the moments it
+previews, so leaving it in counts them twice, and an ad read is not about the
+conversation at all.
+
+Mark them in a hints file and pass it with `--segments`:
+
+```yaml
+segments:
+  - at: "0:00:00 - 0:01:48"
+    purpose: teaser
+    note: "Highlight reel; the interview starts after it"
+  - at: "1:12:30 - 1:14:05"
+    purpose: promo
+```
+
+`purpose` is one of `teaser`, `intro`, `promo`, `outro`, or `other`.
+Times read as `H:MM:SS`, `MM:SS`, or plain seconds, and a span may also be written as
+separate `start` and `end`.
+Suppression follows the purpose — teaser, promo and outro are left out of the analysis,
+an intro is kept because it is short and genuinely about the conversation — and
+`suppress: true` or `false` overrides that for one entry.
+
+Suppressed stretches are **set aside, not deleted**.
+The concept map, outline and synopsis do not read them; the transcript still contains
+every word, collapsed behind a line naming what it is, and prints expanded.
+
+The rerun is cheap by design.
+Hints join the pipeline at the same point as processing instructions, so transcription,
+speaker correction, paragraph formatting and section headings all keep their cache
+identity, and only the analysis and the page are rebuilt.
+Editing a hint and rerunning a five-hour recording costs minutes, not a fresh pipeline.
+
+When a run finds an opening that repeats later, it writes `segments.suggested.yml` into
+the workspace and says so.
+That file is a draft to review, never applied on its own, and a run that already has
+hints does not overwrite it.
+The intended loop is: run, look at the output, revise the hints, run again — which an
+agent can drive as readily as a person.
 
 ### Correct a Reviewed Result
 
