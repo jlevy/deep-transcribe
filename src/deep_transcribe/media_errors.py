@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 from deep_transcribe.disk_space import InsufficientDiskSpace, volume_for
 
+_YTDLP_ROUTING_PREFIX = re.compile(r"^\[[a-z][a-z0-9:_.-]*\]\s+(?:[^\s:]+:\s+)?")
 _YTDLP_BOILERPLATE = re.compile(r";\s*please report this issue.*", re.IGNORECASE | re.DOTALL)
 """yt-dlp appends a bug-report paragraph to extractor errors. It is not the user's problem."""
 
@@ -106,7 +107,7 @@ def _ytdlp_error_types() -> tuple[type, ...]:
     return (YoutubeDLError,)
 
 
-def _one_line_reason(error: BaseException) -> str:
+def _one_line_reason(error: BaseException, *, strip_routing: bool = False) -> str:
     """
     yt-dlp's own explanation, trimmed to the part that says what went wrong.
 
@@ -121,6 +122,13 @@ def _one_line_reason(error: BaseException) -> str:
     for prefix in ("ERROR: ", "Unable to download video: "):
         if reason.startswith(prefix):
             reason = reason[len(prefix) :].strip()
+    # yt-dlp prefixes its reason with `[extractor] id:` — routing, not diagnosis, and the
+    # URL in our message already names the video. Left in, it is also mangled on the way
+    # out: kash renders the console through Rich, which reads `[youtube]` as a markup tag
+    # and drops it, so the user saw `:  zzzzzzzzzzz: This video is unavailable` with a
+    # double space and no hint of what the bare id was doing there.
+    if strip_routing:
+        reason = _YTDLP_ROUTING_PREFIX.sub("", reason, count=1)
     return reason.rstrip(".").strip() or "the download failed"
 
 
@@ -190,7 +198,7 @@ def explain_error(
     if download is not None:
         what = source or "this source"
         return (
-            f"Could not download {what}: {_one_line_reason(download)}. "
+            f"Could not download {what}: {_one_line_reason(download, strip_routing=True)}. "
             f"Check the URL, your network, or whether the video is private/geo-blocked."
         )
 
@@ -253,7 +261,7 @@ def test_a_download_error_carries_yt_dlps_own_reason() -> None:
     )
 
     assert explained == (
-        "Could not download https://youtube.com/watch?v=abc: [youtube] abc: Video unavailable. "
+        "Could not download https://youtube.com/watch?v=abc: Video unavailable. "
         "Check the URL, your network, or whether the video is private/geo-blocked."
     )
 
@@ -337,3 +345,32 @@ def test_a_non_network_oserror_is_not_mistaken_for_one() -> None:
     problem sends the user to restart their router.
     """
     assert explain_error(FileNotFoundError(errno.ENOENT, "No such file", "/tmp/nope")) is None
+
+
+def test_the_real_message_for_a_bad_video_id_reads_cleanly() -> None:
+    """
+    Captured from the binary on `watch?v=zzzzzzzzzzz`. yt-dlp's `[youtube] id:` prefix is
+    routing, and Rich eats the bracketed part as markup, so keeping it produced
+    `:  zzzzzzzzzzz: This video is unavailable` on the console.
+    """
+    from yt_dlp.utils import DownloadError
+
+    message = explain_error(
+        DownloadError("ERROR: [youtube] zzzzzzzzzzz: This video is unavailable"),
+        source="https://www.youtube.com/watch?v=zzzzzzzzzzz",
+        workspace_path=None,
+    )
+    assert message is not None
+    assert message.startswith(
+        "Could not download https://www.youtube.com/watch?v=zzzzzzzzzzz: This video is unavailable. "
+    )
+    assert "[" not in message.split(". ")[0] and "  " not in message
+
+
+def test_a_tag_with_no_video_id_is_stripped_too() -> None:
+    from yt_dlp.utils import DownloadError
+
+    message = explain_error(
+        DownloadError("ERROR: [generic] Unsupported URL"), source="https://x.test/a", workspace_path=None
+    )
+    assert message is not None and ": Unsupported URL. " in message
