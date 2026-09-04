@@ -281,6 +281,8 @@ def _process_transcript(
         result = insert_frame_captures(result)
         result = _thin_frame_captures(result)
 
+    _suggest_segments(result, segment_hints)
+
     if options.extract_concepts and options.format:
         from deep_transcribe.concept_map import extract_transcript_concepts
 
@@ -619,6 +621,67 @@ def relocate_referenced_assets(html_path: Path, source_dir: Path) -> bool:
     with atomic_output_file(html_path) as temp_path:
         temp_path.write_text(text)
     return True
+
+
+SUGGESTED_SEGMENTS_NAME = "segments.suggested.yml"
+"""Where a detected preview clip is written for the user to review."""
+
+
+def _suggest_segments(item: Item, existing_hints: object) -> None:
+    """
+    Draft a hints file when the opening turns out to be a highlight reel.
+
+    Detection proposes; it never applies. The user asked for a loop where the output is
+    looked at and the hints revised, so what a detector is good for is saving the first
+    edit — writing down a range someone would otherwise have to find by scrubbing. It
+    writes nothing when hints already exist, because overwriting the file someone is
+    iterating on is the one thing this must not do.
+    """
+    if existing_hints is not None or not item.body:
+        return
+    from kash.workspaces.workspaces import current_ws
+
+    from deep_transcribe.preview_detection import detect_preview_clip
+    from deep_transcribe.segment_hints import SegmentHint, SegmentHints, SegmentPurpose, write_hints
+    from deep_transcribe.transcript_index import scan_raw_units
+
+    try:
+        clip = detect_preview_clip(scan_raw_units(item.body))
+    except Exception as error:
+        log.warning("Preview detection failed, continuing without a suggestion: %s", error)
+        return
+    if clip is None:
+        return
+
+    path = current_ws().base_dir / SUGGESTED_SEGMENTS_NAME
+    if path.exists():
+        return
+    write_hints(
+        path,
+        SegmentHints(
+            [
+                SegmentHint(
+                    start=clip.start,
+                    end=clip.end,
+                    purpose=SegmentPurpose.teaser,
+                    note=(
+                        f"{clip.units} paragraphs, {clip.echoed_fraction * 100:.0f}% of them "
+                        "found again later in the recording"
+                    ),
+                )
+            ]
+        ),
+        title=item.title,
+    )
+    from deep_transcribe.segment_hints import format_time
+
+    log.warning(
+        "The opening looks like a highlight reel (%s to %s). Suggested hints written to %s — "
+        "review it and rerun with --segments to leave it out of the analysis.",
+        format_time(clip.start),
+        format_time(clip.end),
+        path,
+    )
 
 
 def _thin_frame_captures(item: Item) -> Item:
