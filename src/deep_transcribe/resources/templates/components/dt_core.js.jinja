@@ -156,7 +156,7 @@
     const description = scope.querySelector(".description");
     if (!description) return;
     description.classList.add("dt-summary");
-    const heading = document.createElement("div");
+    const heading = document.createElement("h1");
     heading.className = "dt-panel-title dt-ui";
     heading.textContent = "Summary";
     description.prepend(heading);
@@ -171,6 +171,10 @@
     if (outline) {
       outline.before(top);
       outline.after(bottom);
+      const transcriptHeading = document.createElement("h1");
+      transcriptHeading.className = "dt-panel-title dt-ui";
+      transcriptHeading.textContent = "Transcript";
+      bottom.after(transcriptHeading);
     } else {
       const description = scope.querySelector(".description");
       if (description) description.after(top);
@@ -184,7 +188,7 @@
     const panel = document.createElement("section");
     panel.className = "dt-panel dt-ui";
     panel.setAttribute("aria-label", title);
-    const heading = document.createElement("div");
+    const heading = document.createElement("h1");
     heading.className = "dt-panel-title";
     heading.textContent = title;
     panel.appendChild(heading);

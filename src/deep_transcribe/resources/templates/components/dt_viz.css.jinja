@@ -104,12 +104,45 @@ strong.dt-speaker-label {
   font-size: var(--font-size-small);
 }
 
-.dt-panel-title {
-  font-weight: 600;
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
-  /* Explicit: titles never inherit a context gray (e.g. inside .description). */
-  color: var(--dt-text);
+/* Heading hierarchy, screen only (print keeps the serif layout):
+   H1 — every top section and the page title: all-caps, centered sans.
+   H2 — transcript sections: the sans panel-title treatment. */
+@media screen {
+  .dt-panel-title,
+  .long-text .transcript-outline-title {
+    font-family: var(--font-sans) !important;
+    font-feature-settings: var(--font-features-sans);
+    font-style: normal !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    text-align: center !important;
+    color: var(--dt-text) !important;
+    margin: 0 0 1rem !important;
+  }
+
+  .long-text .original h2 {
+    font-family: var(--font-sans);
+    font-feature-settings: var(--font-features-sans);
+    font-style: normal;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--dt-text);
+  }
+
+  /* The transcript prose sits on the panels' 1rem text edge, never wider. */
+  .long-text .original .original {
+    padding: 0 1rem;
+  }
+
+  /* Serif is reserved for the literal transcript text and the page title;
+     the summary is extracted content, so it reads in sans. */
+  .description.dt-summary {
+    font-family: var(--font-sans);
+    font-feature-settings: var(--font-features-sans);
+    font-size: var(--font-size-small);
+  }
 }
 
 /* The one way a timestamp renders: light gray, sans, a step smaller, and in
@@ -346,23 +379,25 @@ body.yt-open #dt-rail {
   stroke: var(--color-primary);
 }
 
-/* The one tooltip: fixed, fades in and out, never intercepts the pointer. */
+/* The one tooltip: dark-on-light on a slightly-off page background with a
+   drop shadow and square corners; fades in and out, never intercepts the
+   pointer. */
 .dt-tip {
   position: fixed;
   left: 0;
   top: 0;
   max-width: 17rem;
   padding: 0.5rem 0.7rem;
-  background: var(--color-tooltip-bg);
-  color: #fff;
-  border-radius: var(--dt-radius-lg);
+  background: var(--color-bg-alt-solid);
+  color: var(--dt-text);
+  border: 1px solid var(--color-border-hint);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.22);
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
   font-size: var(--font-size-tiny);
   line-height: 1.35;
   pointer-events: none;
   z-index: 70;
-  backdrop-filter: blur(2px);
   opacity: 0;
   transition: opacity 0.18s ease-in-out;
 }
@@ -382,7 +417,7 @@ body.yt-open #dt-rail {
 }
 
 .dt-tip .dt-tip-text .dt-speaker-label {
-  color: var(--dt-cv, inherit);
+  color: var(--dt-c, inherit);
   font-family: var(--font-sans);
 }
 
@@ -391,7 +426,6 @@ body.yt-open #dt-rail {
   width: 13rem;
   max-width: 100%;
   margin-top: 0.4rem;
-  border-radius: var(--dt-radius);
 }
 
 .dt-tip .dt-tip-head {
@@ -406,7 +440,7 @@ body.yt-open #dt-rail {
   font-family: var(--font-sans);
   font-size: var(--font-size-tiny);
   font-weight: normal;
-  opacity: 0.85;
+  color: var(--dt-text-faint);
 }
 
 .dt-tip .dt-tip-time::before {
