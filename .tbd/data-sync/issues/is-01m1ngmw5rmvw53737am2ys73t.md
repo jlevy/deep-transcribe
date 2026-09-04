@@ -3,16 +3,20 @@ type: is
 id: is-01m1ngmw5rmvw53737am2ys73t
 title: Wrap the timeline into fixed-duration rows
 kind: task
-status: open
+status: closed
 priority: 0
-version: 2
+version: 5
 labels: []
 dependencies:
   - type: blocks
     target: is-01m1ng5apmffpyrmqedmf8nk2v
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T06:10:41.463Z
-updated_at: 2026-09-04T06:10:56.820Z
+updated_at: 2026-09-04T06:29:40.247Z
+closed_at: 2026-09-04T06:29:40.246Z
+close_reason: "Implemented in 65430b7 and verified on both exports: 11 half-hour rows on the 5.3-hour run with sections at 27.7 px median and 82 labels drawn, single unchanged row on the 22-min SNL example."
+resolution: null
+duplicate_of: null
 ---
 The Timeline compresses the whole recording into one track. At 5.26 h that track is a
 picket fence: nothing is readable and nothing is clickable.
@@ -53,3 +57,33 @@ Details to settle when implementing:
     identically, or they stop aligning with the main timeline (the alignment the user
     asked for earlier).
   - Print: rows stack naturally, which is better for PDF than one compressed track.
+
+## Notes
+
+IMPLEMENTED in 65430b7. Measured in the browser on the real exports at the 606 px
+content width.
+
+Lex #501 (5.26 h) — before / after:
+  rows                    1 / 11 half-hour rows
+  section rects           194 at 2.0 px median / 204 at 27.7 px median (10 extra are
+                          boundary splits)
+  section labels drawn    0 / 82
+  speaker rects           1,252 at 1-3 px / 2.2 px median
+  frame dots per track    502 on one / 31-63 per row, no overlap
+  axis                    row 0 reads 0:00 5:00 10:00 15:00 20:00 25:00; the last row
+                          stops at the content end, 5:00:00 5:05:00 5:10:00 5:15:00
+
+SNL (22 min) — unchanged, as intended:
+  1 row, 7 sections, all 7 labelled, axis 0:00-4:00, 15 frame dots.
+
+Reading marker verified across rows: exactly one visible at a time, and its row and x
+match (floor(t/1800), (t mod 1800)/1800*606) at t = 0, 900, 1800, 5400, 11000, 18900.
+
+Row duration ladder is 30 min -> 1 h -> 2 h, capped at 12 rows, with a single row
+spanning the whole duration for anything under 30 min. So 12 h is 12 one-hour rows.
+
+Settled differently from the plan: concept tracks stay single-row. They are
+percentage-positioned bars showing where in the show a concept occurs, and the
+alignment the user asked for was about sharing the panel's content width, which still
+holds. Wrapping 24 of them into 11 rows each would have put 264 thin rows in the
+Concepts panel.

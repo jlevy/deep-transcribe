@@ -3,14 +3,18 @@ type: is
 id: is-01m1ngetsvzhmab7zqmh2c0259
 title: Frame images are broken in every exported transcript
 kind: bug
-status: open
+status: closed
 priority: 0
-version: 1
+version: 2
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T06:07:23.450Z
-updated_at: 2026-09-04T06:07:23.450Z
+updated_at: 2026-09-04T06:17:04.053Z
+closed_at: 2026-09-04T06:17:04.052Z
+close_reason: "Fixed in 9f44191. Verified on the real 5.3-hour export served from a directory holding only the page and its assets: 502 of 502 frames load, zero broken, no reference to the upstream step's directory remains. Two tests cover the real shape (upstream assets + a derived doc in between) and the minified path; both fail without the fix."
+resolution: null
+duplicate_of: null
 ---
 Every frame capture is a broken image in the exported HTML. This is not long-form
 specific — it reproduces on the 22-min SNL example too.
