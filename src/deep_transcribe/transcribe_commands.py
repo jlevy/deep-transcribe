@@ -691,7 +691,11 @@ def _thin_frame_captures(item: Item) -> Item:
     `insert_frame_captures` has already written the files and the tags; this only decides
     which of them survive. Doing it as a mutation of the same item rather than a derived
     one keeps the frame capture step's own cache intact, so a rerun does not pay for the
-    captures again.
+    captures again — and it is what makes the saving real, since a derived copy would
+    leave all the original images on disk.
+
+    The dropped images are deleted, so that cache entry can no longer produce the full
+    set; recovering them means rerunning the capture.
     """
     from sidematter_format import Sidematter
 
@@ -706,7 +710,9 @@ def _thin_frame_captures(item: Item) -> Item:
     if not removed:
         return item
     item.body = body
-    current_ws().save(item)
+    # overwrite=True matters: the thinned frames have already been deleted from disk, so
+    # a stored document still listing them would point at files that are gone.
+    current_ws().save(item, overwrite=True)
     return item
 
 
