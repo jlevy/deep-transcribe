@@ -326,6 +326,27 @@ def source_prompt_context(
     return abbrev_on_words("\n".join(parts), max_len)
 
 
+def remove_segment_hints(item: Item) -> object:
+    """
+    Remove segment hints in place and return them for later restoration.
+
+    Same shape as `remove_processing_instructions`, and for the same reason: hints are an
+    input to the analysis, not to the transcription. If they rode along into the early
+    stages they would be part of every cache key from speech-to-text onward, and editing
+    a hint would cost a fresh transcription and half an hour of speaker correction —
+    which is exactly the loop this feature exists to make cheap.
+    """
+    hints = get_segment_hints(item)
+    if hints is None:
+        return None
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    if isinstance(transcription, dict):
+        cast(dict[str, Any], transcription).pop(SEGMENTS_KEY, None)
+    item.extra = item_extra
+    return hints
+
+
 def remove_processing_instructions(item: Item) -> str | None:
     """Remove output-only instructions in place and return them for later restoration."""
     instructions = get_processing_instructions(item)
@@ -337,6 +358,38 @@ def remove_processing_instructions(item: Item) -> str | None:
         cast(dict[str, Any], transcription).pop("processing_instructions", None)
     item.extra = item_extra
     return instructions
+
+
+SEGMENTS_KEY = "segments"
+"""Key under `extra.transcription` where segment hints are stored."""
+
+
+def set_segment_hints(item: Item, hints: object) -> Item:
+    """
+    Record segment hints on an item, as plain data.
+
+    Stored beside the processing instructions and set at the same point in the pipeline,
+    which is what makes editing hints cheap: everything up to the section headings is
+    already cached and keeps its identity, and only the analysis and the page are redone.
+    """
+    extra: dict[str, Any] = dict(item.extra or {})
+    raw = extra.get("transcription")
+    transcription: dict[str, Any] = (
+        dict(cast("dict[str, Any]", raw)) if isinstance(raw, dict) else {}
+    )
+    transcription[SEGMENTS_KEY] = hints
+    extra["transcription"] = transcription
+    item.extra = extra
+    return item
+
+
+def get_segment_hints(item: Item) -> object:
+    """Read raw segment hint data off an item, or None."""
+    extra: dict[str, Any] = dict(item.extra or {})
+    transcription = extra.get("transcription")
+    if not isinstance(transcription, dict):
+        return None
+    return cast("dict[str, Any]", transcription).get(SEGMENTS_KEY)
 
 
 def set_processing_instructions(item: Item, instructions: str | None) -> Item:

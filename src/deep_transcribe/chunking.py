@@ -15,9 +15,13 @@ boundaries are the natural seams.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
+from deep_transcribe.segment_hints import SegmentHints
 from deep_transcribe.transcript_index import RawUnit, scan_raw_units, scan_section_offsets
+
+log = logging.getLogger(__name__)
 
 CHUNK_TARGET_SECONDS = 1800.0
 """
@@ -27,6 +31,26 @@ Half an hour gives about 11 calls on a five-hour recording and 24 on twelve hour
 chunks even enough that a per-chunk budget means the same thing throughout. An hour was
 measured too and leaves a ragged short tail.
 """
+
+
+def drop_suppressed(units: Sequence[RawUnit], hints: SegmentHints | None) -> list[RawUnit]:
+    """
+    Remove units inside a suppressed segment, so the analysis never sees them.
+
+    This is where a hint earns its keep. A teaser is the same words as the conversation
+    it advertises, so leaving it in doubles the weight of whatever it previews; an ad
+    read is not about the conversation at all. Both distort a concept map and pad an
+    outline. The transcript itself keeps every word — suppression is about what the
+    analysis reads, not about what the reader can see.
+    """
+    if hints is None or not hints.segments:
+        return list(units)
+    kept = [unit for unit in units if hints.suppressed_at(unit.start) is None]
+    if len(kept) != len(units):
+        log.info(
+            "Excluded %d of %d units inside suppressed segments", len(units) - len(kept), len(units)
+        )
+    return kept
 
 
 def plan_chunks(
@@ -56,37 +80,46 @@ def plan_chunks(
     return chunks
 
 
-def split_body(body: str, target_seconds: float = CHUNK_TARGET_SECONDS) -> list[str]:
+def split_body(
+    body: str,
+    target_seconds: float = CHUNK_TARGET_SECONDS,
+    hints: SegmentHints | None = None,
+) -> list[str]:
     """
     Cut the document body itself into chunks, on the same seams `plan_chunks` finds.
 
     The concept map reads units; the outline and synopsis read prose, headings included,
     so they need the text rather than the scan. Both cut in the same places, so the two
     analyses describe the same stretches of the recording.
+
+    Sections whose every unit is suppressed do not appear in any chunk. A section is the
+    smallest piece this can drop, because a chunk is built from whole sections — a promo
+    that sits inside a section leaves that section in place, and trimming to the exact
+    span is a separate job with its own boundary-snapping rules.
     """
     units = scan_raw_units(body)
-    chunks = plan_chunks(units, target_seconds)
-    if len(chunks) <= 1:
+    surviving = drop_suppressed(units, hints)
+    if not surviving:
         return [body] if body else []
 
     offsets = scan_section_offsets(body)
-    cuts: list[int] = []
-    for chunk in chunks[1:]:
-        section = chunk[0].section
-        # A chunk always opens a section, so its cut is that heading's offset. Guard
-        # anyway: a body with no headings cannot be cut this way and stays whole.
-        if 0 <= section < len(offsets):
-            cuts.append(offsets[section])
-    if not cuts:
+    if not offsets:
+        # Nothing to cut on. Chunking needs headings, so the body stays whole.
         return [body]
 
+    def section_text(index: int) -> str:
+        begin = offsets[index]
+        finish = offsets[index + 1] if index + 1 < len(offsets) else len(body)
+        return body[begin:finish].strip()
+
+    chunks = plan_chunks(surviving, target_seconds)
     pieces: list[str] = []
-    start = 0
-    for cut in cuts:
-        pieces.append(body[start:cut].strip())
-        start = cut
-    pieces.append(body[start:].strip())
-    return [piece for piece in pieces if piece]
+    for chunk in chunks:
+        sections = sorted({unit.section for unit in chunk if 0 <= unit.section < len(offsets)})
+        text = "\n\n".join(filter(None, (section_text(i) for i in sections)))
+        if text:
+            pieces.append(text)
+    return pieces or [body]
 
 
 ## Tests
@@ -152,5 +185,45 @@ def test_split_body_keeps_short_media_whole() -> None:
         '<a href="https://x">t</a></span>\n'
     )
 
-    assert split_body(body) == [body]
+    # One chunk holding the whole document, trimmed at the edges.
+    assert split_body(body) == [body.strip()]
     assert split_body("") == []
+
+
+def test_suppressed_units_are_dropped_before_chunking() -> None:
+    from deep_transcribe.segment_hints import parse_hints
+
+    units = [_unit(i * 60.0, i // 4) for i in range(40)]  # 40 minutes
+    hints = parse_hints(
+        {
+            "segments": [
+                {"at": "0:00 - 5:00", "purpose": "teaser"},
+                {"at": "20:00 - 22:00", "purpose": "intro"},  # not suppressed by default
+            ]
+        }
+    )
+
+    kept = drop_suppressed(units, hints)
+
+    assert [u.start for u in kept][0] == 300.0  # the teaser is gone
+    assert 1200.0 in [u.start for u in kept]  # the intro stays
+    assert drop_suppressed(units, None) == units
+
+
+def test_split_body_leaves_out_suppressed_stretches() -> None:
+    from deep_transcribe.segment_hints import parse_hints
+
+    def section(index: int, minutes: int) -> str:
+        return (
+            f"## Section {index}\n\n**Alice:** Text {index}.\n"
+            '<span class="citation timestamp-link" data-src="r.yml" '
+            f'data-timestamp="{minutes * 60}.00"><a href="https://x">t</a></span>\n\n'
+        )
+
+    body = "".join(section(i, i * 10) for i in range(9))  # 0 to 80 minutes
+    hints = parse_hints({"segments": [{"at": "0:00 - 15:00", "purpose": "promo"}]})
+
+    pieces = split_body(body, target_seconds=1800.0, hints=hints)
+
+    # The first two sections fall inside the promo, so the chunking starts after it.
+    assert pieces[0].startswith("## Section 2")
