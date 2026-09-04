@@ -401,3 +401,21 @@ def test_removed_mcp_options_are_rejected(arguments: list[str]) -> None:
 @pytest.mark.parametrize("source", ["transcribe", "models", "mcp", "logs"])
 def test_former_command_names_are_plain_sources(source: str) -> None:
     assert build_parser().parse_args([source]).source == source
+
+
+def test_cli_golden_keeps_the_version_placeholder() -> None:
+    """
+    `tryscript run --update` bakes the local dev version into the golden, and CI
+    then fails on its own commit hash. The frontmatter VERSION pattern exists to
+    normalize it, so fail here instead of in CI.
+    """
+    import re
+    from pathlib import Path as _Path
+
+    golden = _Path(__file__).parent / "tryscript" / "cli.tryscript.md"
+    text = golden.read_text()
+
+    assert "deep-transcribe v[VERSION]" in text
+    assert not re.search(r"deep-transcribe v\d+\.\d+\.\d+", text), (
+        "A literal version was baked into the CLI golden; restore v[VERSION]."
+    )
