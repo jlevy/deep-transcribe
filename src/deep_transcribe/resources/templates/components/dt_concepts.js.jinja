@@ -207,12 +207,16 @@
     return groups;
   }
 
-  function buildThemeGroup(theme, count, collapsed) {
+  function buildThemeGroup(theme, count, collapsed, when) {
     const group = el("div", `dt-theme-group${collapsed ? " dt-collapsed" : ""}`);
     const head = el("button", "dt-theme-head");
     head.type = "button";
     head.setAttribute("aria-expanded", collapsed ? "false" : "true");
     head.appendChild(el("span", "dt-theme-name", theme));
+    // A conversation returns to its subjects, so the same theme heads more than one
+    // stretch of the outline. Without the time they read as duplicates rather than as
+    // the second and third time the subject came up.
+    if (when) head.appendChild(el("span", "dt-theme-when dt-timestamp", when));
     head.appendChild(el("span", "dt-theme-count", String(count)));
     head.addEventListener("click", () => {
       const nowCollapsed = !group.classList.contains("dt-collapsed");
@@ -333,15 +337,61 @@
      describing it two different ways. Short media has no themes and is left alone. */
   const OUTLINE_FLAT_LIMIT = 30;
 
-  function themeSpans(concepts) {
-    const spans = [];
+  /* Themes overlap in time — a conversation returns to a subject — so "the theme whose
+     span covers this moment" is ambiguous, and taken first-match-first it hands almost
+     everything to whichever theme starts earliest and ends latest. On the measured
+     recording that put 162 of 199 outline entries under one theme and left three holding
+     a single entry each.
+
+     Assign by proximity instead: an outline entry belongs to the theme of the concept
+     nearest it in time. Local, unambiguous, and needs no spans at all. */
+  function themeByTime(concepts) {
+    const points = [];
     for (const concept of concepts) {
-      if (!concept.theme) continue;
-      const last = spans[spans.length - 1];
-      if (last && last.label === concept.theme) last.end = Math.max(last.end, concept.span[1]);
-      else spans.push({ label: concept.theme, start: concept.span[0], end: concept.span[1] });
+      if (concept.theme) points.push({ t: concept.span[0], theme: concept.theme });
     }
-    return spans;
+    points.sort((a, b) => a.t - b.t);
+    return points;
+  }
+
+  function nearestTheme(points, t) {
+    if (!points.length) return null;
+    let lo = 0;
+    let hi = points.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (points[mid].t < t) lo = mid + 1;
+      else hi = mid;
+    }
+    const after = points[lo];
+    const before = points[Math.max(0, lo - 1)];
+    return Math.abs(after.t - t) < Math.abs(t - before.t) ? after.theme : before.theme;
+  }
+
+  /* A run of one or two entries is a concept sitting between two stretches of another
+     theme, not a change of subject, so it joins what precedes it instead of becoming its
+     own heading. */
+  const MIN_OUTLINE_RUN = 3;
+
+  function smoothRuns(assigned) {
+    const runs = [];
+    for (const theme of assigned) {
+      const last = runs[runs.length - 1];
+      if (last && last.theme === theme) last.count += 1;
+      else runs.push({ theme, count: 1 });
+    }
+    const kept = [];
+    for (const run of runs) {
+      const last = kept[kept.length - 1];
+      if (last && (last.theme === run.theme || run.count < MIN_OUTLINE_RUN)) {
+        last.count += run.count;
+      } else {
+        kept.push({ theme: run.theme, count: run.count });
+      }
+    }
+    const out = [];
+    for (const run of kept) for (let i = 0; i < run.count; i += 1) out.push(run.theme);
+    return out;
   }
 
   function groupOutlineByTheme(concepts) {
@@ -351,30 +401,28 @@
     if (!list) return;
     const items = [...list.children].filter((el) => el.tagName === "LI");
     if (items.length <= OUTLINE_FLAT_LIMIT) return;
-    const spans = themeSpans(concepts);
-    if (spans.length < 2) return;
+    const points = themeByTime(concepts);
+    if (new Set(points.map((p) => p.theme)).size < 2) return;
 
     // An item's time comes from the chip the timeline cross-reference stamped on it.
     // An item with no chip belongs with whatever came before it.
     let clock = 0;
-    const placed = items.map((li) => {
+    const times = items.map((li) => {
       const chip = li.querySelector(".dt-time-chip[data-t]");
       if (chip) clock = parseFloat(chip.dataset.t);
-      let index = spans.findIndex((s) => clock >= s.start && clock <= s.end);
-      if (index < 0) {
-        index = 0;
-        for (let i = 0; i < spans.length; i += 1) if (spans[i].start <= clock) index = i;
-      }
-      return { li, index };
+      return clock;
     });
+    const assigned = smoothRuns(times.map((t) => nearestTheme(points, t)));
+    const placed = items.map((li, i) => ({ li, theme: assigned[i] }));
 
     const groups = el("div", "dt-outline-groups");
     let current = null;
-    let currentIndex = -1;
-    for (const { li, index } of placed) {
-      if (index !== currentIndex) {
-        currentIndex = index;
-        const built = buildThemeGroup(spans[index].label, 0, true);
+    let currentTheme = null;
+    for (let i = 0; i < placed.length; i += 1) {
+      const { li, theme } = placed[i];
+      if (theme !== currentTheme) {
+        currentTheme = theme;
+        const built = buildThemeGroup(theme, 0, true, model.formatTime(times[i]));
         groups.appendChild(built.group);
         current = built;
       }
