@@ -3,14 +3,14 @@ type: is
 id: is-01m1pq181axzacfacqbp68av56
 title: A changed view count re-runs the whole pipeline
 kind: bug
-status: closed
+status: open
 priority: 0
-version: 2
+version: 3
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T17:21:32.697Z
-updated_at: 2026-09-04T18:27:41.939Z
+updated_at: 2026-09-04T20:32:58.888Z
 closed_at: 2026-09-04T18:27:41.939Z
 close_reason: "Fixed at the choke point where the source item is built, after the first attempt landed in a branch that never runs for YouTube URLs. Verified: view_count no longer reaches disk, and an unchanged rerun went from a full pipeline to 4 s with zero API calls."
 resolution: null
@@ -50,3 +50,7 @@ carried view_count.
 
 Worth a test that pins it: copying source metadata twice with a different view_count must
 leave item.metadata() unchanged.
+
+## Notes
+
+REOPENED. strip_volatile_source_fields runs on the in-memory item, but prepare_action_input -> fetch_url_item_content has already written the counters to disk via ws.save(overwrite=True). My verification showed view_count: 0 only because I had sed'd the stored resources clean by hand beforehand, which masked exactly the bug. The code comment claiming 'Strip before anything persists the item' is wrong about ordering.
