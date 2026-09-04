@@ -169,3 +169,63 @@ def test_processing_instructions_get_a_distinct_overview_cache_boundary() -> Non
     assert result.store_path is None
     assert get_processing_instructions(item) is None
     assert get_processing_instructions(result) == instructions
+
+
+def test_hints_leave_no_trace_for_the_stages_above_the_boundary() -> None:
+    """
+    The whole segment-hint design rests on this: editing a hint must not disturb
+    transcription, speaker correction, paragraph formatting or section headings.
+
+    Those stages key their cache on the item, so the test is that an item with hints
+    stripped is indistinguishable from one that never carried any. If this ever fails,
+    the symptom is only that reruns "feel slow", which nobody files as a bug.
+    """
+    from deep_transcribe.transcription_metadata import (
+        get_segment_hints,
+        remove_segment_hints,
+        set_segment_hints,
+    )
+
+    def make() -> Item:
+        return Item(
+            type=ItemType.doc,
+            body="Transcript body.",
+            extra={"transcription": {"key_terms": ["Omarchy"], "speaker_roster": ["Alice"]}},
+        )
+
+    never_had_hints = make()
+    carried_hints = make()
+    hints = {"segments": [{"at": "0:00 - 3:14", "purpose": "teaser"}]}
+    set_segment_hints(carried_hints, hints)
+
+    assert carried_hints.extra != never_had_hints.extra
+    returned = remove_segment_hints(carried_hints)
+
+    assert returned == hints
+    assert carried_hints.extra == never_had_hints.extra
+    assert get_segment_hints(carried_hints) is None
+    # Removing from an item that never had them is a no-op, not a mutation.
+    before = dict(never_had_hints.extra or {})
+    assert remove_segment_hints(never_had_hints) is None
+    assert never_had_hints.extra == before
+
+
+def test_late_inputs_carry_both_instructions_and_hints() -> None:
+    from inspect import unwrap
+
+    from deep_transcribe.transcription_metadata import get_segment_hints
+
+    item = Item(type=ItemType.doc, body="Transcript body.", store_path="docs/sectioned.doc.md")
+
+    result = unwrap(transcribe_commands._attach_late_inputs)(  # noqa: SLF001
+        item,
+        processing_instructions="Keep it short.",
+        segment_hints='segments:\n- at: "0:00 - 3:14"\n  purpose: teaser\n',
+    )
+
+    assert get_processing_instructions(result) == "Keep it short."
+    hints = get_segment_hints(result)
+    assert isinstance(hints, dict)
+    assert hints["segments"][0]["purpose"] == "teaser"
+    # The source item is untouched, so its own identity is unchanged.
+    assert get_segment_hints(item) is None
