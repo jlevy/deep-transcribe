@@ -476,9 +476,9 @@ Verify in a desktop browser wider than 1450 px unless a step says otherwise.
 3. Hover the rail at several heights.
    The tooltip must show the timestamp, the speaker name with their color dot, the
    section heading, and opening words from that moment.
-4. Click the rail: the page scrolls to that moment.
-   Shift-click: the video popover opens at that time.
-   With the popover open, the rail must shorten to sit above it.
+4. Click the rail, a Timeline section, or a speaker segment: the video popover
+   opens at that moment and the page does not scroll.
+   With the popover open at the upper right, the rail must start below it.
 5. Tab to the rail and press ArrowDown, ArrowUp, Home, and End.
    Each keystroke must move the document one speaker turn or to an end.
 6. Hover a frame capture in the gutter: its connector and rail tick must highlight

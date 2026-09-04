@@ -5,12 +5,28 @@
 <style>
 {% include "components/dt_tokens.css.jinja" %}
 {% include "components/dt_viz.css.jinja" %}
+/* The reading column sits left, so the player takes the free upper right. */
+.yt-popover {
+  top: 4.5rem !important;
+  bottom: auto !important;
+  right: 1rem !important;
+  left: auto !important;
+}
+
 .timestamp-link {
   background-color: transparent !important;
   color: var(--color-tertiary) !important;
   font-size: var(--font-size-tiny);
+  font-weight: normal;
   border-radius: 0.2rem;
   transition: background-color 0.12s ease-in-out, color 0.12s ease-in-out;
+}
+
+/* Timestamps never underline, hovered or not, anywhere in the document. */
+.timestamp-link a,
+.timestamp-link a:hover,
+.timestamp-link a:visited {
+  text-decoration: none !important;
 }
 
 /* Same hover treatment as the injected timestamp chips. */

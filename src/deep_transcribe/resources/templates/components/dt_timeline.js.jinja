@@ -8,14 +8,14 @@
   "use strict";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const HEIGHT = 116;
+  const HEIGHT = 128;
   const AXIS_Y = 16;
   const SECTION_Y = 24;
-  const SECTION_H = 34;
-  const BAND_Y = 66;
+  const SECTION_H = 46;
+  const BAND_Y = 78;
   const BAND_H = 24;
-  const FRAME_Y = 104;
-  const CHAR_WIDTH = 6.6;
+  const FRAME_Y = 116;
+  const CHAR_WIDTH = 5.8;
 
   let model = null;
   let panel = null;
@@ -75,24 +75,49 @@
           time: `${model.formatTime(section.start)}–${model.formatTime(section.end)}`,
         })
       );
-      block.addEventListener("click", () => model.seek(section.start));
+      block.addEventListener("click", () => model.playAt(section.start));
       group.appendChild(block);
-      const maxChars = Math.floor((w - 10) / CHAR_WIDTH);
+      const maxChars = Math.floor((w - 8) / CHAR_WIDTH);
       if (maxChars >= 4) {
-        const label =
-          section.heading.length > maxChars
-            ? section.heading.slice(0, maxChars - 1) + "…"
-            : section.heading;
-        group.appendChild(
-          svgEl(
-            "text",
-            { class: "dt-ov-section-label", x: x0 + 5, y: SECTION_Y + SECTION_H / 2 + 4.5 },
-            label
-          )
-        );
+        group.appendChild(sectionLabel(section.heading, x0 + 5, maxChars));
       }
     }
     return group;
+  }
+
+  /* Section names wrap to two lines rather than truncating early. One line
+     centers in the block; two lines split at the word boundary that best
+     balances them, and an ellipsis appears only if even two will not fit. */
+  function wrapLabel(heading, maxChars) {
+    if (heading.length <= maxChars) return [heading];
+    const words = heading.split(" ");
+    let best = null;
+    for (let i = 1; i < words.length; i += 1) {
+      const first = words.slice(0, i).join(" ");
+      const second = words.slice(i).join(" ");
+      if (first.length > maxChars) break;
+      const cost = Math.max(first.length, second.length);
+      if (!best || cost < best.cost) best = { cost, lines: [first, second] };
+    }
+    if (!best) return [heading.slice(0, Math.max(1, maxChars - 1)) + "…"];
+    const [first, second] = best.lines;
+    return [
+      first,
+      second.length > maxChars ? second.slice(0, Math.max(1, maxChars - 1)) + "…" : second,
+    ];
+  }
+
+  function sectionLabel(heading, x, maxChars) {
+    const lines = wrapLabel(heading, maxChars);
+    const lineHeight = 12;
+    const top =
+      SECTION_Y + SECTION_H / 2 + 4 - ((lines.length - 1) * lineHeight) / 2;
+    const text = svgEl("text", { class: "dt-ov-section-label", x, y: top });
+    lines.forEach((line, i) => {
+      const span = svgEl("tspan", { x, dy: i === 0 ? 0 : lineHeight }, line);
+      text.appendChild(span);
+    });
+    return text;
   }
 
   function buildBand() {
@@ -122,7 +147,7 @@
         });
       });
       const start = units[i].start;
-      seg.addEventListener("click", () => model.seek(start));
+      seg.addEventListener("click", () => model.playAt(start));
       group.appendChild(seg);
       i = j + 1;
     }
@@ -219,7 +244,7 @@
     svg.addEventListener("click", (e) => {
       if (e.target !== svg) return;
       const rect = svg.getBoundingClientRect();
-      model.seek(((e.clientX - rect.left) / rect.width) * model.duration);
+      model.playAt(((e.clientX - rect.left) / rect.width) * model.duration);
     });
     panel.appendChild(svg);
     model.panels.top.appendChild(panel);

@@ -195,11 +195,11 @@
 
     rail.addEventListener("mousemove", (e) => showTip(e.clientY, e.target));
     rail.addEventListener("mouseleave", () => model.tooltip.hide());
+    // Clicking a time position plays it; only keyboard turn-stepping moves
+    // the document.
     rail.addEventListener("click", (e) => {
       const rect = rail.getBoundingClientRect();
-      const t = yToTime(e.clientY - rect.top, rect.height);
-      if (e.shiftKey) model.playAt(t);
-      else model.seek(t);
+      model.playAt(yToTime(e.clientY - rect.top, rect.height));
     });
     rail.addEventListener("keydown", onKeydown);
     document.addEventListener("dt:timechange", onTimechange);

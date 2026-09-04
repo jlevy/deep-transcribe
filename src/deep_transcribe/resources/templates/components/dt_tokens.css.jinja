@@ -18,7 +18,10 @@
    COLOR  Exactly three text roles (--dt-text / --dt-text-support /
           --dt-text-faint) plus accents from the speaker palette
           (--dt-c text-safe, --dt-cv vivid fill) and the concept-kind color
-          (--dt-kind-c). Nothing renders text in any other color.
+          (--dt-kind-c). Nothing renders text in any other color, and main
+          text blocks (summary, glosses, transcript, outline) are always
+          --dt-text on screen and in print: gray belongs only to supporting
+          labels and inline timestamps.
 
    TIME   A timestamp inline with other content renders one way: faint, sans,
           --font-size-tiny, in brackets, and clicking it opens the video at
@@ -105,6 +108,10 @@
   --dt-z-connectors: 35;
   --dt-z-rail: 40;
   --dt-z-tip: 70;
+
+  /* --- Dense chart labels: one step below tiny, for space-constrained
+     text inside visuals (timeline section names). --- */
+  --dt-label-size: 0.78rem;
 
   /* --- Heading scale. --- */
   --dt-h1-size: 1rem;        /* all-caps section headings */

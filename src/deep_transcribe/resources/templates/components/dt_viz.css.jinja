@@ -28,6 +28,10 @@ strong.dt-speaker-label .dt-colon {
   display: none;
 }
 
+strong.dt-speaker-label .timestamp-link {
+  margin-left: 0.2rem;
+}
+
 .long-text {
   line-height: var(--dt-leading);
 }
@@ -55,6 +59,8 @@ strong.dt-speaker-label .dt-colon {
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
   font-size: var(--font-size-small);
+  /* Main text is never gray; the upstream .description gray is overridden. */
+  color: var(--dt-text);
 }
 
 /* H1: all-caps centered sans for every top section. The !important flags
@@ -183,7 +189,7 @@ body.dt-no-frames .dt-ov-frame {
 }
 
 .dt-ov-section-label {
-  font-size: var(--font-size-tiny);
+  font-size: var(--dt-label-size);
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
   fill: var(--dt-text);
@@ -244,9 +250,9 @@ body.dt-no-frames .dt-ov-frame {
   box-shadow: var(--dt-ring-focus);
 }
 
-/* Make room for the open video popover, which parks at bottom right. */
+/* Make room for the open video popover, which parks at the upper right. */
 body.yt-open #dt-rail {
-  bottom: min(24rem, 45vh);
+  top: max(21rem, 40vh);
 }
 
 @media (min-width: 1150px) {
@@ -427,14 +433,10 @@ body.yt-open #dt-rail {
   content: "]";
 }
 
-.dt-tip-dot {
-  display: inline-block;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: var(--dt-cv, var(--color-hint));
-  flex: none;
-  align-self: center;
+/* The head names the speaker once, in their color — same rule as the
+   transcript labels: name on its own line, no colon, no dot. */
+.dt-tip .dt-tip-name {
+  color: var(--dt-c, var(--dt-text));
 }
 
 /* ---- Speakers panel ---- */
@@ -551,12 +553,13 @@ body.yt-open #dt-rail {
    panel content width on the same 0-to-duration scale as the Timeline panel
    above, so all the bars are comparable at a glance. */
 .dt-concept-entry {
-  margin-top: 0.9rem;
+  margin-top: 1.4rem;
 }
 
 .dt-concept-track {
   position: relative;
   height: 10px;
+  margin-top: 0.3rem;
   margin-bottom: 0.25rem;
 }
 
@@ -591,9 +594,11 @@ body.yt-open #dt-rail {
   cursor: pointer;
 }
 
+/* Chip rows center beneath their tracks; glosses stay flush left. */
 .dt-concept-term {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
 }
 
@@ -666,6 +671,26 @@ body.yt-open #dt-rail {
 }
 
 /* Claims panel entries name their speakers in speaker colors. */
+/* Exact mentions marked in the summary: speakers colored, entities bold. */
+.dt-name-ref {
+  color: var(--dt-c);
+  font-weight: var(--font-weight-sans-medium);
+}
+
+.dt-entity-ref {
+  font-weight: var(--font-weight-sans-bold);
+}
+
+/* Claims state their makers plainly on a line below the chip. */
+.dt-claim-made-by {
+  margin: 0.2rem 0 0.1rem;
+  font-size: var(--font-size-smaller);
+}
+
+.dt-claim-made-by-label {
+  color: var(--dt-text-support);
+}
+
 .dt-claim-speaker {
   color: var(--dt-c);
   font-weight: var(--font-weight-sans-medium);

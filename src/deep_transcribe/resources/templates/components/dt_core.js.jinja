@@ -76,6 +76,9 @@
         colon.className = "dt-colon";
         colon.textContent = ":";
         strong.appendChild(colon);
+        // The paragraph's timestamp reads best beside the name, not at the
+        // end of the spoken text. Continuations without a label keep theirs.
+        if (unit.citationEl) strong.appendChild(unit.citationEl);
       }
     }
   }
@@ -163,12 +166,14 @@
     const content = document.createElement("div");
     const head = document.createElement("div");
     head.className = "dt-tip-head";
-    if (opts.speakerClass) {
-      const dot = document.createElement("span");
-      dot.className = `dt-tip-dot ${opts.speakerClass}`;
-      head.appendChild(dot);
+    if (opts.name) {
+      // The name appears once, colored like the transcript labels — name on
+      // its own line means no colon, and the color makes a dot redundant.
+      const name = document.createElement("span");
+      name.className = `dt-tip-name${opts.speakerClass ? ` ${opts.speakerClass}` : ""}`;
+      name.textContent = opts.name;
+      head.appendChild(name);
     }
-    if (opts.name) head.appendChild(document.createTextNode(opts.name));
     if (opts.time) {
       const time = document.createElement("span");
       time.className = "dt-tip-time";
@@ -185,13 +190,7 @@
     if (opts.text) {
       const text = document.createElement("div");
       text.className = "dt-tip-text";
-      if (opts.name && opts.speakerClass) {
-        const label = document.createElement("strong");
-        label.className = `dt-speaker-label ${opts.speakerClass}`;
-        label.textContent = `${opts.name}: `;
-        text.appendChild(label);
-      }
-      text.appendChild(document.createTextNode(opts.text));
+      text.textContent = opts.text;
       content.appendChild(text);
     }
     if (opts.image) {
@@ -217,6 +216,60 @@
     heading.className = "dt-panel-title dt-ui";
     heading.textContent = "Summary";
     description.prepend(heading);
+  }
+
+  /* Mark exact mentions in the summary: speaker names take their color,
+     entity labels go bold. Deliberately simple and robust: exact strings,
+     longest first, bounded by non-word characters. */
+  function highlightSummaryMentions(model, scope) {
+    const summary = scope.querySelector(".description.dt-summary");
+    if (!summary) return;
+    const targets = [
+      ...model.index.speakers.map((speaker) => ({
+        text: speaker.name,
+        className: `dt-name-ref ${model.speakerClass(speaker.id)}`,
+      })),
+      ...model.index.concepts
+        .filter((concept) => concept.kind === "entity")
+        .map((concept) => ({ text: concept.label, className: "dt-entity-ref" })),
+    ]
+      .filter((target) => target.text && target.text.length > 2)
+      .sort((a, b) => b.text.length - a.text.length);
+    if (!targets.length) return;
+
+    const isWordChar = (ch) => ch != null && /[\p{L}\p{N}]/u.test(ch);
+    const walker = document.createTreeWalker(summary, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) {
+      if (!walker.currentNode.parentElement.closest(".dt-panel-title")) {
+        textNodes.push(walker.currentNode);
+      }
+    }
+    for (const node of textNodes) {
+      const value = node.nodeValue;
+      let cursor = 0;
+      const parts = [];
+      while (cursor < value.length) {
+        let best = null;
+        for (const target of targets) {
+          const at = value.indexOf(target.text, cursor);
+          if (at === -1) continue;
+          if (isWordChar(value[at - 1]) || isWordChar(value[at + target.text.length])) continue;
+          if (!best || at < best.at) best = { at, target };
+        }
+        if (!best) break;
+        if (best.at > cursor) parts.push(document.createTextNode(value.slice(cursor, best.at)));
+        const mark = document.createElement("span");
+        mark.className = best.target.className;
+        mark.textContent = best.target.text;
+        parts.push(mark);
+        cursor = best.at + best.target.text.length;
+      }
+      if (parts.length) {
+        if (cursor < value.length) parts.push(document.createTextNode(value.slice(cursor)));
+        node.replaceWith(...parts);
+      }
+    }
   }
 
   function mountPanelContainers(scope, withTranscriptHeading) {
@@ -335,7 +388,10 @@
     }
     decorateSpeakerLabels(model);
     document.body.classList.add("dt-on");
-    if (model.elements.has("summary")) dressSummary(scope);
+    if (model.elements.has("summary")) {
+      dressSummary(scope);
+      highlightSummaryMentions(model, scope);
+    }
     const containers = mountPanelContainers(scope, model.elements.has("transcript"));
     model.panels = containers;
     model.makePanel = makePanel;

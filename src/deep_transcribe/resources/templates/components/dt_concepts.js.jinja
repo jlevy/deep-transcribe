@@ -179,13 +179,11 @@
     for (const concept of concepts) {
       const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
       entry.dataset.concept = concept.id;
-      entry.appendChild(buildConceptTrack(concept));
       // Print form of the track dots: the mention times as bracketed stamps.
       const times = el("div", "dt-track-times dt-print-only");
       for (const mention of concept.mentions) {
         times.appendChild(el("span", "dt-timestamp", model.formatTime(mention.t)));
       }
-      entry.appendChild(times);
       const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
       const detail = el("div", "dt-concept-gloss", concept.gloss);
@@ -208,7 +206,8 @@
         }
         detail.appendChild(research);
       }
-      entry.append(term, detail);
+      // Reading order: centered chip, its timeline right below, then the gloss.
+      entry.append(term, buildConceptTrack(concept), times, detail);
       list.appendChild(entry);
     }
     return list;
@@ -220,25 +219,31 @@
     const claims = concepts.filter((c) => c.kind === "claim");
     if (!claims.length) return null;
     const panel = model.makePanel("Claims");
-    const list = el("dl", "dt-concept-defs");
+    const list = el("div", "dt-concept-defs");
     for (const concept of claims) {
-      const term = el("dt", "dt-concept-term");
+      const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
+      const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
-      for (const speakerId of concept.speakers) {
-        const name = model.speakerById.get(speakerId)?.name;
-        if (name) {
-          term.appendChild(
-            el("span", `dt-claim-speaker ${model.speakerClass(speakerId)}`, name)
-          );
-        }
-      }
       const chip = el("span", "dt-timestamp dt-time-chip", model.formatTime(concept.span[0]));
       chip.addEventListener("click", (event) => {
         event.stopPropagation();
         model.playAt(concept.span[0]);
       });
       term.appendChild(chip);
-      list.append(term, el("dd", "dt-concept-gloss", concept.gloss));
+      // Who made the claim, stated plainly on its own line.
+      const madeBy = el("div", "dt-claim-made-by");
+      madeBy.appendChild(el("span", "dt-claim-made-by-label", "Made by: "));
+      const named = concept.speakers
+        .map((id) => ({ id, name: model.speakerById.get(id)?.name }))
+        .filter((s) => s.name);
+      named.forEach((speaker, i) => {
+        if (i > 0) madeBy.appendChild(document.createTextNode(", "));
+        madeBy.appendChild(
+          el("span", `dt-claim-speaker ${model.speakerClass(speaker.id)}`, speaker.name)
+        );
+      });
+      entry.append(term, madeBy, el("div", "dt-concept-gloss", concept.gloss));
+      list.appendChild(entry);
     }
     panel.appendChild(list);
     return panel;
