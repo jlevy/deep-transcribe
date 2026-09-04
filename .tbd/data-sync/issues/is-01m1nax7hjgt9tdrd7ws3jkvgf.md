@@ -3,15 +3,19 @@ type: is
 id: is-01m1nax7hjgt9tdrd7ws3jkvgf
 title: Verify no stage sends the whole document
 kind: task
-status: open
+status: closed
 priority: 1
-version: 2
+version: 3
 spec_path: docs/project/specs/active/plan-2026-09-04-chunked-extraction.md
 labels: []
 dependencies: []
 parent_id: is-01m1nax66j442h166dee52zt3r
 created_at: 2026-09-04T04:30:23.791Z
-updated_at: 2026-09-04T07:49:50.585Z
+updated_at: 2026-09-04T08:07:23.580Z
+closed_at: 2026-09-04T08:07:23.569Z
+close_reason: "Audit complete in the bead notes: no stage's input grows with duration. Outline and concepts chunk, synopsis map-reduces, speaker correction and the kash text stages window, roster inference reads only metadata. The one whole-document send left is the single-chunk synopsis path, which is a recording short enough to fit one call."
+resolution: null
+duplicate_of: null
 ---
 Confirm on the long-form fixture that concept count scales with duration, no duplicate concepts or dangling relations survive the merge, and a transcript too large for one call (14h+, ~198k tokens) completes.
 
