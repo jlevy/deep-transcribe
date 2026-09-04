@@ -7,10 +7,15 @@ on a 5.3-hour interview it produced 502 frames — 95 an hour, 115 MB of jpgs, a
 ribbon down the gutter of a 188,000 px page. The similarity filter had already removed
 64% and still left that.
 
-The cap is expressed as a density rather than a fixed number, and it is set to the
-density that already works: the 22-minute example runs at about 41 frames an hour and
-reads well. Anything at or below the target is left exactly as it is, so short media
-never changes.
+The cap is expressed as a density rather than a fixed number, so a recording is judged by
+how crowded its gutter is rather than by a count that means different things at different
+lengths.
+
+The density alone is not enough, because short media is legitimately dense: the project's
+own showcase, SNL "Hotel Check In", is 4:26 with 15 frames — 231 an hour, five times any
+sane long-form target — and it reads perfectly well, because 15 thumbnails is simply not
+many. Judging it by density gutted it to 3. So a floor on the absolute count runs
+alongside the density, and a document with few frames is left alone whatever its density.
 """
 
 from __future__ import annotations
@@ -23,11 +28,26 @@ log = logging.getLogger(__name__)
 
 TARGET_FRAMES_PER_HOUR = 45.0
 """
-Frames per hour to thin down to, matched to what short media already does.
+Frames per hour to thin a long recording down to.
 
-The SNL example sits at 41 an hour and looks right, so a recording under this density is
-untouched and one above it is thinned to roughly this. Five hours lands near 240 rather
-than 502.
+Measured: the 5.3-hour interview produced 502 frames at 95 an hour, a continuous ribbon
+down a 188,000 px page. At 45 an hour the same recording lands near 240, which reads as a
+column of stills rather than a ribbon.
+
+This is a long-form figure and is not derived from the short example — an earlier version
+of this docstring claimed a "22-minute example at 41 an hour", which does not exist in
+this repository. That number came from a synthetic test fixture, and calibrating to it is
+what caused the showcase example to lose 12 of its 15 frames.
+"""
+
+MIN_FRAMES_KEPT = 20
+"""
+Never thin a document that has fewer frames than this, and never thin one below it.
+
+The density target is meaningless for a short recording: SNL "Hotel Check In" is 4:26 with
+15 frames, and 45 an hour would allow it 3. Twenty is above every short example in the
+repository and far below the point where a page starts to feel like a ribbon, so it keeps
+the stated invariant — short media is untouched — true rather than aspirational.
 """
 
 _FRAME_IMG = re.compile(
@@ -56,7 +76,10 @@ def thin_frame_captures(
     span = times[-1] - times[0]
     if span <= 0:
         return body, 0
-    target = round(target_per_hour * span / 3600)
+    # A short document is left alone whatever its density; see MIN_FRAMES_KEPT.
+    if len(matches) <= MIN_FRAMES_KEPT:
+        return body, 0
+    target = max(MIN_FRAMES_KEPT, round(target_per_hour * span / 3600))
     if target < 1 or len(matches) <= target:
         return body, 0
 
@@ -189,3 +212,61 @@ def test_thinning_an_already_thinned_document_changes_nothing() -> None:
     assert first_removed > 0
     assert second_removed == 0
     assert twice == once
+
+
+def test_the_real_showcase_example_is_untouched() -> None:
+    """
+    The actual shape of the project's showcase, SNL "Hotel Check In": 15 frames over 4:26.
+
+    The previous target was calibrated against a "22-minute example at 41 frames an hour"
+    that does not exist in this repository — it was back-derived from the synthetic fixture
+    in `test_short_media_is_untouched`, which spaces 15 frames 88 s apart and so happens to
+    sit under the cap. Measured against the real example the same code removed 12 of 15
+    frames, contradicting the documented invariant.
+    """
+    times = [
+        1.84,
+        18.0,
+        34.5,
+        52.0,
+        69.0,
+        86.5,
+        104.0,
+        114.3,
+        131.0,
+        148.5,
+        166.0,
+        183.5,
+        201.0,
+        218.5,
+        236.0,
+    ]
+    assert len(times) == 15
+    span_hours = (times[-1] - times[0]) / 3600
+    assert round(len(times) / span_hours) == 231  # five times the long-form target
+
+    body, removed = thin_frame_captures(_doc(times))
+
+    assert removed == 0, "the showcase example lost frames"
+    assert body.count('class="frame-capture"') == 15
+
+
+def test_a_long_recording_is_still_thinned_hard() -> None:
+    """The floor must not blunt the case the cap exists for: 502 frames over 5.3 hours."""
+    span = 5.3 * 3600
+    times = [i * span / 501 for i in range(502)]
+
+    _body, removed = thin_frame_captures(_doc(times))
+
+    kept = 502 - removed
+    assert 200 <= kept <= 260, f"expected roughly 240 kept, got {kept}"
+
+
+def test_the_floor_is_never_crossed() -> None:
+    """A recording just above the floor is thinned to the floor, not below it."""
+    # 30 frames over 20 minutes: 90 an hour, above the target, but only 30 frames.
+    times = [i * 1200 / 29 for i in range(30)]
+
+    _body, removed = thin_frame_captures(_doc(times))
+
+    assert 30 - removed >= MIN_FRAMES_KEPT
