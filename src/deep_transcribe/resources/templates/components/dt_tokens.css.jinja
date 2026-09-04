@@ -31,8 +31,11 @@
 
    SHAPE  Two radii only. Tooltips are square. Panels are unboxed (no border,
           --dt-pad padding) and every time-scaled bar spans the full panel
-          content width on one 0-to-duration scale, so bars align vertically
-          across panels.
+          content width, so bars align vertically across panels. Bars map
+          0-to-duration, with one exception: the Timeline maps a fixed row
+          duration and wraps into --dt-tl-gap-separated rows once the recording
+          runs longer than a single row holds, because compressing hours into
+          one track leaves sections a few pixels wide.
 
    PRINT  Everything static and data-bearing prints; only viewport-bound or
           transient chrome is held out (the rail, connectors, tooltips, the
@@ -101,6 +104,7 @@
   --dt-pad: 1rem;          /* panel padding; also the shared text edge */
   --dt-print-width: 620;   /* px; measured printable content width (read by JS) */
   --dt-rail-width: 3.4rem;
+  --dt-tl-gap: 0.7rem;     /* between wrapped timeline rows */
   --dt-col-shift: 8rem;    /* how far left of center the column slides */
 
   /* --- Stacking: dt layers sit between the page and the popover. --- */

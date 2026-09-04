@@ -150,6 +150,13 @@ body.dt-no-frames .dt-ov-frame {
 
 /* ---- Timeline overview panel ---- */
 
+/* Rows of a wrapped timeline stack with a gap; a single-row timeline is one
+   child and renders exactly as an unwrapped track did. */
+.dt-overview-rows {
+  display: grid;
+  gap: var(--dt-tl-gap);
+}
+
 .dt-overview {
   display: block;
   width: 100%;
