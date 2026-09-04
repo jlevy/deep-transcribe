@@ -5,12 +5,13 @@ title: "PR #19 review R1: segment hints never reach the analysis stages"
 kind: bug
 status: closed
 priority: 0
-version: 3
+version: 4
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1q1zs4f81krjzenfbtmp35t
 created_at: 2026-09-04T20:33:16.162Z
-updated_at: 2026-09-04T20:37:57.964Z
+updated_at: 2026-09-04T22:29:16.046Z
 closed_at: 2026-09-04T20:37:57.963Z
 close_reason: Hints now reach both overview actions and the concept extractor; tests drive the actions and were verified to fail without the fix.
 resolution: null

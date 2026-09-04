@@ -5,12 +5,13 @@ title: "PR #19 review R12: exclusion tests assert on an argument production neve
 kind: bug
 status: closed
 priority: 1
-version: 2
+version: 3
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1q1zs4f81krjzenfbtmp35t
 created_at: 2026-09-04T20:33:41.751Z
-updated_at: 2026-09-04T20:37:58.262Z
+updated_at: 2026-09-04T22:29:16.046Z
 closed_at: 2026-09-04T20:37:58.261Z
 close_reason: Exclusion tests rewritten to drive the actions and capture what reaches the model.
 resolution: null

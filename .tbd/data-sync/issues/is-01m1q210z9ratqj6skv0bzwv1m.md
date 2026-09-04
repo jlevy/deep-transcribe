@@ -5,11 +5,12 @@ title: "PR #19 review R7: suggested hint spans are rounded off the paragraphs th
 kind: bug
 status: in_progress
 priority: 1
-version: 2
+version: 3
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1q1zs4f81krjzenfbtmp35t
 created_at: 2026-09-04T20:33:39.816Z
-updated_at: 2026-09-04T20:46:50.085Z
+updated_at: 2026-09-04T22:29:16.046Z
 ---
 segment_hints / detect_segments writes spans rounded to whole seconds (or coarser), so the emitted span can start after the paragraph it means to cover, and a rerun with the suggested file excludes the wrong units. Write the exact unit boundaries.

@@ -5,12 +5,13 @@ title: "PR #19 review R2: a --segments rerun re-runs the pipeline above the boun
 kind: bug
 status: closed
 priority: 0
-version: 4
+version: 5
+spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1q1zs4f81krjzenfbtmp35t
 created_at: 2026-09-04T20:33:16.602Z
-updated_at: 2026-09-04T20:57:06.692Z
+updated_at: 2026-09-04T22:29:16.046Z
 closed_at: 2026-09-04T20:57:06.691Z
 close_reason: Two causes fixed and measured; the third is a real design tension between sticky late inputs and cache identity, deferred to dt-xjlp rather than half-fixed.
 resolution: null
