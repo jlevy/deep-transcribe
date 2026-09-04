@@ -453,17 +453,19 @@ def display_results(
     as_json: bool,
 ) -> None:
     """Display generated artifact paths."""
+    from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
+
+    suggested = base_dir / SUGGESTED_SEGMENTS_NAME
     if as_json:
-        print(
-            json.dumps(
-                {
-                    "workspace": str(base_dir.resolve()),
-                    "transcript": str(transcript_path.resolve()),
-                    "html": str(html_path.resolve()),
-                },
-                sort_keys=True,
-            )
-        )
+        result: dict[str, str] = {
+            "workspace": str(base_dir.resolve()),
+            "transcript": str(transcript_path.resolve()),
+            "html": str(html_path.resolve()),
+        }
+        # An agent driving the review loop needs to find this without reading the log.
+        if suggested.exists():
+            result["suggested_segments"] = str(suggested.resolve())
+        print(json.dumps(result, sort_keys=True))
         return
 
     # fmt_path is missing from prettyfmt's __all__ (upstream oversight); it is public API.
@@ -490,6 +492,18 @@ def display_results(
             workspace, and use `files`, `show`, `help`, and related commands.
             """)
     )
+    if suggested.exists():
+        rprint(
+            dedent(f"""
+                The opening of this recording repeats later, which usually means a
+                highlight reel. Suggested segment hints are at:
+
+                    [yellow]{fmt_path(suggested)}[/yellow]
+
+                Review them and rerun with `--segments` to leave that stretch out of the
+                analysis. The transcript is reused, so the rerun is quick.
+                """)
+        )
 
 
 def _display_model_profiles(
