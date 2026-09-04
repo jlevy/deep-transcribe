@@ -173,3 +173,19 @@ def test_a_single_frame_is_left_alone() -> None:
     body = _doc([1.0])
 
     assert thin_frame_captures(body) == (body, 0)
+
+
+def test_thinning_an_already_thinned_document_changes_nothing() -> None:
+    """
+    Thinning runs after every frame-capture step, including reruns that hit the cache and
+    return a body already thinned. A second pass must be a no-op, or each rerun would
+    quietly strip more frames until none were left.
+    """
+    body = _doc([i * 37.7 for i in range(502)])
+
+    once, first_removed = thin_frame_captures(body)
+    twice, second_removed = thin_frame_captures(once)
+
+    assert first_removed > 0
+    assert second_removed == 0
+    assert twice == once

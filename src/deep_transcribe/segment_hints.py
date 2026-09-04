@@ -385,3 +385,20 @@ def test_a_missing_or_empty_file_is_no_hints(tmp_path: Path) -> None:
     empty.write_text("segments:\n")
     assert load_hints(empty).segments == []
     assert parse_hints(None).segments == []
+
+
+def test_a_hint_edit_is_the_only_thing_that_changes_between_runs() -> None:
+    """
+    Two hint files describing the same segments must produce the same hints, whatever
+    order their keys are written in. The pipeline hashes the file's YAML text, so a
+    reordered but equivalent file that parsed differently would silently invalidate the
+    analysis cache for no reason.
+    """
+    one = parse_hints({"segments": [{"at": "0:00 - 3:14", "purpose": "teaser", "note": "reel"}]})
+    other = parse_hints(
+        {"segments": [{"note": "reel", "purpose": "teaser", "start": "0:00", "end": "3:14"}]}
+    )
+
+    assert [(h.start, h.end, h.purpose, h.note, h.suppressed) for h in one.segments] == [
+        (h.start, h.end, h.purpose, h.note, h.suppressed) for h in other.segments
+    ]
