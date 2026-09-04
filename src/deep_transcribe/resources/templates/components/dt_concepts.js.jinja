@@ -11,6 +11,7 @@
   let selected = null;
   let root = null;
   const rootExtras = [];
+  let conceptGroups = [];
 
   function svgEl(name, attrs, text) {
     const el = document.createElementNS(SVG_NS, name);
@@ -215,15 +216,21 @@
     const groups = groupByTheme(concepts);
     const themed = groups.some((g) => g.theme);
     const collapsed = themed && concepts.length > FLAT_LIST_LIMIT;
+    // Built expanded even when they will end collapsed, so their graphs can be measured
+    // and laid out once before anything is hidden.
     let target = list;
     let groupIndex = -1;
+    conceptGroups = [];
     for (const concept of concepts) {
       // Open a new theme container whenever this concept starts the next group.
       const nextGroup = groups[groupIndex + 1];
       if (themed && nextGroup && nextGroup.concepts[0] === concept) {
         groupIndex += 1;
         if (nextGroup.theme) {
-          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, collapsed);
+          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, false);
+          built.collapse = collapsed;
+          built.concepts = nextGroup.concepts;
+          conceptGroups.push(built);
           list.appendChild(built.group);
           target = built.body;
         } else {
@@ -395,21 +402,55 @@
       printGraph.wrap.classList.add("dt-graph-print");
       printHost.appendChild(printGraph.wrap);
 
+      // A time-layered graph of a hundred chips is not a graph anyone can read, and it
+      // is what is left of the Concepts panel's height once the list is grouped. When
+      // there are themes, each one gets its own graph of a handful of chips inside its
+      // group instead of one graph of everything.
+      const perTheme = conceptGroups.length > 1 && concepts.length > FLAT_LIST_LIMIT;
+
       let chartWidth = 0;
       const renderCharts = () => {
         const width = Math.floor(charts.getBoundingClientRect().width);
         if (!width || width === chartWidth) return;
         chartWidth = width;
         charts.textContent = "";
-        const graph = buildGraph(concepts, width);
-        graph.wrap.classList.add("dt-graph-screen");
-        charts.appendChild(graph.wrap);
-        layoutGraph(graph);
+        if (!perTheme) {
+          const graph = buildGraph(concepts, width);
+          graph.wrap.classList.add("dt-graph-screen");
+          charts.appendChild(graph.wrap);
+          layoutGraph(graph);
+        }
         layoutGraph(printGraph);
         applySelection();
       };
       new ResizeObserver(renderCharts).observe(charts);
       renderCharts();
+
+      if (perTheme) {
+        // Lay out while the groups are still expanded, then collapse: a hidden element
+        // measures as zero and the layout depends on measured chip widths.
+        for (const group of conceptGroups) {
+          try {
+            const width = Math.floor(group.body.getBoundingClientRect().width);
+            if (!width) continue;
+            const graph = buildGraph(group.concepts, width);
+            graph.wrap.classList.add("dt-graph-screen", "dt-theme-graph");
+            group.body.prepend(graph.wrap);
+            layoutGraph(graph);
+            group.graph = graph;
+          } catch (error) {
+            // A graph that will not lay out is worth losing; the list is not.
+            if (group.graph && group.graph.wrap) group.graph.wrap.remove();
+          }
+        }
+        applySelection();
+      }
+      for (const group of conceptGroups) {
+        if (group.collapse) {
+          group.group.classList.add("dt-collapsed");
+          group.group.querySelector(".dt-theme-head").setAttribute("aria-expanded", "false");
+        }
+      }
     }
 
     if (model.elements.has("claims")) {

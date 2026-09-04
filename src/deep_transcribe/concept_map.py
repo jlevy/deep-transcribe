@@ -270,8 +270,19 @@ REDUCE_PROMPT = dedent("""
     is to fix exactly those three and change nothing else.
 
     1. DUPLICATES. The same idea appears more than once under different labels, because
-       adjacent stretches both covered it. Group those together, keeping the id whose
-       label reads best, and list the others as merged into it.
+       adjacent stretches both covered it. Merge these freely — this is the one place
+       where you should act on a reasonable suspicion rather than wait for certainty,
+       because two entries for one idea is a worse map than one entry with a slightly
+       broad label. Keep the id whose label reads best and list the others as merged
+       into it.
+
+       Two entries are the same idea when a reader would be surprised to find them
+       listed separately. Watch for: the same thing named once in general and once by a
+       specific instance; a topic and a claim about that topic; the same argument made
+       with different words in two neighbouring stretches; and the same named product,
+       person, or paper spelled inconsistently, since a transcript renders hard proper
+       nouns differently each time it hears them. Genuinely distinct claims about one
+       subject are NOT duplicates and stay separate.
 
     2. NO STRUCTURE. A flat list of this many concepts is not a map of anything. Group
        every concept you keep under a theme — a short noun phrase naming a strand the
@@ -281,9 +292,10 @@ REDUCE_PROMPT = dedent("""
 
     3. MINOR ENTRIES. Some concepts looked worth naming inside one stretch and do not
        hold up against the whole conversation — a passing example, an aside. Drop those.
-       Be conservative: dropping a real strand of the conversation is much worse than
-       keeping a thin one, and anything that is the only concept covering its part of
-       the recording stays.
+       Here, and only here, be conservative: dropping a real strand of the conversation
+       is much worse than keeping a thin one, and anything that is the only concept
+       covering its part of the recording stays. Caution about dropping says nothing
+       about merging, which you should do freely.
 
     Return ONLY a JSON object of this exact shape:
 
