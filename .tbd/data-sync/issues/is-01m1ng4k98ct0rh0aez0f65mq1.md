@@ -3,14 +3,18 @@ type: is
 id: is-01m1ng4k98ct0rh0aez0f65mq1
 title: Drop stray concept mentions that inflate spans
 kind: bug
-status: open
+status: closed
 priority: 1
-version: 1
+version: 2
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T06:01:48.071Z
-updated_at: 2026-09-04T06:01:48.071Z
+updated_at: 2026-09-04T06:34:47.717Z
+closed_at: 2026-09-04T06:34:47.716Z
+close_reason: "Fixed in 196226e. A mention must land on a unit of at least three words: drops all eight one-word acknowledgments on the 5.3-hour run, empties no concept, median span 6.9 -> 4.5 min, spans over 15% of the recording 6 -> 4. The four that remain are genuine recurrences, split out as a rendering bead."
+resolution: null
+duplicate_of: null
 ---
 Concept mentions include far-flung outliers that land on filler and stretch a concept's
 span across most of the recording. The topic timeline bar and the concept's [start-end]
