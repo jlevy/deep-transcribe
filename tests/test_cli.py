@@ -511,6 +511,52 @@ def test_segments_flag_survives_metadata_validation(tmp_path: Path) -> None:
     assert carried["segments"][0]["at"] == "0:00:00 - 0:01:49"
 
 
+def test_a_bad_hints_file_is_a_usage_error_not_a_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    A mistake in a file the user wrote is a usage error. Reached through the generic
+    runtime handler instead, an unknown purpose printed a full traceback into our own
+    parser before the readable line, which is not a message anyone reads.
+    """
+    from kash.config import setup
+
+    from deep_transcribe import transcribe_commands
+
+    hints = tmp_path / "segments.yml"
+    hints.write_text('segments:\n  - at: "0:00 - 0:20"\n    purpose: cold_open\n')
+
+    def unreachable(*_args: object, **_kwargs: object) -> tuple[Path, Path]:
+        raise AssertionError("the run must not start with an unreadable hints file")
+
+    def fake_kash_setup(**_kwargs: object) -> None:
+        pass
+
+    monkeypatch.setattr(transcribe_commands, "run_transcription", unreachable)
+    monkeypatch.setattr(setup, "kash_setup", fake_kash_setup)
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    errors = StringIO()
+    with redirect_stderr(errors), pytest.raises(SystemExit) as error:
+        main(
+            [
+                "--basic",
+                "--workspace",
+                str(tmp_path),
+                "--segments",
+                str(hints),
+                "https://example.com/video",
+            ]
+        )
+
+    assert error.value.code == 2
+    reported = errors.getvalue()
+    assert "cold_open" in reported
+    assert "teaser, intro, promo, outro, other" in reported
+    assert "Traceback" not in reported
+
+
 def test_metadata_still_rejects_a_genuinely_unknown_field() -> None:
     from deep_transcribe.transcription_metadata import transcription_metadata_from_mapping
 

@@ -196,7 +196,11 @@ segments:
     purpose: promo
 ```
 
-`purpose` is one of `teaser`, `intro`, `promo`, `outro`, or `other`.
+`purpose` is one of `teaser`, `intro`, `promo`, `outro`, or `other`, and any other word is
+an error naming the ones that work.
+It is a closed set rather than a free label because the purpose decides both whether the
+stretch is left out of the analysis and what the collapsed block is called, so a word
+quietly read as `other` would change the run without saying so.
 Times read as `H:MM:SS`, `MM:SS`, or plain seconds, and a span may also be written as
 separate `start` and `end`.
 Suppression follows the purpose — teaser, promo and outro are left out of the analysis,

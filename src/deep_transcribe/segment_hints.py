@@ -54,6 +54,13 @@ class SegmentPurpose(StrEnum):
     """Something to set aside that the vocabulary above does not name."""
 
 
+VALID_PURPOSES = ", ".join(p.value for p in SegmentPurpose)
+"""
+The vocabulary, written out for the header of every hints file and for the error a
+misspelled purpose raises. Built from the enum so neither can drift from it.
+"""
+
+
 SUPPRESSED_BY_DEFAULT = frozenset(
     {SegmentPurpose.teaser, SegmentPurpose.promo, SegmentPurpose.outro}
 )
@@ -176,6 +183,8 @@ def parse_hints(data: object) -> SegmentHints:
     A malformed entry is dropped with a warning rather than failing the run: the file is
     edited by hand between runs, and losing a five-hour analysis to one mistyped time
     would make people stop editing it.
+
+    An unrecognised `purpose` is the exception and stops the run — see `_read_purpose`.
     """
     if data is None:
         return SegmentHints()
@@ -193,18 +202,11 @@ def parse_hints(data: object) -> SegmentHints:
             log.warning("Skipping segment %d: not a mapping", index + 1)
             continue
         entry = cast(dict[str, Any], raw)
+        # Read outside the forgiving block below, so the error reaches the caller instead
+        # of being logged and the entry quietly dropped.
+        purpose = _read_purpose(entry, index)
         try:
             start, end = _read_span(entry)
-            purpose_text = str(entry.get("purpose") or SegmentPurpose.other).strip().lower()
-            try:
-                purpose = SegmentPurpose(purpose_text)
-            except ValueError:
-                log.warning(
-                    "Segment %d has unknown purpose %r, treating it as `other`",
-                    index + 1,
-                    purpose_text,
-                )
-                purpose = SegmentPurpose.other
             suppress = entry.get("suppress")
             hints.append(
                 SegmentHint(
@@ -218,6 +220,43 @@ def parse_hints(data: object) -> SegmentHints:
         except ValueError as error:
             log.warning("Skipping segment %d: %s", index + 1, error)
     return SegmentHints(hints)
+
+
+def _read_purpose(entry: dict[str, Any], index: int) -> SegmentPurpose:
+    """
+    Read `purpose`, refusing any word the vocabulary does not have.
+
+    An unknown purpose used to become `other`, which is the one kind of mistake in this
+    file that cannot be seen: each purpose carries a default `suppress` and a label, so
+    `purpose: cold_open` silently changed both what was excluded from the analysis and
+    what the collapsed block was called — and the file the tool wrote back said
+    `purpose: other`, with nothing to explain where the word went.
+
+    So this is fatal where a mistyped time is not. A bad time drops one entry and says
+    so; a bad purpose would keep the entry and change what it means.
+    """
+    raw = entry.get("purpose")
+    if raw is None or not str(raw).strip():
+        return SegmentPurpose.other
+    text = str(raw).strip().lower()
+    try:
+        return SegmentPurpose(text)
+    except ValueError as error:
+        raise ValueError(
+            f'Unknown segment purpose "{text}" for {_describe_entry(entry, index)}; '
+            f"valid purposes are: {VALID_PURPOSES}"
+        ) from error
+
+
+def _describe_entry(entry: dict[str, Any], index: int) -> str:
+    """Point at an entry the way its writer wrote it, so they can find the line."""
+    at = entry.get("at")
+    if at is not None:
+        return f'"{str(at).strip()}"'
+    start, end = entry.get("start"), entry.get("end")
+    if start is not None and end is not None:
+        return f'"{start} - {end}"'
+    return f"segment {index + 1}"
 
 
 def _read_span(entry: dict[str, Any]) -> tuple[float, float]:
@@ -242,14 +281,16 @@ def load_hints(path: Path) -> SegmentHints:
     return parse_hints(yaml.safe_load(path.read_text()))
 
 
-HINTS_HEADER = """\
+HINTS_HEADER = f"""\
 # Segment hints — edit and rerun.
 #
 # Each entry marks a stretch of the recording that is not the recording: a teaser cut
 # from the conversation, an ad read, an outro. Suppressed segments are left out of the
 # analysis and collapsed in the transcript rather than deleted.
 #
-# Times read as H:MM:SS. Purpose is one of: teaser, intro, promo, outro, other.
+# Times read as H:MM:SS. Purpose is one of: {VALID_PURPOSES}.
+# Any other word is an error rather than a guess, because the purpose decides both what
+# is left out of the analysis and what the collapsed block is called.
 # `suppress` is optional; teaser, promo and outro are suppressed by default, intro is not.
 #
 # Rerunning after an edit reuses the transcript and everything up to the section
@@ -336,13 +377,68 @@ def test_a_bad_entry_is_dropped_not_fatal() -> None:
                 {"at": "5:00 - 4:00", "purpose": "promo"},
                 {"purpose": "promo"},
                 "not even a mapping",
-                {"at": "9:00 - 9:30", "purpose": "invented", "note": "kept as other"},
+                {"at": "9:00 - 9:30", "note": "no purpose named"},
             ]
         }
     )
 
     assert len(hints.segments) == 2
+    # A missing purpose is the one that still falls back to `other`. An unrecognised one
+    # does not — see below.
     assert hints.segments[1].purpose is SegmentPurpose.other
+
+
+def test_an_unknown_purpose_says_so_instead_of_becoming_other() -> None:
+    """
+    The measured case: a hand-written `purpose: cold_open` was accepted, silently read as
+    `other`, and written back out as `purpose: other`. Because a purpose decides both
+    default suppression and the collapse label, that changed the run with no signal. The
+    error has to name the word, the entry it was in, and what would have worked.
+    """
+    import pytest
+
+    with pytest.raises(ValueError) as caught:
+        parse_hints({"segments": [{"at": "0:00 - 0:20", "purpose": "cold_open"}]})
+
+    message = str(caught.value)
+    assert "cold_open" in message, "the error must name the word the writer typed"
+    assert "0:00 - 0:20" in message, "the error must point at the entry it came from"
+    for purpose in SegmentPurpose:
+        assert purpose.value in message, f"the error must offer {purpose.value}"
+
+    # And an entry with no readable times still gets pointed at somehow.
+    with pytest.raises(ValueError, match="segment 1"):
+        parse_hints({"segments": [{"purpose": "cold_open"}]})
+
+
+def test_every_valid_purpose_still_parses() -> None:
+    # The list in the error is only useful if everything on it works.
+    for purpose in SegmentPurpose:
+        hints = parse_hints({"segments": [{"at": "0:00 - 0:20", "purpose": purpose.value}]})
+        assert hints.segments[0].purpose is purpose
+
+    # Matching stays case- and whitespace-tolerant: hints are typed by hand.
+    assert (
+        parse_hints({"segments": [{"at": "0:00 - 0:20", "purpose": "  PROMO "}]})
+        .segments[0]
+        .purpose
+        is SegmentPurpose.promo
+    )
+
+
+def test_an_unknown_purpose_in_a_real_file_stops_the_load(tmp_path: Path) -> None:
+    """
+    Through `load_hints`, which is what the CLI calls for `--segments`. The check lives
+    beside a block that logs and drops bad entries, so a version of this that only ever
+    ran against `parse_hints` in memory could pass while the file path swallowed it.
+    """
+    import pytest
+
+    path = tmp_path / "segments.yml"
+    path.write_text('segments:\n  - at: "0:00 - 0:20"\n    purpose: cold_open\n')
+
+    with pytest.raises(ValueError, match="cold_open"):
+        load_hints(path)
 
 
 def test_suppressed_at_finds_the_covering_segment() -> None:

@@ -801,6 +801,14 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             except ValueError as error:
                 parser.error(str(error))
 
+        # A hints or metadata file the user wrote is an argument, so a mistake in one is a
+        # usage error: reported as one line, before the generic handler below turns it into
+        # a traceback pointing at our own parser.
+        try:
+            metadata = build_transcription_metadata(args)
+        except ValueError as error:
+            parser.error(str(error))
+
         transcript_path, html_path = run_transcription(
             workspace,
             args.source,
@@ -808,7 +816,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             args.language,
             transcription_model=args.transcription_model,
             diarize_model=args.diarize_model,
-            metadata=build_transcription_metadata(args),
+            metadata=metadata,
             no_minify=args.no_minify,
             rerun=args.rerun,
             rerun_processing=args.rerun_processing,
