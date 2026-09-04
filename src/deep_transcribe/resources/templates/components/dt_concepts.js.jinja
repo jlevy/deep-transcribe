@@ -179,11 +179,6 @@
     for (const concept of concepts) {
       const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
       entry.dataset.concept = concept.id;
-      // Print form of the track dots: the mention times as bracketed stamps.
-      const times = el("div", "dt-track-times dt-print-only");
-      for (const mention of concept.mentions) {
-        times.appendChild(el("span", "dt-timestamp", model.formatTime(mention.t)));
-      }
       const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
       const detail = el("div", "dt-concept-gloss", concept.gloss);
@@ -214,7 +209,8 @@
         detail.appendChild(research);
       }
       // Reading order: centered chip, its timeline right below, then the gloss.
-      entry.append(term, buildConceptTrack(concept), times, detail);
+      // The track's dots carry the mention positions, in print as on screen.
+      entry.append(term, buildConceptTrack(concept), detail);
       list.appendChild(entry);
     }
     return list;
