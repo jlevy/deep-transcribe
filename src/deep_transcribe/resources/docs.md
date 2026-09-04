@@ -75,6 +75,9 @@ Two practical notes for long sources:
   Video is fetched at up to 1080p in H.264, which remuxes without re-encoding and keeps
   a multi-hour download to a couple of gigabytes rather than ten.
   Only the frame-capture stage needs video at all.
+  Free space on the workspace volume is checked before the download and again before
+  frame capture, and a run that would not fit stops with a message naming the volume and
+  the sizes rather than filling the disk partway through.
 - The request budget for speech-to-text scales with the length of the audio, so a long
   recording is not cut off by a timeout meant for short clips.
 

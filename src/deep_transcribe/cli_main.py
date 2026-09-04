@@ -865,11 +865,23 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
     except Exception as error:
         from kash.config.logger import get_log_settings
 
-        log.error("Error running deep transcription", exc_info=error)
+        from deep_transcribe.disk_space import InsufficientDiskSpace
+
+        # A preflight that stopped the run already knows the whole story, and a traceback
+        # into our own check tells the user nothing they can act on. Log it at info so the
+        # detail still reaches the log file — whose path is printed either way — while the
+        # console gets the one line. Anything unrecognized keeps the full report.
+        explained = str(error) if isinstance(error, InsufficientDiskSpace) else None
+        if explained is None:
+            log.error("Error running deep transcription", exc_info=error)
+        else:
+            log.info("Error running deep transcription", exc_info=error)
         log_file = get_log_settings().log_file_path
         if args.json:
             print(
-                json.dumps({"error": str(error), "log": str(log_file)}, sort_keys=True),
+                json.dumps(
+                    {"error": explained or str(error), "log": str(log_file)}, sort_keys=True
+                ),
                 file=sys.stderr,
             )
         else:
@@ -877,7 +889,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
             from rich import print as rprint
 
-            rprint(f"[red]Error: {error}[/red]")
+            rprint(f"[red]{explained or f'Error: {error}'}[/red]")
             rprint(f"[bright_black]See logs for more details: {fmt_path(log_file)}[/bright_black]")
         raise SystemExit(1) from error
 

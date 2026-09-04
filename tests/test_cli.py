@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -9,7 +10,7 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import pytest
 
@@ -680,3 +681,111 @@ def test_a_segments_file_path_is_still_read_as_a_path(tmp_path: Path) -> None:
     assert isinstance(carried, dict)
     assert carried["segments"][0]["purpose"] == "promo"
     assert _stored_transcription(item)["processing_instructions"] == "Keep it short."
+
+
+class _Recorder(logging.Handler):
+    """Every record the root logger sees, so what kash's handlers do with them is testable."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.NOTSET)
+        self.records: list[logging.LogRecord] = []
+
+    @override
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+def _console_text(records: list[logging.LogRecord]) -> str:
+    """
+    What the console would have shown, formatted the way a handler formats.
+
+    kash puts its console handler at warning level and its file handler at info, so records
+    below warning never reach the terminal. `Formatter.format` appends the traceback when a
+    record carries `exc_info`, which is exactly how a stack dump got in front of the user.
+    """
+    formatter = logging.Formatter("%(levelname)s %(message)s")
+    return "\n".join(formatter.format(r) for r in records if r.levelno >= logging.WARNING)
+
+
+def _drive_main_through_a_failed_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: BaseException,
+) -> tuple[int | None, str, list[logging.LogRecord]]:
+    """
+    Reach the top-level handler with a chosen failure and report everything it produced.
+
+    kash setup is faked so the run never touches the real workspace machinery. Logging is
+    watched with an own handler rather than `caplog` because importing kash replaces the
+    root handlers, pytest's capture among them — which is also why an assertion on
+    redirected stderr alone would prove nothing about the traceback.
+    """
+    from kash.config import setup
+
+    from deep_transcribe import transcribe_commands
+
+    def failing_run(*_args: object, **_kwargs: object) -> tuple[Path, Path]:
+        raise failure
+
+    def fake_kash_setup(**_kwargs: object) -> None:
+        pass
+
+    monkeypatch.setattr(transcribe_commands, "run_transcription", failing_run)
+    monkeypatch.setattr(setup, "kash_setup", fake_kash_setup)
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    recorder = _Recorder()
+    root = logging.getLogger()
+    root.addHandler(recorder)
+    previous_level = root.level
+    root.setLevel(logging.DEBUG)
+    out, err = StringIO(), StringIO()
+    try:
+        with redirect_stdout(out), redirect_stderr(err), pytest.raises(SystemExit) as exit_info:
+            main(["--basic", "--workspace", str(tmp_path), "https://example.com/video"])
+    finally:
+        root.removeHandler(recorder)
+        root.setLevel(previous_level)
+
+    code = exit_info.value.code
+    assert isinstance(code, int) or code is None
+    # Rich wraps to the console width, so compare on collapsed whitespace rather than on
+    # wherever the terminal happened to break the sentence.
+    reported = " ".join((out.getvalue() + err.getvalue()).split())
+    return code, reported, recorder.records
+
+
+def test_a_disk_space_stop_is_one_line_and_not_a_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The run this check exists for ended in a raw traceback followed by a friendly line.
+    A two-hour run that ends in a stack dump buries the one sentence that says what to do,
+    so the preflight's message has to arrive on its own.
+
+    Both halves matter. The console must carry the sentence and no traceback, and the
+    traceback must still be recorded for the log file the message points at — dropping it
+    would trade one lost diagnostic for another.
+    """
+    from deep_transcribe.disk_space import InsufficientDiskSpace
+
+    stop = InsufficientDiskSpace(
+        "Not enough free space on /Volumes/Backup to download this source: "
+        "about 4.2 GB needed for a 5h15m recording, 1.1 GB free. "
+        "Free space or use --workspace on another volume."
+    )
+
+    code, reported, records = _drive_main_through_a_failed_run(tmp_path, monkeypatch, stop)
+
+    assert code != 0
+    assert "Not enough free space on /Volumes/Backup to download this source:" in reported
+    assert "about 4.2 GB needed for a 5h15m recording, 1.1 GB free." in reported
+    assert "--workspace on another volume" in reported
+
+    console = _console_text(records)
+    assert "Traceback" not in console, f"the console still dumps a traceback:\n{console}"
+    assert any(r.exc_info for r in records), (
+        "the traceback was dropped entirely; it must still reach the log file"
+    )
+    assert "Error: Not enough" not in reported, f"double-labelled the message: {reported}"

@@ -17,6 +17,11 @@ from kash.exec.preconditions import (
 from kash.model import Item, Param
 from kash.model.params_model import common_params
 
+from deep_transcribe.disk_space import (
+    check_download_space,
+    check_frame_capture_space,
+    source_duration,
+)
 from deep_transcribe.transcribe_options import TranscribeOptions
 from deep_transcribe.transcription_metadata import (
     TranscriptionMetadata,
@@ -294,6 +299,13 @@ def _process_transcript(
         result = add_transcript_description(result)
 
     if options.insert_frame_captures:
+        from kash.workspaces import current_ws
+
+        # Frames land in the step's sidematter inside the workspace, and the stage will
+        # pull the video into the media cache if only the audio was kept. Both go on the
+        # workspace volume, and this stage runs after the expensive LLM ones — a run that
+        # dies here has already paid for everything above it.
+        check_frame_capture_space(current_ws().base_dir)
         result = insert_frame_captures(result)
         result = _thin_frame_captures(result)
 
@@ -505,6 +517,15 @@ def run_transcription(
 
         with get_unified_live().status("Processing…"):
             item = _prepare_source_item(url)
+
+            # Everything above this line is metadata: kash asks yt-dlp for the title and
+            # duration with `download=False`, so nothing large has been written yet and the
+            # source length is already known. The fetch below is what fills the disk, and
+            # this is the last moment a run can be stopped without having cost anything.
+            # Checked against `ws_root`, which holds the media cache as well as the
+            # workspace, rather than the boot volume.
+            check_download_space(ws_root, source_duration(item))
+
             # kash's fetch has already written this item to disk, counters included, so
             # stripping in memory is not enough — the stored metadata is what every action
             # hashes. Persist below when anything was removed.
