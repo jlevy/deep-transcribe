@@ -26,6 +26,15 @@
   /* Two radii only: small controls and larger surfaces. */
   --dt-radius: 0.25rem;
   --dt-radius-lg: 0.4rem;
+  /* The only text colors in the dt UI. Everything renders in one of these
+     three roles, or in an accent from --dt-c/--dt-cv (speakers) or
+     --dt-kind-c (concept kinds):
+       --dt-text          content: headings, values, glosses, axis numbers
+       --dt-text-support  supporting labels: table headers, research notes
+       --dt-text-faint    de-emphasized: timestamps in brackets */
+  --dt-text: var(--color-text);
+  --dt-text-support: var(--color-hint-strong);
+  --dt-text-faint: var(--color-tertiary);
 }
 
 [data-theme="dark"] {
@@ -99,6 +108,8 @@ strong.dt-speaker-label {
   font-weight: 600;
   font-size: 1.1rem;
   margin-bottom: 0.75rem;
+  /* Explicit: titles never inherit a context gray (e.g. inside .description). */
+  color: var(--dt-text);
 }
 
 /* The one way a timestamp renders: light gray, sans, a step smaller, and in
@@ -108,7 +119,7 @@ strong.dt-speaker-label {
   font-feature-settings: var(--font-features-sans);
   font-size: var(--font-size-tiny);
   font-weight: normal;
-  color: var(--color-tertiary);
+  color: var(--dt-text-faint);
   white-space: nowrap;
 }
 
@@ -157,7 +168,7 @@ strong.dt-speaker-label {
   font-size: var(--font-size-tiny);
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
-  fill: var(--color-text);
+  fill: var(--dt-text);
 }
 
 .dt-ov-section {
@@ -178,7 +189,7 @@ strong.dt-speaker-label {
   font-size: var(--font-size-tiny);
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
-  fill: var(--color-text);
+  fill: var(--dt-text);
   pointer-events: none;
 }
 
@@ -443,7 +454,7 @@ body.yt-open #dt-rail {
   text-align: left;
   font-size: var(--font-size-tiny);
   font-weight: var(--font-weight-sans-medium);
-  color: var(--color-hint-strong);
+  color: var(--dt-text-support);
   border-bottom: 1px solid var(--color-border-hint);
   padding: 0.25rem 0.9rem 0.25rem 0;
   white-space: nowrap;
@@ -465,7 +476,7 @@ body.yt-open #dt-rail {
 .dt-stats tr.dt-totals-row td {
   border-top: 1px solid var(--color-border-hint);
   font-weight: var(--font-weight-sans-medium);
-  color: var(--color-text);
+  color: var(--dt-text);
 }
 
 .dt-stats .dt-speaker-name {
@@ -488,42 +499,10 @@ body.yt-open #dt-rail {
 
 /* ---- Concept views ---- */
 
-.dt-ribbon,
 .dt-graph {
   display: block;
   width: 100%;
   margin: 0.5rem 0 1rem;
-}
-
-.dt-ribbon-row,
-.dt-graph-node {
-  cursor: pointer;
-}
-
-.dt-ribbon-label {
-  text-anchor: end;
-  font-size: 13px;
-  font-family: var(--font-sans);
-  fill: var(--color-text);
-}
-
-.dt-ribbon-track {
-  stroke: var(--color-hint-gentle);
-  stroke-width: 1;
-}
-
-.dt-ribbon-span {
-  fill: var(--color-primary);
-  opacity: 0.35;
-}
-
-.dt-ribbon-mention {
-  fill: var(--color-primary);
-  stroke: var(--color-bg-solid);
-  stroke-width: 1;
-}
-
-.dt-graph {
   position: relative;
 }
 
@@ -549,12 +528,8 @@ body.yt-open #dt-rail {
 /* Kind is encoded in one color, shared by the graph node border and the
    kind chip. */
 .dt-kind-topic { --dt-kind-c: var(--color-primary); }
-.dt-kind-entity { --dt-kind-c: var(--dt-sp-5); }
+.dt-kind-entity { --dt-kind-c: var(--dt-text-support); }
 .dt-kind-claim { --dt-kind-c: var(--dt-sp-1); }
-
-.dt-selected .dt-ribbon-span {
-  opacity: 1;
-}
 
 .dt-concept-chip.dt-selected {
   box-shadow: 0 0 0 1.5px var(--dt-kind-c, var(--color-primary));
@@ -565,16 +540,57 @@ body.yt-open #dt-rail {
 }
 
 .dt-concept-defs {
-  margin: 0.5rem 0 0;
+  margin: 0.75rem 0 0;
+}
+
+/* One list entry: mini timeline, chip row, gloss. The track spans the full
+   panel content width on the same 0-to-duration scale as the Timeline panel
+   above, so all the bars are comparable at a glance. */
+.dt-concept-entry {
+  margin-top: 0.9rem;
+}
+
+.dt-concept-track {
+  position: relative;
+  height: 10px;
+  margin-bottom: 0.25rem;
+}
+
+.dt-concept-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 2px;
+  background: var(--color-hint-gentle);
+}
+
+.dt-track-span {
+  position: absolute;
+  top: 2px;
+  height: 6px;
+  border-radius: var(--dt-radius);
+  background: var(--dt-kind-c, var(--color-primary));
+  opacity: 0.3;
+}
+
+.dt-track-dot {
+  position: absolute;
+  top: 1px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: var(--dt-kind-c, var(--color-primary));
+  border: 1px solid var(--color-bg-solid);
+  cursor: pointer;
 }
 
 .dt-concept-term {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
-  font-weight: var(--font-weight-sans-bold);
-  cursor: pointer;
-  margin-top: 0.5rem;
 }
 
 /* The one concept chip: kind tag | bar | value, outlined in the kind color.
@@ -585,7 +601,8 @@ body.yt-open #dt-rail {
   align-items: center;
   border: 1px solid var(--dt-kind-c, var(--color-hint-strong));
   border-radius: var(--dt-radius);
-  background: var(--color-bg-alt-solid);
+  /* A very pale tint of the kind color, theme-aware. */
+  background: color-mix(in srgb, var(--dt-kind-c, var(--color-hint-strong)) 7%, var(--color-bg-solid));
   cursor: pointer;
   font-family: var(--font-sans);
   font-feature-settings: var(--font-features-sans);
@@ -598,38 +615,38 @@ body.yt-open #dt-rail {
   text-transform: var(--caps-transform);
   font-variant-caps: var(--caps-caps-variant);
   letter-spacing: var(--caps-spacing);
+  line-height: 1;
   color: var(--dt-kind-c, var(--color-hint-strong));
   border-right: 1px solid var(--dt-kind-c, var(--color-hint-strong));
-  padding: 0.1rem 0.35rem;
+  padding: 0 0.3rem;
   align-self: stretch;
   display: flex;
   align-items: center;
 }
 
+/* Small caps have no descenders, so optical center sits a hair high. */
+.dt-concept-chip .dt-chip-kind > span,
+.dt-concept-chip .dt-chip-kind {
+  transform: translateY(-0.5px);
+}
+
 .dt-concept-chip .dt-chip-label {
   font-size: var(--font-size-smaller);
   font-weight: var(--font-weight-sans-medium);
-  color: var(--color-text);
-  padding: 0.1rem 0.45rem;
-}
-
-.dt-chip-compact .dt-chip-kind {
-  padding: 0 0.28rem;
-}
-
-.dt-chip-compact .dt-chip-label {
-  padding: 0 0.35rem;
+  line-height: 1.25;
+  color: var(--dt-text);
+  padding: 0.08rem 0.4rem;
 }
 
 .dt-concept-gloss {
   margin: 0.15rem 0 0.5rem;
-  color: var(--color-text);
+  color: var(--dt-text);
 }
 
 .dt-concept-research {
   margin-top: 0.2rem;
   font-size: var(--font-size-tiny);
-  color: var(--color-hint-strong);
+  color: var(--dt-text-support);
   border-left: 2px solid var(--color-border-hint);
   padding-left: 0.5rem;
 }

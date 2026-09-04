@@ -53,65 +53,63 @@
     document.dispatchEvent(new CustomEvent("dt:conceptselect", { detail: { id: selected } }));
   }
 
-  function buildRibbon(concepts, width) {
-    const { start, length } = timeSpan();
-    const rowHeight = 25;
-    const labelWidth = Math.min(220, width * 0.26);
-    const height = concepts.length * rowHeight + 18;
-    const svg = svgEl("svg", {
-      class: "dt-ribbon",
-      viewBox: `0 0 ${width} ${height}`,
-      role: "img",
-    });
-    svg.style.height = `${height}px`;
-    const x = (t) => labelWidth + ((t - start) / length) * (width - labelWidth - 8);
-
-    concepts.forEach((concept, row) => {
-      const y = row * rowHeight + 14;
-      const group = svgEl("g", { class: "dt-ribbon-row", "data-concept": concept.id });
-      group.appendChild(
-        svgEl("text", { class: "dt-ribbon-label", x: labelWidth - 8, y: y + 4 }, concept.label)
+  /* Tooltip for one mention: who is speaking there and what they say. */
+  function mentionTipContent(mention) {
+    const unit = model.index.units.find((u) => u.key === mention.key);
+    const content = el("div", "");
+    const head = el("div", "dt-tip-head");
+    if (unit && unit.speaker != null) {
+      head.appendChild(el("span", `dt-tip-dot ${model.speakerClass(unit.speaker)}`));
+      head.appendChild(
+        document.createTextNode(model.speakerById.get(unit.speaker)?.name || "")
       );
-      group.appendChild(
-        svgEl("line", { class: "dt-ribbon-track", x1: labelWidth, x2: width - 8, y1: y, y2: y })
-      );
-      group.appendChild(
-        svgEl("rect", {
-          class: "dt-ribbon-span",
-          x: x(concept.span[0]),
-          y: y - 4,
-          width: Math.max(3, x(concept.span[1]) - x(concept.span[0])),
-          height: 8,
-          rx: 4,
-        })
-      );
-      for (const mention of concept.mentions) {
-        const dot = svgEl("circle", {
-          class: "dt-ribbon-mention",
-          cx: x(mention.t), cy: y, r: 3.4,
-        });
-        dot.addEventListener("click", (event) => {
-          event.stopPropagation();
-          model.seek(mention.t);
-        });
-        const mentionTime = model.formatTime(mention.t);
-        model.tooltip.attach(dot, () => `${concept.label} · ${mentionTime}`);
-        group.appendChild(dot);
+    }
+    const time = el("span", "dt-tip-time", model.formatTime(mention.t));
+    head.appendChild(time);
+    content.appendChild(head);
+    if (unit) {
+      const text = el("div", "dt-tip-text");
+      if (unit.speaker != null) {
+        const label = el(
+          "strong",
+          `dt-speaker-label ${model.speakerClass(unit.speaker)}`,
+          `${model.speakerById.get(unit.speaker)?.name || ""}: `
+        );
+        text.appendChild(label);
       }
-      group.addEventListener("click", () => select(concept.id));
-      svg.appendChild(group);
-    });
-    return svg;
+      text.appendChild(document.createTextNode(unit.excerpt));
+      content.appendChild(text);
+    }
+    return content;
+  }
+
+  /* Full-width mini timeline for one concept: track, kind-colored span, and
+     mention dots that show the transcript at that moment on hover. */
+  function buildConceptTrack(concept) {
+    const track = el("div", "dt-concept-track");
+    const duration = Math.max(1, model.duration);
+    const span = el("span", "dt-track-span");
+    span.style.left = `${(concept.span[0] / duration) * 100}%`;
+    span.style.width = `${Math.max(0.5, ((concept.span[1] - concept.span[0]) / duration) * 100)}%`;
+    track.appendChild(span);
+    for (const mention of concept.mentions) {
+      const dot = el("span", "dt-track-dot");
+      dot.style.left = `${(mention.t / duration) * 100}%`;
+      model.tooltip.attach(dot, () => mentionTipContent(mention));
+      dot.addEventListener("click", (event) => {
+        event.stopPropagation();
+        model.playAt(mention.t);
+      });
+      track.appendChild(dot);
+    }
+    return track;
   }
 
   /* The one concept chip: kind tag, dividing bar, medium-weight value, all
      outlined in the kind's color. Used identically in the definition list,
      the Claims panel, and the graph (compact spacing there). */
-  function makeConceptChip(concept, compact) {
-    const chip = el(
-      "span",
-      `dt-concept-chip dt-kind-${concept.kind}${compact ? " dt-chip-compact" : ""}`
-    );
+  function makeConceptChip(concept) {
+    const chip = el("span", `dt-concept-chip dt-kind-${concept.kind}`);
     chip.dataset.concept = concept.id;
     chip.appendChild(el("span", "dt-chip-kind", concept.kind));
     chip.appendChild(el("span", "dt-chip-label", concept.label));
@@ -131,7 +129,7 @@
     const edges = svgEl("svg", { class: "dt-graph-edges" });
     wrap.appendChild(edges);
     const nodes = concepts.map((concept) => {
-      const chip = makeConceptChip(concept, true);
+      const chip = makeConceptChip(concept);
       chip.classList.add("dt-graph-chip");
       model.tooltip.attach(chip, () => `${concept.label} — ${concept.gloss}`);
       wrap.appendChild(chip);
@@ -194,12 +192,15 @@
   }
 
   function buildDefinitions(concepts) {
-    const list = el("dl", "dt-concept-defs");
+    const list = el("div", "dt-concept-defs");
     for (const concept of concepts) {
-      const term = el("dt", "dt-concept-term");
+      const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
+      entry.dataset.concept = concept.id;
+      entry.appendChild(buildConceptTrack(concept));
+      const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
       term.appendChild(el("span", "dt-timestamp", model.formatTime(concept.span[0])));
-      const detail = el("dd", "dt-concept-gloss", concept.gloss);
+      const detail = el("div", "dt-concept-gloss", concept.gloss);
       if (concept.research && concept.research.summary) {
         const research = el("div", "dt-concept-research", concept.research.summary);
         for (const source of concept.research.sources || []) {
@@ -212,7 +213,8 @@
         }
         detail.appendChild(research);
       }
-      list.append(term, detail);
+      entry.append(term, detail);
+      list.appendChild(entry);
     }
     return list;
   }
@@ -268,7 +270,7 @@
       chartWidth = width;
       charts.textContent = "";
       const graph = buildGraph(concepts, width);
-      charts.append(buildRibbon(concepts, width), graph.wrap);
+      charts.appendChild(graph.wrap);
       layoutGraph(graph);
       applySelection();
     };
