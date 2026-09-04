@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Sequence
 from textwrap import dedent
 from typing import Any, cast
 
@@ -14,6 +15,7 @@ from kash.utils.errors import ApiResultError, InvalidInput
 
 from deep_transcribe.transcript_index import (
     CONCEPT_RELATION_TYPES,
+    RawUnit,
     normalize_concept_kind,
     scan_raw_units,
 )
@@ -23,8 +25,25 @@ log = logging.getLogger(__name__)
 CONCEPTS_KEY = "concepts"
 """Key under `extra.transcription` where extracted concepts are stored."""
 
-MAX_CONCEPTS = 24
-"""Upper bound on extracted concepts, so the ribbon and graph stay legible."""
+MAX_CONCEPTS_PER_CHUNK = 12
+"""
+Concept budget for one chunk, not for one recording.
+
+A single budget applied to the whole document gives a long recording a thinner analysis
+than a short one: 24 concepts is a good map of a four-minute sketch and 4.6 concepts an
+hour on a five-hour interview. Budgeting per chunk keeps the density roughly constant,
+so a 22-minute talk is one chunk and unchanged while five hours yields on the order of
+sixty.
+"""
+
+CHUNK_TARGET_SECONDS = 1800.0
+"""
+Target audio duration per extraction call, before snapping to section boundaries.
+
+Time sets the budget so the number of calls is proportional to length — about 11 for a
+five-hour episode, 24 for twelve hours — while sections set the actual cut, so no chunk
+begins or ends mid-topic.
+"""
 
 EXTRACTION_PROMPT = dedent("""
     You are given a transcript as numbered turns, each with a citation key (its start
@@ -55,7 +74,8 @@ EXTRACTION_PROMPT = dedent("""
     - Relations are optional and must use only the listed types and other concept ids.
     - Capture the most consequential claims and decisions speakers make as kind
       "claim", wording each gloss as what is asserted or decided and by whom.
-    - Use each id once.
+    - Use each id once, and write every label in sentence case, so labels read the
+      same whichever part of the recording they came from.
     {research_rules}
     Transcript turns:
 
@@ -73,13 +93,41 @@ RESEARCH_RULES = dedent("""
     """).strip()
 
 
-def _format_turns(body: str) -> str:
+def _format_turns(units: Sequence[RawUnit]) -> str:
     lines: list[str] = []
-    for unit in scan_raw_units(body):
+    for unit in units:
         speaker = f"{unit.label}: " if unit.label else ""
         text = " ".join(unit.text.split())
         lines.append(f"[key={unit.key}] {speaker}{text}")
     return "\n".join(lines)
+
+
+def plan_chunks(
+    units: Sequence[RawUnit], target_seconds: float = CHUNK_TARGET_SECONDS
+) -> list[list[RawUnit]]:
+    """
+    Group units into extraction chunks of about `target_seconds`, cut at section seams.
+
+    A chunk closes once it has covered the target duration and the next unit starts a new
+    section, so boundaries land where the sectioning pass already found a topic change.
+    A section longer than the target becomes a chunk on its own rather than being split,
+    since splitting a topic is what this exists to avoid. Anything shorter than the
+    target is a single chunk, which is the previous whole-document behavior.
+    """
+    if not units:
+        return []
+    chunks: list[list[RawUnit]] = []
+    current: list[RawUnit] = []
+    for unit in units:
+        starts_section = bool(current) and unit.section != current[-1].section
+        covered = bool(current) and unit.start - current[0].start >= target_seconds
+        if starts_section and covered:
+            chunks.append(current)
+            current = []
+        current.append(unit)
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def _parse_concepts(response: str) -> list[dict[str, Any]]:
@@ -99,7 +147,7 @@ def _parse_concepts(response: str) -> list[dict[str, Any]]:
 
     concepts: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    for raw in raw_list[:MAX_CONCEPTS]:
+    for raw in raw_list[:MAX_CONCEPTS_PER_CHUNK]:
         if not isinstance(raw, dict):
             continue
         concept = cast(dict[str, Any], raw)
@@ -136,6 +184,111 @@ def _parse_concepts(response: str) -> list[dict[str, Any]]:
     return concepts
 
 
+def _extract_chunk(
+    units: Sequence[RawUnit], model: LLMName, web_search: bool
+) -> list[dict[str, Any]]:
+    from kash.llm_utils.llm_completion import llm_template_completion
+
+    prompt = EXTRACTION_PROMPT.format(
+        max_concepts=MAX_CONCEPTS_PER_CHUNK,
+        research_field=RESEARCH_FIELD if web_search else "",
+        research_rules=RESEARCH_RULES + "\n" if web_search else "",
+        search_clause=" and web results you corroborate" if web_search else "",
+        turns=_format_turns(units),
+    )
+    escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
+    response = llm_template_completion(
+        model=model,
+        system_message=Message(
+            "You map the concepts of a transcript conservatively, asserting only what "
+            "the transcript supports."
+        ),
+        input="Extract the concept map for the supplied transcript.",
+        body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
+        enable_web_search=web_search,
+    ).content
+    return _parse_concepts(response)
+
+
+def extract_chunks(
+    chunks: Sequence[Sequence[RawUnit]], model: LLMName, web_search: bool
+) -> list[list[dict[str, Any]]]:
+    """
+    Extract concepts from each chunk, tolerating a chunk that comes back unusable.
+
+    Chunking multiplies the calls, so it multiplies the chance one of them returns
+    something unparsable — on the first long-form run, one response in ten did. Losing
+    half an hour of the map is much better than losing all of it, so a failed chunk is
+    logged and skipped. Only a total failure is an error.
+    """
+    results: list[list[dict[str, Any]]] = []
+    failed = 0
+    for position, chunk in enumerate(chunks):
+        try:
+            results.append(_extract_chunk(chunk, model, web_search))
+        except ApiResultError as error:
+            failed += 1
+            log.warning(
+                "Concept extraction failed for chunk %d/%d at %.0f min, continuing: %s",
+                position + 1,
+                len(chunks),
+                chunk[0].start / 60,
+                error,
+            )
+    if chunks and failed == len(chunks):
+        raise ApiResultError(f"Concept extraction failed for all {failed} chunk(s)")
+    return results
+
+
+def _identity(concept: dict[str, Any]) -> str:
+    """Match on the id, falling back to the label, so the same idea merges across chunks."""
+    key = str(concept.get("id") or "").strip().lower()
+    if key:
+        return key
+    return " ".join(str(concept.get("label") or "").split()).lower()
+
+
+def merge_concepts(per_chunk: Sequence[Sequence[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """
+    Fold per-chunk concepts into one map, in timeline order.
+
+    A long conversation returns to the same idea in several chunks, so a merged concept
+    takes the union of its mentions and relations and the first non-empty gloss. The
+    first chunk to name a concept fixes its label and kind, which makes the result
+    independent of anything but chunk order.
+
+    Relations are left as they are: a chunk can name a target it never saw, and that
+    target may well exist in another chunk. The index resolves relations once over the
+    merged set, which is why validation belongs after the merge and not before it.
+    """
+    merged: dict[str, dict[str, Any]] = {}
+    for chunk in per_chunk:
+        for concept in chunk:
+            key = _identity(concept)
+            if not key:
+                continue
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = {**concept, "mentions": list(concept.get("mentions") or [])}
+                continue
+            seen = set(existing["mentions"])
+            for mention in concept.get("mentions") or []:
+                if mention not in seen:
+                    seen.add(mention)
+                    existing["mentions"].append(mention)
+            relations = cast(list[dict[str, Any]], existing.get("relations") or [])
+            known = {(r.get("to"), r.get("type")) for r in relations}
+            for relation in cast(list[dict[str, Any]], concept.get("relations") or []):
+                if (relation.get("to"), relation.get("type")) not in known:
+                    relations.append(relation)
+            existing["relations"] = relations
+            if not existing.get("gloss"):
+                existing["gloss"] = concept.get("gloss") or ""
+            if not existing.get("research"):
+                existing["research"] = concept.get("research")
+    return list(merged.values())
+
+
 WEB_SEARCH_PARAM = Param(
     name="web_search",
     description="Allow concept research notes corroborated by web search.",
@@ -160,34 +313,20 @@ def extract_transcript_concepts(
     validates every mention and derives spans and speakers, so nothing here can
     assert timing the transcript does not support.
     """
-    from kash.llm_utils.llm_completion import llm_template_completion
-
     if not item.body:
         raise InvalidInput(f"Item must have a body: {item}")
-    turns = _format_turns(item.body)
-    if not turns:
+    units = scan_raw_units(item.body)
+    if not units:
         log.warning("No citation-anchored turns found; skipping concept extraction")
         return item.derived_copy(type=ItemType.doc)
 
-    prompt = EXTRACTION_PROMPT.format(
-        max_concepts=MAX_CONCEPTS,
-        research_field=RESEARCH_FIELD if web_search else "",
-        research_rules=RESEARCH_RULES + "\n" if web_search else "",
-        search_clause=" and web results you corroborate" if web_search else "",
-        turns=turns,
+    chunks = plan_chunks(units)
+    log.info(
+        "Extracting concepts from %d chunk(s) covering %.0f min",
+        len(chunks),
+        (units[-1].start - units[0].start) / 60,
     )
-    escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
-    response = llm_template_completion(
-        model=model,
-        system_message=Message(
-            "You map the concepts of a transcript conservatively, asserting only what "
-            "the transcript supports."
-        ),
-        input="Extract the concept map for the supplied transcript.",
-        body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
-        enable_web_search=web_search,
-    ).content
-    concepts = _parse_concepts(response)
+    concepts = merge_concepts(extract_chunks(chunks, model, web_search))
     if not concepts:
         return item.derived_copy(type=ItemType.doc)
 
@@ -243,9 +382,111 @@ def test_format_turns_uses_citation_keys() -> None:
         '<a href="https://example.com?t=1s">00:01</a></span>\n'
     )
 
-    turns = _format_turns(body)
+    turns = _format_turns(scan_raw_units(body))
 
     assert turns == "[key=1.00] Alice: Hello there."
+
+
+def _unit(start: float, section: int) -> RawUnit:
+    return RawUnit(key=f"{start:.2f}", start=start, label="A", text="x", section=section)
+
+
+def test_plan_chunks_cuts_at_section_seams_after_the_target() -> None:
+    # Four sections of 20 minutes each, one unit per five minutes.
+    units = [_unit(i * 300.0, i // 4) for i in range(16)]
+
+    chunks = plan_chunks(units, target_seconds=1800.0)
+
+    # A chunk closes only once it has covered 30 min AND a new section starts, so the
+    # cuts land at 40 min and 80 min rather than mid-section at 30 min.
+    assert [[u.start for u in c][0] for c in chunks] == [0.0, 2400.0]
+    assert [len(c) for c in chunks] == [8, 8]
+    # Every cut falls where the section changes.
+    assert all(a[-1].section != b[0].section for a, b in zip(chunks, chunks[1:], strict=False))
+
+
+def test_plan_chunks_keeps_short_media_whole() -> None:
+    units = [_unit(i * 60.0, i // 5) for i in range(20)]  # 20 min over 4 sections
+
+    assert len(plan_chunks(units, target_seconds=1800.0)) == 1
+    assert plan_chunks([]) == []
+
+
+def test_plan_chunks_does_not_split_an_over_long_section() -> None:
+    units = [_unit(i * 300.0, 0) for i in range(20)]  # one 100-minute section
+
+    chunks = plan_chunks(units, target_seconds=1800.0)
+
+    assert len(chunks) == 1
+
+
+def test_one_failed_chunk_does_not_lose_the_others() -> None:
+    from unittest.mock import patch
+
+    import pytest
+
+    chunks = [[_unit(i * 1800.0, i)] for i in range(4)]
+    calls: list[int] = []
+
+    def flaky(_units: object, _model: object, _search: object) -> list[dict[str, Any]]:
+        calls.append(len(calls))
+        if len(calls) == 2:
+            raise ApiResultError("unparsable")
+        return [{"id": f"c{len(calls)}", "label": "L", "kind": "topic", "mentions": []}]
+
+    with patch("deep_transcribe.concept_map._extract_chunk", side_effect=flaky):
+        results = extract_chunks(chunks, LLM.default_structured, False)
+
+    assert len(calls) == 4  # the failure did not stop the run
+    assert len(results) == 3
+
+    def always_fails(_units: object, _model: object, _search: object) -> list[dict[str, Any]]:
+        raise ApiResultError("unparsable")
+
+    with (
+        patch("deep_transcribe.concept_map._extract_chunk", side_effect=always_fails),
+        pytest.raises(ApiResultError, match="all 4"),
+    ):
+        extract_chunks(chunks, LLM.default_structured, False)
+
+
+def test_merge_concepts_unions_mentions_and_keeps_first_label() -> None:
+    first: list[dict[str, Any]] = [
+        {
+            "id": "agents",
+            "label": "Agents",
+            "kind": "topic",
+            "gloss": "",
+            "mentions": ["1.00", "2.00"],
+            "relations": [{"to": "linux", "type": "leads-to"}],
+            "research": None,
+        }
+    ]
+    second: list[dict[str, Any]] = [
+        {
+            "id": "agents",
+            "label": "Coding agents",
+            "kind": "claim",
+            "gloss": "Later gloss.",
+            "mentions": ["2.00", "9000.00"],
+            "relations": [
+                {"to": "linux", "type": "leads-to"},
+                {"to": "rust", "type": "example-of"},
+            ],
+            "research": None,
+        },
+        {"id": "rust", "label": "Rust", "kind": "entity", "gloss": "", "mentions": ["8000.00"]},
+    ]
+
+    merged = merge_concepts([first, second])
+
+    assert [c["id"] for c in merged] == ["agents", "rust"]
+    agents = merged[0]
+    assert agents["label"] == "Agents"  # the first chunk to name it fixes the label
+    assert agents["kind"] == "topic"
+    assert agents["mentions"] == ["1.00", "2.00", "9000.00"]
+    assert agents["gloss"] == "Later gloss."  # first non-empty wins
+    assert len(cast(list[Any], agents["relations"])) == 2
 
 
 def test_concepts_roundtrip_through_index() -> None:

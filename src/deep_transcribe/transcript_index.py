@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import json
 import re
 from dataclasses import dataclass, field
@@ -204,6 +205,8 @@ class RawUnit:
     start: float
     label: str | None
     text: str
+    section: int
+    """Index of the `##` heading this unit falls under; -1 before the first heading."""
 
 
 def scan_raw_units(body: str) -> list[RawUnit]:
@@ -211,6 +214,7 @@ def scan_raw_units(body: str) -> list[RawUnit]:
     citations = list(_CITATION_PATTERN.finditer(body))
     headings = list(_H2_PATTERN.finditer(body))
     frames = list(_FRAME_PATTERN.finditer(body))
+    heading_starts = [h.start() for h in headings]
     raw_units: list[RawUnit] = []
     for i, citation in enumerate(citations):
         # A unit's text runs from the nearest structural boundary to its citation.
@@ -231,7 +235,11 @@ def scan_raw_units(body: str) -> list[RawUnit]:
             text = text[label_match.end() :].strip()
         raw_units.append(
             RawUnit(
-                key=citation.group("ts"), start=float(citation.group("ts")), label=label, text=text
+                key=citation.group("ts"),
+                start=float(citation.group("ts")),
+                label=label,
+                text=text,
+                section=bisect.bisect_right(heading_starts, citation.start()) - 1,
             )
         )
     return raw_units
