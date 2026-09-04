@@ -11,6 +11,7 @@ from kash.model import Format, Item, ItemType, LLMOptions, common_params
 from kash.utils.errors import ApiResultError
 
 from deep_transcribe.chunking import split_body
+from deep_transcribe.segment_hints import SegmentHints, parse_hints
 from deep_transcribe.transcription_metadata import (
     get_processing_instructions,
     source_prompt_context,
@@ -272,6 +273,20 @@ def _complete(model: LLMName, options: LLMOptions, prepared: Item) -> str:
     return strip_markdown_fence(result).strip()
 
 
+def _hints_for(item: Item) -> SegmentHints | None:
+    """
+    Read the segment hints an item carries, for the stages that must not read a teaser.
+
+    Every analysis stage needs this and none of them had it: suppression was implemented
+    in `drop_suppressed`, unit-tested through `split_body(hints=...)`, and then never
+    wired, so the outline and synopsis chunked the teaser in with everything else while
+    five different places in the docs said they did not.
+    """
+    from deep_transcribe.transcription_metadata import get_segment_hints
+
+    return parse_hints(get_segment_hints(item))
+
+
 @kash_action(
     precondition=has_simple_text_body,
     output_type=ItemType.doc,
@@ -289,7 +304,7 @@ def add_transcript_outline(item: Item, model: LLMName = LLM.default_standard) ->
     one call, exactly as before.
     """
     assert item.body
-    chunks = split_body(item.body)
+    chunks = split_body(item.body, hints=_hints_for(item))
     parts: list[str] = []
     for position, chunk in enumerate(chunks):
         prepared = prepare_transcript_for_model(item, chunk)
@@ -334,7 +349,7 @@ def add_transcript_description(item: Item, model: LLMName = LLM.default_standard
     is unchanged.
     """
     assert item.body
-    chunks = split_body(item.body)
+    chunks = split_body(item.body, hints=_hints_for(item))
     if len(chunks) <= 1:
         description_item = llm_transform_item(
             prepare_transcript_for_model(item),

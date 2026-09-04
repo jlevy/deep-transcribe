@@ -181,3 +181,87 @@ def test_short_media_still_takes_the_single_call_path(tmp_path: Path) -> None:
 
     assert len(calls) == 1
     assert described.body and "A synopsis." in described.body
+
+
+def _hinted_item(body: str, span: str) -> Item:
+    """An item carrying segment hints the way the CLI stores them."""
+    return Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        body=body,
+        extra={"transcription": {"segments": {"segments": [{"at": span, "purpose": "teaser"}]}}},
+    )
+
+
+def test_outline_never_sends_a_suppressed_teaser_to_the_model(tmp_path: Path) -> None:
+    """
+    Drives the ACTION, not `drop_suppressed`. The exclusion was implemented and unit-tested
+    through `split_body(hints=...)` — an argument no production caller passed — so the
+    tests passed for a year of commits while the outline chunked the teaser in with
+    everything else and five places in the docs said it did not.
+    """
+    body = _long_body(9, 10)  # sections at 0, 10, 20 ... 80 minutes
+    item = _hinted_item(body, "0:00:00 - 0:15:00")  # sections 0 and 1
+    sent: list[str] = []
+
+    def fake_complete(_model: object, _options: object, prepared: Item) -> str:
+        assert prepared.body
+        sent.append(prepared.body)
+        return "- **A chunk**\n  - A point"
+
+    with (
+        _runtime(tmp_path),
+        patch("deep_transcribe.transcript_overview._complete", fake_complete),
+    ):
+        add_transcript_outline(item)
+
+    everything_sent = "\n".join(sent)
+    assert "Point 0." not in everything_sent, "the suppressed teaser reached the model"
+    assert "Point 1." not in everything_sent, "the suppressed teaser reached the model"
+    # The rest of the recording is still analyzed.
+    assert "Point 2." in everything_sent
+    assert "Point 8." in everything_sent
+
+
+def test_synopsis_never_sends_a_suppressed_teaser_to_the_model(tmp_path: Path) -> None:
+    body = _long_body(9, 10)
+    item = _hinted_item(body, "0:00:00 - 0:15:00")
+    sent: list[str] = []
+
+    def fake_complete(_model: object, _options: object, prepared: Item) -> str:
+        assert prepared.body
+        sent.append(prepared.body)
+        return "A summary."
+
+    with (
+        _runtime(tmp_path),
+        patch("deep_transcribe.transcript_overview._complete", fake_complete),
+    ):
+        add_transcript_description(item)
+
+    everything_sent = "\n".join(sent)
+    assert "Point 0." not in everything_sent
+    assert "Point 1." not in everything_sent
+    assert "Point 2." in everything_sent
+
+
+def test_an_item_with_no_hints_still_sees_everything(tmp_path: Path) -> None:
+    """The exclusion must be opt-in; without hints nothing is dropped."""
+    body = _long_body(9, 10)
+    item = Item(type=ItemType.doc, format=Format.md_html, body=body)
+    sent: list[str] = []
+
+    def fake_complete(_model: object, _options: object, prepared: Item) -> str:
+        assert prepared.body
+        sent.append(prepared.body)
+        return "- **A chunk**\n  - A point"
+
+    with (
+        _runtime(tmp_path),
+        patch("deep_transcribe.transcript_overview._complete", fake_complete),
+    ):
+        add_transcript_outline(item)
+
+    everything_sent = "\n".join(sent)
+    for i in range(9):
+        assert f"Point {i}." in everything_sent

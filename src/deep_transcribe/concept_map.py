@@ -13,7 +13,8 @@ from kash.llm_utils.fuzzy_parsing import fuzzy_parse_json
 from kash.model import Item, ItemType, Param, common_params
 from kash.utils.errors import ApiResultError, InvalidInput
 
-from deep_transcribe.chunking import plan_chunks
+from deep_transcribe.chunking import drop_suppressed, plan_chunks
+from deep_transcribe.segment_hints import parse_hints
 from deep_transcribe.transcript_index import (
     CONCEPT_RELATION_TYPES,
     RawUnit,
@@ -691,6 +692,12 @@ def extract_transcript_concepts(
     if not item.body:
         raise InvalidInput(f"Item must have a body: {item}")
     units = scan_raw_units(item.body)
+    # A teaser is the same words as the conversation it advertises, so leaving it in
+    # doubles the weight of whatever it previews. This is the exclusion the CLI help and
+    # the docs promise; it was implemented in `drop_suppressed` and never called.
+    from deep_transcribe.transcription_metadata import get_segment_hints
+
+    units = drop_suppressed(units, parse_hints(get_segment_hints(item)))
     if not units:
         log.warning("No citation-anchored turns found; skipping concept extraction")
         return item.derived_copy(type=ItemType.doc)
@@ -1107,3 +1114,51 @@ def test_concepts_roundtrip_through_index() -> None:
     assert only["span"] == [1.0, 5.0]
     assert only["speakers"] == ["s0"]
     assert only["relations"] == []  # relation target doesn't exist
+
+
+def test_the_extractor_never_sees_a_suppressed_teaser(tmp_path: object) -> None:
+    """
+    Drives the ACTION. `drop_suppressed` was written, unit-tested, documented in five
+    places as excluding teasers from the concept map, and never called from here: this
+    function planned its chunks straight off `scan_raw_units(item.body)`.
+    """
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from kash.exec import kash_runtime
+    from kash.model import Format
+
+    body = "".join(
+        f"## Section {i}\n\n**Alice:** Point {i}.\n"
+        '<span class="citation timestamp-link" data-src="r.yml" '
+        f'data-timestamp="{i * 600}.00"><a href="https://x">t</a></span>\n\n'
+        for i in range(9)
+    )
+    item = Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        body=body,
+        extra={
+            "transcription": {
+                "segments": {"segments": [{"at": "0:00:00 - 0:15:00", "purpose": "teaser"}]}
+            }
+        },
+    )
+
+    seen: list[str] = []
+
+    def fake_extract(chunk: Sequence[RawUnit], _model: object, _web: bool) -> list[dict[str, Any]]:
+        seen.extend(unit.key for unit in chunk)
+        return []
+
+    assert isinstance(tmp_path, Path)
+    with (
+        kash_runtime(tmp_path / "workspace"),
+        patch("deep_transcribe.concept_map._extract_chunk", fake_extract),
+    ):
+        extract_transcript_concepts(item)
+
+    # Sections 0 and 1 are inside the hint; their citation keys must never reach a chunk.
+    assert "0.00" not in seen, "the suppressed teaser reached the extractor"
+    assert "600.00" not in seen, "the suppressed teaser reached the extractor"
+    assert "1200.00" in seen  # and the rest still is analyzed
