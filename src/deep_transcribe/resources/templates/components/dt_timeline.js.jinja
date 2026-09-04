@@ -1,0 +1,269 @@
+/* Deep Transcribe timeline overview: a full-width, time-true map of the whole
+   media at the top of the page — time axis, named section blocks, speaker
+   band, and frame markers — with click-to-seek and a reading marker synced to
+   scroll. Rendered at 1:1 pixels (no viewBox scaling) so its type sits on the
+   design system's own sizes. Also cross-references outline entries to their
+   sections. */
+(function () {
+  "use strict";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const HEIGHT = 128;
+  const AXIS_Y = 16;
+  const SECTION_Y = 24;
+  const SECTION_H = 46;
+  const BAND_Y = 78;
+  const BAND_H = 24;
+  const FRAME_Y = 116;
+  const CHAR_WIDTH = 5.8;
+
+  let model = null;
+  let panel = null;
+  let svg = null;
+  let markerEl = null;
+  let width = 0;
+  let forcedWidth = 0;
+
+  function svgEl(name, attrs, text) {
+    const el = document.createElementNS(SVG_NS, name);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function x(t) {
+    return model.duration > 0 ? (t / model.duration) * width : 0;
+  }
+
+  function axisStep() {
+    for (const step of [10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600]) {
+      if (model.duration / step <= 8) return step;
+    }
+    return 7200;
+  }
+
+  function buildAxis() {
+    const group = svgEl("g", {});
+    group.appendChild(
+      svgEl("line", { class: "dt-ov-axis", x1: 0, x2: width, y1: AXIS_Y, y2: AXIS_Y })
+    );
+    const step = axisStep();
+    for (let t = 0; t <= model.duration; t += step) {
+      group.appendChild(
+        svgEl("line", { class: "dt-ov-axis-tick", x1: x(t), x2: x(t), y1: AXIS_Y - 4, y2: AXIS_Y + 4 })
+      );
+      group.appendChild(
+        svgEl("text", { class: "dt-ov-axis-label", x: x(t) + 3, y: AXIS_Y - 5 }, model.formatTime(t))
+      );
+    }
+    return group;
+  }
+
+  function buildSections() {
+    const group = svgEl("g", {});
+    for (const section of model.index.sections) {
+      const x0 = x(section.start);
+      const w = Math.max(2, x(section.end) - x0);
+      const block = svgEl("rect", {
+        class: "dt-ov-section",
+        x: x0, y: SECTION_Y, width: w, height: SECTION_H, rx: 4,
+        "data-section": section.id,
+      });
+      model.tooltip.attach(block, () =>
+        model.tipContent({
+          name: section.heading,
+          time: `${model.formatTime(section.start)}–${model.formatTime(section.end)}`,
+        })
+      );
+      block.addEventListener("click", () => model.playAt(section.start));
+      group.appendChild(block);
+      const maxChars = Math.floor((w - 8) / CHAR_WIDTH);
+      if (maxChars >= 4) {
+        group.appendChild(sectionLabel(section.heading, x0 + 5, maxChars));
+      }
+    }
+    return group;
+  }
+
+  /* Section names wrap to two lines rather than truncating early. One line
+     centers in the block; two lines split at the word boundary that best
+     balances them, and an ellipsis appears only if even two will not fit. */
+  function wrapLabel(heading, maxChars) {
+    if (heading.length <= maxChars) return [heading];
+    const words = heading.split(" ");
+    let best = null;
+    for (let i = 1; i < words.length; i += 1) {
+      const first = words.slice(0, i).join(" ");
+      const second = words.slice(i).join(" ");
+      if (first.length > maxChars) break;
+      const cost = Math.max(first.length, second.length);
+      if (!best || cost < best.cost) best = { cost, lines: [first, second] };
+    }
+    if (!best) return [heading.slice(0, Math.max(1, maxChars - 1)) + "…"];
+    const [first, second] = best.lines;
+    return [
+      first,
+      second.length > maxChars ? second.slice(0, Math.max(1, maxChars - 1)) + "…" : second,
+    ];
+  }
+
+  function sectionLabel(heading, x, maxChars) {
+    const lines = wrapLabel(heading, maxChars);
+    const lineHeight = 12;
+    const top =
+      SECTION_Y + SECTION_H / 2 + 4 - ((lines.length - 1) * lineHeight) / 2;
+    const text = svgEl("text", { class: "dt-ov-section-label", x, y: top });
+    lines.forEach((line, i) => {
+      const span = svgEl("tspan", { x, dy: i === 0 ? 0 : lineHeight }, line);
+      text.appendChild(span);
+    });
+    return text;
+  }
+
+  function buildBand() {
+    const group = svgEl("g", {});
+    const units = model.index.units;
+    let i = 0;
+    while (i < units.length) {
+      let j = i;
+      while (j + 1 < units.length && units[j + 1].speaker === units[i].speaker) j += 1;
+      const x0 = x(units[i].start);
+      const seg = svgEl("rect", {
+        class: `dt-ov-band ${model.speakerClass(units[i].speaker)}`,
+        x: x0, y: BAND_Y, width: Math.max(1, x(units[j].end) - x0), height: BAND_H,
+      });
+      const name = model.speakerById.get(units[i].speaker)?.name || "";
+      const speaker = units[i].speaker;
+      const segStart = model.formatTime(units[i].start);
+      const segUnits = units.slice(i, j + 1);
+      model.tooltip.attach(seg, () => {
+        let excerpt = segUnits.map((u) => u.excerpt).join(" ");
+        if (excerpt.length > 300) excerpt = `${excerpt.slice(0, 299).replace(/\s+\S*$/, "")}…`;
+        return model.tipContent({
+          speakerClass: model.speakerClass(speaker),
+          name,
+          time: segStart,
+          text: excerpt,
+        });
+      });
+      const start = units[i].start;
+      seg.addEventListener("click", () => model.playAt(start));
+      group.appendChild(seg);
+      i = j + 1;
+    }
+    return group;
+  }
+
+  function buildFrames() {
+    const group = svgEl("g", {});
+    for (const frame of model.index.frames) {
+      const dot = svgEl("circle", {
+        class: "dt-ov-frame",
+        cx: x(frame.t), cy: FRAME_Y, r: 3.6,
+        "data-frame": frame.uid,
+      });
+      const frameTime = model.formatTime(frame.t);
+      model.tooltip.attach(dot, () =>
+        model.tipContent({
+          name: "Frame",
+          time: frameTime,
+          image: frame.el ? frame.el.currentSrc || frame.el.src : frame.src,
+        })
+      );
+      dot.addEventListener("click", (event) => {
+        event.stopPropagation();
+        model.playAt(frame.t);
+      });
+      group.appendChild(dot);
+    }
+    return group;
+  }
+
+  /* Top-level outline bullets that name a section get a click-to-seek time
+     chip, and hovering one highlights its block on the overview. */
+  function crossReferenceOutline() {
+    const outline = document.querySelector(".transcript-outline");
+    if (!outline) return;
+    const sectionsByHeading = new Map(
+      model.index.sections.map((s) => [s.heading.trim().toLowerCase(), s])
+    );
+    outline.querySelectorAll("li > strong, li > p > strong").forEach((strong) => {
+      const section = sectionsByHeading.get(strong.textContent.trim().toLowerCase());
+      if (!section) return;
+      const chip = document.createElement("span");
+      chip.className = "dt-timestamp dt-time-chip dt-ui";
+      chip.textContent = model.formatTime(section.start);
+      chip.addEventListener("click", () => model.playAt(section.start));
+      chip.addEventListener("mouseenter", () => setHotSection(section.id));
+      chip.addEventListener("mouseleave", () => setHotSection(null));
+      strong.after(chip);
+    });
+  }
+
+  function setHotSection(id) {
+    if (!svg) return;
+    svg.querySelectorAll(".dt-ov-section").forEach((el) => {
+      el.classList.toggle("dt-hot", id != null && el.dataset.section === id);
+    });
+  }
+
+  function render() {
+    const measured = forcedWidth || Math.floor(svg.getBoundingClientRect().width);
+    if (!measured || !model.duration) return;
+    width = measured;
+    svg.setAttribute("viewBox", `0 0 ${width} ${HEIGHT}`);
+    svg.textContent = "";
+    svg.append(buildAxis(), buildSections(), buildBand());
+    if (model.elements.has("frames")) svg.appendChild(buildFrames());
+    markerEl = svgEl("line", {
+      class: "dt-ov-marker",
+      x1: 0, x2: 0, y1: AXIS_Y, y2: FRAME_Y + 7,
+    });
+    svg.appendChild(markerEl);
+  }
+
+  function onTimechange(event) {
+    if (!markerEl) return;
+    markerEl.setAttribute("x1", x(event.detail.time));
+    markerEl.setAttribute("x2", x(event.detail.time));
+  }
+
+  function init(event) {
+    model = event.detail.model;
+    if (!model.index.units.length) return;
+    crossReferenceOutline();
+    if (!model.elements.has("timeline")) return;
+
+    panel = model.makePanel("Timeline");
+    svg = svgEl("svg", {
+      class: "dt-overview",
+      role: "img",
+      "aria-label": "Timeline overview",
+    });
+    svg.style.height = `${HEIGHT}px`;
+    svg.addEventListener("click", (e) => {
+      if (e.target !== svg) return;
+      const rect = svg.getBoundingClientRect();
+      model.playAt(((e.clientX - rect.left) / rect.width) * model.duration);
+    });
+    panel.appendChild(svg);
+    model.panels.top.appendChild(panel);
+
+    document.addEventListener("dt:timechange", onTimechange);
+    document.addEventListener("dt:hover", (e) => {
+      svg.querySelectorAll(".dt-ov-frame.dt-hot").forEach((el) => el.classList.remove("dt-hot"));
+      if (e.detail.frame) {
+        const dot = svg.querySelector(`.dt-ov-frame[data-frame="${e.detail.frame}"]`);
+        if (dot) dot.classList.add("dt-hot");
+      }
+    });
+    document.addEventListener("dt:printmode", (e) => {
+      forcedWidth = e.detail.on ? e.detail.width : 0;
+      render();
+    });
+    new ResizeObserver(render).observe(svg);
+    render();
+  }
+
+  document.addEventListener("dt:ready", init);
+})();

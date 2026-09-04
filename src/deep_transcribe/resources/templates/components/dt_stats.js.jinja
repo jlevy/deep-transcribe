@@ -1,0 +1,95 @@
+/* Deep Transcribe speaker analytics: a real table of per-speaker counts and
+   shares plus a talk-flow strip of the conversation's speaker sequence.
+   Inserted between the outline and the transcript; hidden in print. */
+(function () {
+  "use strict";
+
+  function cell(tag, text, className) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  }
+
+  function formatShare(part, whole) {
+    return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "–";
+  }
+
+  function buildTable(model) {
+    const totals = model.index.totals;
+    const table = document.createElement("table");
+    const head = document.createElement("tr");
+    head.append(
+      cell("th", "Speaker"),
+      cell("th", "Turns", "dt-num"),
+      cell("th", "Words", "dt-num"),
+      cell("th", "Sentences", "dt-num"),
+      cell("th", "Time", "dt-num"),
+      cell("th", "Words %", "dt-num"),
+      cell("th", "Time %", "dt-num"),
+      cell("th", "", "dt-bar-cell")
+    );
+    table.createTHead().append(head);
+
+    const body = table.createTBody();
+    const ranked = [...model.index.speakers].sort((a, b) => {
+      const at = totals.by_speaker[a.id]?.seconds || 0;
+      const bt = totals.by_speaker[b.id]?.seconds || 0;
+      return bt - at;
+    });
+    for (const speaker of ranked) {
+      const t = totals.by_speaker[speaker.id];
+      if (!t) continue;
+      const row = document.createElement("tr");
+      row.append(
+        cell("td", speaker.name, `dt-speaker-name ${model.speakerClass(speaker.id)}`),
+        cell("td", String(t.turns), "dt-num"),
+        cell("td", String(t.words), "dt-num"),
+        cell("td", String(t.sentences), "dt-num"),
+        cell("td", model.formatTime(t.seconds), "dt-num"),
+        cell("td", formatShare(t.words, totals.words), "dt-num"),
+        cell("td", formatShare(t.seconds, totals.seconds), "dt-num")
+      );
+      const barCell = cell("td", "", "dt-bar-cell");
+      const bar = document.createElement("div");
+      bar.className = `dt-bar ${model.speakerClass(speaker.id)}`;
+      bar.style.width = formatShare(t.seconds, totals.seconds);
+      barCell.appendChild(bar);
+      row.appendChild(barCell);
+      body.appendChild(row);
+    }
+
+    const all = Object.values(totals.by_speaker);
+    const sum = (key) => all.reduce((n, t) => n + t[key], 0);
+    const totalsRow = document.createElement("tr");
+    totalsRow.className = "dt-totals-row";
+    totalsRow.append(
+      cell("td", "All speakers"),
+      cell("td", String(sum("turns")), "dt-num"),
+      cell("td", String(totals.words), "dt-num"),
+      cell("td", String(sum("sentences")), "dt-num"),
+      cell("td", model.formatTime(totals.seconds), "dt-num"),
+      cell("td", "100%", "dt-num"),
+      cell("td", "100%", "dt-num"),
+      cell("td", "", "dt-bar-cell")
+    );
+    body.appendChild(totalsRow);
+    return table;
+  }
+
+  function init(event) {
+    const model = event.detail.model;
+    const { units, speakers } = model.index;
+    if (!units.length || !speakers.length) return;
+    if (!model.elements.has("speakers")) return;
+
+    const panel = model.makePanel("Speakers");
+    panel.classList.add("dt-stats");
+    panel.append(buildTable(model));
+
+
+    model.panels.top.appendChild(panel);
+  }
+
+  document.addEventListener("dt:ready", init);
+})();

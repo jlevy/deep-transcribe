@@ -18,14 +18,14 @@ subcommands, stale examples, and wrapping changes are visible in review.
 ````console
 $ deep-transcribe --help
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
-                       [--deep] [--with STAGES] [--web-search] [--no-minify]
-                       [--context TEXT] [--context-file PATH]
-                       [--instructions TEXT] [--instructions-file PATH]
-                       [--title TEXT] [--description TEXT]
-                       [--metadata YAML_OR_JSON] [--key-term TERM]
-                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
-                       [--workspace WORKSPACE] [--models [PROFILE]]
-                       [--language LANGUAGE]
+                       [--deep] [--with STAGES] [--concepts] [--web-search]
+                       [--elements PARTS] [--no-minify] [--context TEXT]
+                       [--context-file PATH] [--instructions TEXT]
+                       [--instructions-file PATH] [--title TEXT]
+                       [--description TEXT] [--metadata YAML_OR_JSON]
+                       [--key-term TERM] [--speaker ID=NAME]
+                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
+                       [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |
@@ -45,26 +45,36 @@ Source:
 Processing Presets:
   --basic               Transcribe only; no LLM formatting or annotations
                         (basic)
-  --formatted           Enable identify_speakers, format (formatted)
+  --formatted           Enable identify_speakers, format, build_index
+                        (formatted)
   --annotated           Enable identify_speakers, format,
                         insert_section_headings, add_summary_bullets,
-                        add_description, insert_frame_captures (annotated)
-                        (default)
+                        add_description, insert_frame_captures, build_index
+                        (annotated) (default)
   --deep                Enable identify_speakers, format,
                         insert_section_headings, research_paras,
                         add_summary_bullets, add_description,
-                        insert_frame_captures (deep)
+                        insert_frame_captures, build_index, extract_concepts
+                        (deep)
 
 Custom Processing:
   --with STAGES         Comma-separated processing stages to add to the
                         selected preset. Choices: identify_speakers, format,
                         insert_section_headings, research_paras,
                         add_summary_bullets, add_description,
-                        insert_frame_captures, web_search
+                        insert_frame_captures, build_index, extract_concepts,
+                        web_search
+  --concepts            Extract a concept map: key concepts with glosses,
+                        timeline spans, and relations, shown in the
+                        transcript's analytics views (included in --deep)
   --web-search, --web_search
                         Let the speaker roster step corroborate facts with web
                         search (off by default; source metadata and your own
                         context are used either way)
+  --elements PARTS      Comma-separated page parts to include in the HTML
+                        export (default: everything). Choices: title,
+                        thumbnail, summary, timeline, speakers, outline,
+                        concepts, claims, frames, transcript
   --no-minify, --no_minify
                         Skip HTML, CSS, JavaScript, and Tailwind minification
 
@@ -198,14 +208,14 @@ $ deep-transcribe --models anthropic --workspace ./output --json && \
 ```console
 $ deep-transcribe --models invalid --workspace ./output 2>&1
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
-                       [--deep] [--with STAGES] [--web-search] [--no-minify]
-                       [--context TEXT] [--context-file PATH]
-                       [--instructions TEXT] [--instructions-file PATH]
-                       [--title TEXT] [--description TEXT]
-                       [--metadata YAML_OR_JSON] [--key-term TERM]
-                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
-                       [--workspace WORKSPACE] [--models [PROFILE]]
-                       [--language LANGUAGE]
+                       [--deep] [--with STAGES] [--concepts] [--web-search]
+                       [--elements PARTS] [--no-minify] [--context TEXT]
+                       [--context-file PATH] [--instructions TEXT]
+                       [--instructions-file PATH] [--title TEXT]
+                       [--description TEXT] [--metadata YAML_OR_JSON]
+                       [--key-term TERM] [--speaker ID=NAME]
+                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
+                       [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |

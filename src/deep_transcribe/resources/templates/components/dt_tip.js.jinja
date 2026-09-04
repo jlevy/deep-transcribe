@@ -1,0 +1,84 @@
+/* Deep Transcribe tooltip: one reusable, dependency-free implementation for
+   every dt component. Shows after a short delay, fades in and out, clamps to
+   the viewport, and honors prefers-reduced-motion. Native title tooltips are
+   not used anywhere in the dt UI. */
+(function () {
+  "use strict";
+
+  const SHOW_DELAY_MS = 220;
+  const HIDE_DELAY_MS = 80;
+
+  let tipEl = null;
+  let showTimer = 0;
+  let hideTimer = 0;
+
+  function ensureTip() {
+    if (tipEl) return tipEl;
+    tipEl = document.createElement("div");
+    tipEl.className = "dt-tip dt-ui";
+    tipEl.setAttribute("role", "tooltip");
+    document.body.appendChild(tipEl);
+    return tipEl;
+  }
+
+  function place(point) {
+    const tip = ensureTip();
+    const { width, height } = tip.getBoundingClientRect();
+    const pad = 8;
+    let x, y;
+    if (point.placement === "left") {
+      x = point.x - width - 12;
+      y = point.y - height / 2;
+    } else {
+      // Default: above the anchor, centered.
+      x = point.x - width / 2;
+      y = point.y - height - 10;
+      if (y < pad) y = point.y + 16;
+    }
+    x = Math.min(window.innerWidth - width - pad, Math.max(pad, x));
+    y = Math.min(window.innerHeight - height - pad, Math.max(pad, y));
+    tip.style.left = `${x}px`;
+    tip.style.top = `${y}px`;
+  }
+
+  function show(point, content) {
+    clearTimeout(hideTimer);
+    const tip = ensureTip();
+    tip.textContent = "";
+    if (typeof content === "string") tip.textContent = content;
+    else tip.appendChild(content);
+    tip.classList.add("dt-tip-visible");
+    place(point);
+  }
+
+  function hide() {
+    clearTimeout(showTimer);
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (tipEl) tipEl.classList.remove("dt-tip-visible");
+    }, HIDE_DELAY_MS);
+  }
+
+  /* Hover binding: delay before showing, fade away on leave. `build` returns
+     a string or a DOM node; returning null suppresses the tip. */
+  function attach(el, build) {
+    el.classList.add("dt-hoverable");
+    const anchorPoint = () => {
+      const rect = el.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top };
+    };
+    el.addEventListener("mouseenter", () => {
+      clearTimeout(showTimer);
+      showTimer = setTimeout(() => {
+        const content = build();
+        if (content != null) show(anchorPoint(), content);
+      }, SHOW_DELAY_MS);
+    });
+    el.addEventListener("mouseleave", hide);
+    el.addEventListener("click", hide);
+  }
+
+  document.addEventListener("dt:ready", (event) => {
+    event.detail.model.tooltip = { attach, show, hide };
+  });
+})();

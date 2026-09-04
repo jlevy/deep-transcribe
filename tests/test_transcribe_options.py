@@ -8,8 +8,12 @@ def test_presets_enable_expected_pipeline_stages():
     annotated = TranscribeOptions.annotated()
     deep = TranscribeOptions.deep()
 
-    assert formatted.get_enabled_options() == ["identify_speakers", "format"]
+    assert formatted.get_enabled_options() == ["identify_speakers", "format", "build_index"]
     assert not formatted.insert_section_headings
+    assert annotated.build_index
+    assert deep.build_index
+    assert deep.extract_concepts
+    assert not annotated.extract_concepts
     assert annotated.insert_section_headings
     assert annotated.add_summary_bullets
     assert annotated.add_description

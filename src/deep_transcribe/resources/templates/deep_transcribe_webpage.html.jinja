@@ -3,10 +3,41 @@
 {% block custom_styles %}
 {{ super() }}
 <style>
-.timestamp-link,
-.timestamp-link:hover {
+{% include "components/dt_tokens.css.jinja" %}
+{% include "components/dt_viz.css.jinja" %}
+/* The reading column sits left, so the player takes the free upper right. */
+.yt-popover {
+  top: 4.5rem !important;
+  bottom: auto !important;
+  right: 1rem !important;
+  left: auto !important;
+}
+
+.timestamp-link {
   background-color: transparent !important;
-  color: var(--color-secondary) !important;
+  color: var(--color-tertiary) !important;
+  font-size: var(--font-size-tiny);
+  font-weight: normal;
+  border-radius: 0.2rem;
+  transition: background-color 0.12s ease-in-out, color 0.12s ease-in-out;
+}
+
+/* Timestamps never underline, hovered or not, anywhere in the document. */
+.timestamp-link a,
+.timestamp-link a:hover,
+.timestamp-link a:visited {
+  text-decoration: none !important;
+}
+
+/* Same hover treatment as the injected timestamp chips. */
+.timestamp-link:hover {
+  background-color: var(--color-hover-bg) !important;
+  color: var(--color-primary) !important;
+}
+
+.timestamp-link:hover a {
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
 .timestamp-link a,
@@ -64,3 +95,16 @@
 }
 </style>
 {% endblock custom_styles %}
+
+{% block scripts_extra %}
+{{ super() }}
+<script>
+{% include "components/dt_core.js.jinja" %}
+{% include "components/dt_tip.js.jinja" %}
+{% include "components/dt_timeline.js.jinja" %}
+{% include "components/dt_rail.js.jinja" %}
+{% include "components/dt_stats.js.jinja" %}
+{% include "components/dt_frames.js.jinja" %}
+{% include "components/dt_concepts.js.jinja" %}
+</script>
+{% endblock scripts_extra %}

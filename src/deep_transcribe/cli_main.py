@@ -191,6 +191,14 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--concepts",
+        action="store_true",
+        help=(
+            "Extract a concept map: key concepts with glosses, timeline spans, and "
+            "relations, shown in the transcript's analytics views (included in --deep)"
+        ),
+    )
+    processing.add_argument(
         "--web-search",
         "--web_search",
         dest="web_search",
@@ -198,6 +206,16 @@ def _add_transcription_arguments(
         help=(
             "Let the speaker roster step corroborate facts with web search "
             "(off by default; source metadata and your own context are used either way)"
+        ),
+    )
+    processing.add_argument(
+        "--elements",
+        type=str,
+        metavar="PARTS",
+        help=(
+            "Comma-separated page parts to include in the HTML export "
+            "(default: everything). Choices: title, thumbnail, summary, timeline, "
+            "speakers, outline, concepts, claims, frames, transcript"
         ),
     )
     processing.add_argument(
@@ -563,6 +581,9 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
     if args.with_flags:
         options = options.merge_with(TranscribeOptions.from_with_flags(args.with_flags))
 
+    if args.concepts:
+        options = options.merge_with(TranscribeOptions(extract_concepts=True))
+
     # Presets do not carry this: it is an explicit opt-in that must outlive them.
     if args.web_search:
         from dataclasses import replace
@@ -694,13 +715,46 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         console_log_level=LogLevel.warning,
     )
 
+    # Fail fast, after kash setup has loaded .env files, if required keys are absent.
+    from deep_transcribe.api_keys import format_missing_keys_message, missing_api_keys
+
+    options = _build_transcribe_options(args)
+    missing_keys = missing_api_keys(options, workspace)
+    if missing_keys:
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "error": "missing API keys",
+                        "missing": [key.var for key in missing_keys],
+                        "help": "deep-transcribe --docs",
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+        else:
+            from rich import print as rprint
+
+            rprint(f"[red]{format_missing_keys_message(missing_keys)}[/red]")
+        raise SystemExit(2)
+
     try:
         from deep_transcribe.transcribe_commands import run_transcription
+
+        elements = None
+        if args.elements:
+            from deep_transcribe.transcribe_commands import parse_page_elements
+
+            try:
+                elements = parse_page_elements(args.elements)
+            except ValueError as error:
+                parser.error(str(error))
 
         transcript_path, html_path = run_transcription(
             workspace,
             args.source,
-            _build_transcribe_options(args),
+            options,
             args.language,
             transcription_model=args.transcription_model,
             diarize_model=args.diarize_model,
@@ -708,6 +762,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             no_minify=args.no_minify,
             rerun=args.rerun,
             rerun_processing=args.rerun_processing,
+            elements=elements,
         )
         display_results(
             workspace,

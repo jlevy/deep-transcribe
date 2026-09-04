@@ -1,0 +1,409 @@
+/* Deep Transcribe core: parses the embedded transcript index, binds it to the
+   rendered DOM, owns time math, and publishes the model other dt_* modules use.
+   Degrades to a no-op when the index island is absent. */
+(function () {
+  "use strict";
+
+  const SPEAKER_CLASS_COUNT = 8;
+
+  /* The parts an export can include; --elements injects window.DT_ELEMENTS
+     to select a subset. Excluded panels are never built and excluded stored
+     content is hidden via body.dt-no-<part> classes. */
+  const ALL_ELEMENTS = [
+    "title", "thumbnail", "summary", "timeline", "speakers",
+    "outline", "concepts", "claims", "frames", "transcript",
+  ];
+
+  function parseIndex() {
+    const el = document.getElementById("dt-transcript-index");
+    if (!el) return null;
+    try {
+      const index = JSON.parse(el.textContent);
+      return index && index.version === 1 && Array.isArray(index.units) ? index : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function formatTime(t) {
+    const s = Math.max(0, Math.floor(t));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = String(s % 60).padStart(2, "0");
+    return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+  }
+
+  function bindUnits(index, scope) {
+    const byKey = new Map();
+    scope.querySelectorAll("span.timestamp-link[data-timestamp]").forEach((span) => {
+      if (!byKey.has(span.dataset.timestamp)) byKey.set(span.dataset.timestamp, span);
+    });
+    for (const unit of index.units) {
+      const span = byKey.get(unit.key);
+      unit.citationEl = span || null;
+      unit.el = span ? span.closest("p, li") || span.parentElement : null;
+    }
+  }
+
+  function bindFrames(index, scope) {
+    const byTime = new Map();
+    scope.querySelectorAll("img.frame-capture").forEach((img) => {
+      const match = /Frame at ([\d.]+) seconds/.exec(img.alt || "");
+      if (match) byTime.set(Number(match[1]), img);
+    });
+    for (const frame of index.frames) frame.el = byTime.get(frame.t) || null;
+  }
+
+  function bindSections(index, scope) {
+    const headings = Array.from(scope.querySelectorAll("h2"));
+    index.sections.forEach((section) => {
+      section.el =
+        headings.find((h) => h.textContent.trim() === section.heading.trim()) || null;
+    });
+  }
+
+  function decorateSpeakerLabels(model) {
+    for (const unit of model.index.units) {
+      if (!unit.el || unit.speaker == null) continue;
+      const strong = unit.el.querySelector("strong");
+      const name = model.speakerById.get(unit.speaker)?.name;
+      if (strong && name && strong.textContent.replace(/:\s*$/, "").trim() === name) {
+        strong.classList.add("dt-speaker-label", model.speakerClass(unit.speaker));
+        // Isolate the colon so screen styles can drop it while print keeps
+        // the original inline "Name:" form byte for byte.
+        strong.textContent = name;
+        const colon = document.createElement("span");
+        colon.className = "dt-colon";
+        colon.textContent = ":";
+        strong.appendChild(colon);
+        // The paragraph's timestamp reads best beside the name, not at the
+        // end of the spoken text. Continuations without a label keep theirs.
+        if (unit.citationEl) strong.appendChild(unit.citationEl);
+      }
+    }
+  }
+
+  function buildModel(index) {
+    const speakerById = new Map(index.speakers.map((s) => [s.id, s]));
+    const units = index.units;
+    const lastEnd = units.length ? units[units.length - 1].end : 0;
+    const duration = index.media.duration ?? lastEnd;
+
+    const model = {
+      ready: true,
+      index,
+      speakerById,
+      duration,
+      durationEstimated: index.media.duration == null,
+      formatTime,
+
+      speakerClass(id) {
+        const speaker = speakerById.get(id);
+        return `dt-s${speaker ? speaker.order % SPEAKER_CLASS_COUNT : 0}`;
+      },
+
+      unitAtTime(t) {
+        let found = null;
+        for (const unit of units) {
+          if (unit.start <= t) found = unit;
+          else break;
+        }
+        return found || units[0] || null;
+      },
+
+      /* Interpolate media time from a viewport y position, using the bound
+         unit blocks as anchors. */
+      timeAtViewportY(y) {
+        const anchored = units.filter((u) => u.el);
+        if (!anchored.length) return 0;
+        let previous = null;
+        for (const unit of anchored) {
+          const top = unit.el.getBoundingClientRect().top;
+          if (top > y) break;
+          previous = unit;
+        }
+        if (!previous) return anchored[0].start;
+        const rect = previous.el.getBoundingClientRect();
+        const fraction = Math.min(
+          1,
+          Math.max(0, (y - rect.top) / Math.max(1, rect.height))
+        );
+        return previous.start + fraction * (previous.end - previous.start);
+      },
+
+      seek(t, behavior) {
+        const unit = model.unitAtTime(t);
+        if (!unit || !unit.el) return;
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        unit.el.scrollIntoView({
+          behavior: behavior || (reduced ? "auto" : "smooth"),
+          block: "center",
+        });
+        dispatch("dt:select", { time: t, unit: unit.uid });
+      },
+
+      /* Open the media player at the unit covering t, reusing the page's own
+         YouTube popover interception on the citation link. */
+      playAt(t) {
+        const unit = model.unitAtTime(t);
+        const link = unit && unit.citationEl && unit.citationEl.querySelector("a[href]");
+        if (link) link.click();
+        else model.seek(t);
+      },
+    };
+    return model;
+  }
+
+  function dispatch(name, detail) {
+    document.dispatchEvent(new CustomEvent(name, { detail }));
+  }
+
+  /* The one tooltip body builder, shared by every module. Renders, in order:
+     a head (speaker dot, name, bracketed time), an optional subtitle, an
+     optional transcript excerpt (colored sans label, serif words), and an
+     optional image. */
+  function buildTipContent(opts) {
+    const content = document.createElement("div");
+    const head = document.createElement("div");
+    head.className = "dt-tip-head";
+    if (opts.name) {
+      // The name appears once, colored like the transcript labels — name on
+      // its own line means no colon, and the color makes a dot redundant.
+      const name = document.createElement("span");
+      name.className = `dt-tip-name${opts.speakerClass ? ` ${opts.speakerClass}` : ""}`;
+      name.textContent = opts.name;
+      head.appendChild(name);
+    }
+    if (opts.time) {
+      const time = document.createElement("span");
+      time.className = "dt-tip-time";
+      time.textContent = opts.time;
+      head.appendChild(time);
+    }
+    content.appendChild(head);
+    if (opts.subtitle) {
+      const subtitle = document.createElement("div");
+      subtitle.className = "dt-tip-sub";
+      subtitle.textContent = opts.subtitle;
+      content.appendChild(subtitle);
+    }
+    if (opts.text) {
+      const text = document.createElement("div");
+      text.className = "dt-tip-text";
+      text.textContent = opts.text;
+      content.appendChild(text);
+    }
+    if (opts.image) {
+      const img = document.createElement("img");
+      img.src = opts.image;
+      img.alt = "";
+      img.className = "dt-tip-frame";
+      content.appendChild(img);
+    }
+    return content;
+  }
+
+  /* Panel containers straddle the server-rendered outline so injected panels
+     land in the agreed order (Timeline, Speakers / outline / Concepts, Claims)
+     without moving stored content. */
+  /* The synopsis joins the design system on screen: a Summary heading and
+     panel-aligned padding. Both are screen-only, so print stays unchanged. */
+  function dressSummary(scope) {
+    const description = scope.querySelector(".description");
+    if (!description) return;
+    description.classList.add("dt-summary");
+    const heading = document.createElement("h1");
+    heading.className = "dt-panel-title dt-ui";
+    heading.textContent = "Summary";
+    description.prepend(heading);
+  }
+
+  /* Mark exact mentions in the summary: speaker names take their color,
+     entity labels go bold. Deliberately simple and robust: exact strings,
+     longest first, bounded by non-word characters. */
+  function highlightSummaryMentions(model, scope) {
+    const summary = scope.querySelector(".description.dt-summary");
+    if (!summary) return;
+    const targets = [
+      ...model.index.speakers.map((speaker) => ({
+        text: speaker.name,
+        className: `dt-name-ref ${model.speakerClass(speaker.id)}`,
+      })),
+      ...model.index.concepts
+        .filter((concept) => concept.kind === "entity")
+        .map((concept) => ({ text: concept.label, className: "dt-entity-ref" })),
+    ]
+      .filter((target) => target.text && target.text.length > 2)
+      .sort((a, b) => b.text.length - a.text.length);
+    if (!targets.length) return;
+
+    const isWordChar = (ch) => ch != null && /[\p{L}\p{N}]/u.test(ch);
+    const walker = document.createTreeWalker(summary, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) {
+      if (!walker.currentNode.parentElement.closest(".dt-panel-title")) {
+        textNodes.push(walker.currentNode);
+      }
+    }
+    for (const node of textNodes) {
+      const value = node.nodeValue;
+      let cursor = 0;
+      const parts = [];
+      while (cursor < value.length) {
+        let best = null;
+        for (const target of targets) {
+          const at = value.indexOf(target.text, cursor);
+          if (at === -1) continue;
+          if (isWordChar(value[at - 1]) || isWordChar(value[at + target.text.length])) continue;
+          if (!best || at < best.at) best = { at, target };
+        }
+        if (!best) break;
+        if (best.at > cursor) parts.push(document.createTextNode(value.slice(cursor, best.at)));
+        const mark = document.createElement("span");
+        mark.className = best.target.className;
+        mark.textContent = best.target.text;
+        parts.push(mark);
+        cursor = best.at + best.target.text.length;
+      }
+      if (parts.length) {
+        if (cursor < value.length) parts.push(document.createTextNode(value.slice(cursor)));
+        node.replaceWith(...parts);
+      }
+    }
+  }
+
+  function mountPanelContainers(scope, withTranscriptHeading) {
+    const top = document.createElement("div");
+    top.id = "dt-top-panels";
+    const bottom = document.createElement("div");
+    bottom.id = "dt-bottom-panels";
+    const outline = scope.querySelector(".transcript-outline");
+    if (outline) {
+      outline.before(top);
+      outline.after(bottom);
+      if (withTranscriptHeading) {
+        const transcriptHeading = document.createElement("h1");
+        transcriptHeading.className = "dt-panel-title dt-transcript-heading dt-ui";
+        transcriptHeading.textContent = "Transcript";
+        bottom.after(transcriptHeading);
+      }
+    } else {
+      const description = scope.querySelector(".description");
+      if (description) description.after(top);
+      else scope.prepend(top);
+      top.after(bottom);
+    }
+    return { top, bottom };
+  }
+
+  function makePanel(title) {
+    const panel = document.createElement("section");
+    panel.className = "dt-panel dt-ui";
+    panel.setAttribute("aria-label", title);
+    const heading = document.createElement("h1");
+    heading.className = "dt-panel-title";
+    heading.textContent = title;
+    panel.appendChild(heading);
+    return panel;
+  }
+
+  function watchScroll(model) {
+    let pending = false;
+    const emit = () => {
+      pending = false;
+      const y = window.innerHeight * 0.4;
+      dispatch("dt:timechange", {
+        time: model.timeAtViewportY(y),
+        topTime: model.timeAtViewportY(0),
+        bottomTime: model.timeAtViewportY(window.innerHeight),
+        source: "scroll",
+      });
+    };
+    const onScroll = () => {
+      if (!pending) {
+        pending = true;
+        requestAnimationFrame(emit);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    emit();
+  }
+
+  /* YouTube refuses embedded playback on pages opened via file:// (no HTTP
+     referer -> player error 153), so there the popover is bypassed entirely:
+     timestamp links open YouTube directly at the right time in a new tab.
+     A document-level capture handler runs before the popover's per-anchor
+     capture listener, so stopping propagation here lets the plain link win. */
+  function enableFileProtocolFallback() {
+    const isYouTubeLink = (href) =>
+      /(^https?:\/\/)?(www\.)?(youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)/.test(href);
+    document.querySelectorAll("a[href]").forEach((a) => {
+      if (isYouTubeLink(a.getAttribute("href") || "")) {
+        a.target = "_blank";
+        a.rel = "noopener";
+      }
+    });
+    document.addEventListener(
+      "click",
+      (event) => {
+        const a = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        if (a && isYouTubeLink(a.getAttribute("href") || "")) event.stopPropagation();
+      },
+      { capture: true }
+    );
+  }
+
+  function watchPrint() {
+    const printWidth =
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--dt-print-width")
+      ) || 660;
+    window.addEventListener("beforeprint", () =>
+      dispatch("dt:printmode", { on: true, width: printWidth })
+    );
+    window.addEventListener("afterprint", () =>
+      dispatch("dt:printmode", { on: false, width: 0 })
+    );
+  }
+
+  function init() {
+    if (window.location.protocol === "file:") enableFileProtocolFallback();
+    const index = parseIndex();
+    if (!index) {
+      window.DeepTranscript = Object.freeze({ ready: false });
+      return;
+    }
+    const scope = document.querySelector(".long-text") || document.body;
+    bindUnits(index, scope);
+    bindFrames(index, scope);
+    bindSections(index, scope);
+    const model = buildModel(index);
+    model.tipContent = buildTipContent;
+    model.elements = new Set(
+      Array.isArray(window.DT_ELEMENTS) ? window.DT_ELEMENTS : ALL_ELEMENTS
+    );
+    for (const part of ALL_ELEMENTS) {
+      if (!model.elements.has(part)) document.body.classList.add(`dt-no-${part}`);
+    }
+    decorateSpeakerLabels(model);
+    document.body.classList.add("dt-on");
+    if (model.elements.has("summary")) {
+      dressSummary(scope);
+      highlightSummaryMentions(model, scope);
+    }
+    const containers = mountPanelContainers(scope, model.elements.has("transcript"));
+    model.panels = containers;
+    model.makePanel = makePanel;
+    window.DeepTranscript = model;
+    dispatch("dt:ready", { model });
+    watchScroll(model);
+    watchPrint();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();

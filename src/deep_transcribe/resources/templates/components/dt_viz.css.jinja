@@ -1,0 +1,903 @@
+/* ============================================================================
+   Deep Transcribe view components.
+
+   All tokens — colors, radii, durations, shadows, z-layers, sizes — come from
+   dt_tokens.css.jinja, which is also where the design rules are written down.
+   No literals here beyond structural geometry; tests/test_design_tokens.py
+   enforces the contract. Everything injected by the dt_* modules carries
+   .dt-ui, and one print block keeps the printed PDF exactly as it was.
+   ============================================================================ */
+
+/* ---- Prose: speaker labels and reading measure ---- */
+
+/* Speaker labels are sans and speaker-colored, so only the spoken words are
+   serif. On screen the label sits on its own line without the colon; print
+   keeps the inline "Name:" form. */
+strong.dt-speaker-label {
+  color: var(--dt-c);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+}
+
+strong.dt-speaker-label {
+  display: block;
+  margin-bottom: 0.05rem;
+}
+
+strong.dt-speaker-label .dt-colon {
+  display: none;
+}
+
+strong.dt-speaker-label .timestamp-link {
+  margin-left: 0.2rem;
+}
+
+.long-text {
+  line-height: var(--dt-leading);
+}
+
+.dt-ui {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+}
+
+/* ---- Panels and headings ---- */
+
+/* Panels are unboxed and share one padding; their inner edge is the text
+   edge everything else aligns to. */
+.dt-panel {
+  margin: 1.5rem 0 2rem;
+  padding: var(--dt-pad);
+  font-size: var(--font-size-small);
+}
+
+/* The summary joins the system: sans (it is extracted content, not
+   transcript), padded to the shared text edge. */
+.description.dt-summary {
+  padding: 0 var(--dt-pad);
+  margin: 1.5rem 0 2rem;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-small);
+  /* Main text is never gray; the upstream .description gray is overridden. */
+  color: var(--dt-text);
+}
+
+/* H1: all-caps centered sans for every top section. The !important flags
+   override the outline title's stored inline style. */
+.dt-panel-title,
+.long-text .transcript-outline-title {
+  font-family: var(--font-sans) !important;
+  font-feature-settings: var(--font-features-sans);
+  font-style: normal !important;
+  font-weight: var(--dt-title-weight) !important;
+  font-size: var(--dt-h1-size) !important;
+  letter-spacing: var(--dt-h1-spacing);
+  text-transform: uppercase;
+  text-align: center !important;
+  color: var(--dt-text) !important;
+  margin: 0 0 1rem !important;
+}
+
+/* H2: transcript sections take the sans title treatment. */
+.long-text .original h2 {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-style: normal;
+  font-weight: var(--dt-title-weight);
+  font-size: var(--dt-h2-size);
+  color: var(--dt-text);
+}
+
+/* The transcript prose sits on the panels' text edge, never wider. */
+.long-text .original .original {
+  padding: 0 var(--dt-pad);
+}
+
+/* Print-only data lines: information that lives in hover surfaces on screen
+   (mention dots, edge tooltips) still reaches the printed page. */
+.dt-print-only {
+  display: none;
+}
+
+/* ---- Page-element selection (the --elements flag) ----
+   The client sets body.dt-no-<part> for excluded stored content; excluded
+   panels are simply never built. */
+body.dt-no-title .long-text h1:not(.dt-panel-title),
+body.dt-no-thumbnail img.thumbnail,
+body.dt-no-summary .description,
+body.dt-no-outline .transcript-outline,
+body.dt-no-transcript .original .original,
+body.dt-no-transcript .dt-transcript-heading,
+body.dt-no-frames img.frame-capture,
+body.dt-no-frames #dt-connectors,
+body.dt-no-frames .dt-ov-frame {
+  display: none !important;
+}
+
+/* ---- Timestamps ---- */
+
+/* The one inline-timestamp treatment; clicking opens the video. */
+.dt-timestamp {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-tiny);
+  font-weight: normal;
+  color: var(--dt-text-faint);
+  white-space: nowrap;
+}
+
+.dt-timestamp::before {
+  content: "[";
+}
+
+.dt-timestamp::after {
+  content: "]";
+}
+
+.dt-time-chip {
+  margin-left: 0.45rem;
+  border-radius: var(--dt-radius);
+  padding: 0 0.2rem;
+  cursor: pointer;
+  transition: background-color var(--dt-t-fast) ease-in-out, color var(--dt-t-fast) ease-in-out;
+}
+
+.dt-time-chip:hover {
+  color: var(--color-primary);
+  background: var(--color-hover-bg);
+}
+
+/* ---- Timeline overview panel ---- */
+
+.dt-overview {
+  display: block;
+  width: 100%;
+}
+
+.dt-ov-axis {
+  stroke: var(--color-hint);
+  stroke-width: 1;
+}
+
+.dt-ov-axis-tick {
+  stroke: var(--dt-text-support);
+  stroke-width: 1.4;
+}
+
+/* Axis numbers are the sanctioned bare-timestamp exception: here time is the
+   content, so full prominence and no brackets. */
+.dt-ov-axis-label {
+  font-size: var(--font-size-tiny);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  fill: var(--dt-text);
+}
+
+.dt-ov-section {
+  fill: var(--color-bg-alt);
+  stroke: var(--color-hint);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: stroke var(--dt-t-med) ease-in-out, fill var(--dt-t-med) ease-in-out;
+}
+
+.dt-ov-section.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 1.8;
+  fill: var(--color-hover-bg);
+}
+
+.dt-ov-section-label {
+  font-size: var(--dt-label-size);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  fill: var(--dt-text);
+  pointer-events: none;
+}
+
+.dt-ov-band {
+  fill: var(--dt-cv, var(--color-hint));
+  opacity: 0.9;
+  cursor: pointer;
+}
+
+.dt-ov-frame {
+  fill: var(--color-bg-solid);
+  stroke: var(--dt-text-support);
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+/* White dots cannot visibly brighten, so frames respond by stroke. */
+.dt-ov-frame:hover,
+.dt-ov-frame.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 2;
+}
+
+.dt-ov-marker {
+  stroke: var(--color-primary);
+  stroke-width: 1.6;
+  pointer-events: none;
+}
+
+/* ---- Vertical rail (hidden until the transcript is being read) ---- */
+
+#dt-rail {
+  position: fixed;
+  top: 4.5rem;
+  bottom: 3.5rem;
+  right: 0.9rem;
+  width: var(--dt-rail-width);
+  z-index: var(--dt-z-rail);
+  display: none;
+  border-radius: var(--dt-radius-lg);
+  outline: none;
+  opacity: 0;
+  transform: translateX(0.6rem);
+  transition: opacity var(--dt-t-slow) ease-in-out, transform var(--dt-t-slow) ease-in-out;
+  pointer-events: none;
+}
+
+#dt-rail.dt-rail-visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+#dt-rail:focus-visible {
+  box-shadow: var(--dt-ring-focus);
+}
+
+/* Make room for the open video popover, which parks at the upper right. */
+body.yt-open #dt-rail {
+  top: max(21rem, 40vh);
+}
+
+@media (min-width: 1150px) {
+  #dt-rail.dt-active {
+    display: block;
+  }
+}
+
+#dt-rail svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.dt-rail-track {
+  fill: var(--color-hint-gentle);
+}
+
+.dt-rail-seg {
+  fill: var(--dt-cv, var(--color-hint));
+  opacity: 0.85;
+  transition: opacity var(--dt-t-med) ease-in-out;
+}
+
+#dt-rail:hover .dt-rail-seg {
+  opacity: 1;
+}
+
+.dt-rail-section-tick {
+  stroke: var(--dt-text);
+  stroke-width: 1;
+  opacity: 0.55;
+}
+
+.dt-rail-frame-tick {
+  fill: var(--color-bg-solid);
+  stroke: var(--dt-text-support);
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.dt-rail-frame-tick.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 2;
+  fill: var(--color-hover-bg);
+}
+
+.dt-rail-window {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: var(--color-selection);
+  opacity: 0.16;
+  border-top: 1px solid var(--dt-text-support);
+  border-bottom: 1px solid var(--dt-text-support);
+  border-radius: var(--dt-radius);
+  pointer-events: none;
+}
+
+.dt-rail-marker {
+  position: absolute;
+  left: -0.15rem;
+  width: calc(100% + 0.3rem);
+  height: 0;
+  border-top: 2px solid var(--color-primary);
+  pointer-events: none;
+}
+
+.dt-rail-marker::before {
+  content: "";
+  position: absolute;
+  left: -0.45rem;
+  top: -0.28rem;
+  border: 0.27rem solid transparent;
+  border-left-color: var(--color-primary);
+}
+
+.dt-rail-concept-span {
+  fill: var(--color-primary);
+  opacity: 0.8;
+}
+
+/* ---- Hover and tooltip ---- */
+
+/* Every tooltip target shares one hover treatment, applied automatically by
+   the tooltip component (and opted into by chips). */
+.dt-hoverable {
+  transition: filter var(--dt-t-fast) ease-in-out;
+}
+
+.dt-hoverable:hover {
+  filter: brightness(1.15) saturate(1.25);
+}
+
+/* Near-white blocks can't visibly brighten; they respond with fill and
+   stroke instead. */
+.dt-ov-section.dt-hoverable:hover {
+  filter: none;
+  fill: var(--color-hover-bg);
+  stroke: var(--color-primary);
+}
+
+/* The one tooltip: dark-on-light on the slightly-off page background, a
+   hairline border, drop shadow, square corners. Fades in and out, never
+   intercepts the pointer. */
+.dt-tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  max-width: 17rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--color-bg-alt-solid);
+  color: var(--dt-text);
+  border: 1px solid var(--color-border-hint);
+  box-shadow: var(--dt-shadow-tip);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-tiny);
+  line-height: var(--dt-leading-tip);
+  pointer-events: none;
+  z-index: var(--dt-z-tip);
+  opacity: 0;
+  transition: opacity var(--dt-t-med) ease-in-out;
+}
+
+.dt-tip.dt-tip-visible {
+  opacity: 1;
+}
+
+/* Transcript text inside a tooltip mirrors the prose: colored sans label,
+   serif words. */
+.dt-tip .dt-tip-text {
+  margin-top: 0.35rem;
+  font-family: var(--font-serif);
+  font-size: var(--font-size-smaller);
+  line-height: var(--dt-leading-tip-text);
+}
+
+.dt-tip .dt-tip-text .dt-speaker-label {
+  color: var(--dt-c, inherit);
+  font-family: var(--font-sans);
+}
+
+.dt-tip .dt-tip-frame {
+  display: block;
+  width: 13rem;
+  max-width: 100%;
+  margin-top: 0.4rem;
+}
+
+.dt-tip .dt-tip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-weight: var(--font-weight-sans-bold);
+  margin-bottom: 0.15rem;
+}
+
+.dt-tip .dt-tip-sub {
+  color: var(--dt-text-support);
+  margin-bottom: 0.1rem;
+}
+
+.dt-tip .dt-tip-time {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-tiny);
+  font-weight: normal;
+  color: var(--dt-text-faint);
+}
+
+.dt-tip .dt-tip-time::before {
+  content: "[";
+}
+
+.dt-tip .dt-tip-time::after {
+  content: "]";
+}
+
+/* The head names the speaker once, in their color — same rule as the
+   transcript labels: name on its own line, no colon, no dot. */
+.dt-tip .dt-tip-name {
+  color: var(--dt-c, var(--dt-text));
+}
+
+/* ---- Speakers panel ---- */
+
+.dt-stats table {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-collapse: collapse;
+  font-size: var(--font-size-smaller);
+  table-layout: auto;
+}
+
+/* Neutralize the content table chrome: no cell min-widths, no header band. */
+.dt-stats th,
+.dt-stats td {
+  min-width: 0;
+  max-width: none;
+  background-color: transparent;
+}
+
+.dt-stats tbody tr:nth-child(even) {
+  background-color: var(--color-bg-alt);
+}
+
+.dt-stats th {
+  text-align: left;
+  font-size: var(--font-size-tiny);
+  font-weight: var(--font-weight-sans-medium);
+  color: var(--dt-text-support);
+  border-bottom: 1px solid var(--color-border-hint);
+  padding: 0.25rem 0.9rem 0.25rem 0;
+  white-space: nowrap;
+}
+
+.dt-stats th.dt-num,
+.dt-stats td.dt-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dt-stats td {
+  padding: 0.3rem 0.9rem 0.3rem 0;
+  vertical-align: baseline;
+  word-break: normal;
+}
+
+.dt-stats tr.dt-totals-row td {
+  border-top: 1px solid var(--color-border-hint);
+  font-weight: var(--font-weight-sans-medium);
+  color: var(--dt-text);
+}
+
+.dt-stats .dt-speaker-name {
+  color: var(--dt-c);
+  font-weight: var(--font-weight-sans-bold);
+  white-space: nowrap;
+}
+
+.dt-stats .dt-bar-cell {
+  width: 22%;
+  min-width: 4.5rem;
+}
+
+.dt-bar {
+  height: 0.55rem;
+  border-radius: var(--dt-radius);
+  background: var(--dt-cv, var(--color-hint));
+  min-width: 2px;
+}
+
+/* ---- Concepts and Claims panels ---- */
+
+.dt-graph {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0 2.25rem;
+  position: relative;
+}
+
+.dt-graph-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+.dt-graph-chip {
+  position: absolute;
+  white-space: nowrap;
+}
+
+/* Two prebuilt layouts, one per medium: the screen graph tracks the panel
+   width, the print graph is laid out at --dt-print-width. The print copy
+   sits off-screen rather than hidden, since a display:none element cannot
+   be measured. */
+.dt-print-host {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+}
+
+@media print {
+  .dt-print-host {
+    position: static;
+    left: auto;
+    visibility: visible;
+  }
+
+  .dt-graph-screen {
+    display: none !important;
+  }
+}
+
+.dt-graph-edge {
+  fill: none;
+  stroke: var(--color-hint);
+  stroke-width: 1.2;
+  opacity: 0.6;
+  pointer-events: stroke;
+}
+
+.dt-concept-chip.dt-selected {
+  box-shadow: var(--dt-ring-selected);
+}
+
+.dt-dimmed {
+  opacity: 0.35;
+}
+
+.dt-concept-defs {
+  margin: 0.75rem 0 0;
+}
+
+/* One list entry: mini timeline, chip row, gloss. The track spans the full
+   panel content width on the same 0-to-duration scale as the Timeline panel
+   above, so all the bars are comparable at a glance. */
+.dt-concept-entry {
+  margin-top: 1.4rem;
+}
+
+.dt-concept-track {
+  position: relative;
+  height: 10px;
+  margin-top: 0.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.dt-concept-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 2px;
+  background: var(--color-hint-gentle);
+}
+
+.dt-track-span {
+  position: absolute;
+  top: 2px;
+  height: 6px;
+  border-radius: var(--dt-radius);
+  background: var(--dt-kind-c, var(--color-primary));
+  opacity: 0.3;
+}
+
+.dt-track-dot {
+  position: absolute;
+  top: 1px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: var(--dt-kind-c, var(--color-primary));
+  border: 1px solid var(--color-bg-solid);
+  cursor: pointer;
+}
+
+/* Chip rows center beneath their tracks; glosses stay flush left. */
+.dt-concept-term {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Print form of the edge tooltips; the track dots need no print form. */
+.dt-concept-relations {
+  font-size: var(--font-size-tiny);
+  color: var(--dt-text-support);
+  margin-top: 0.1rem;
+}
+
+/* Same vocabulary as the chips: small-caps type, bold target. */
+.dt-relation-type {
+  text-transform: var(--caps-transform);
+  font-variant-caps: var(--caps-caps-variant);
+  letter-spacing: var(--caps-spacing);
+  font-weight: var(--font-weight-sans-medium);
+  margin-right: 0.3rem;
+}
+
+.dt-relation-target {
+  font-weight: var(--font-weight-sans-bold);
+  color: var(--dt-text);
+}
+
+/* The one concept chip: kind tag | bar | value, outlined in the kind color
+   over a pale kind tint. Identical in the list, the Claims panel, and the
+   graph. */
+.dt-concept-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--dt-kind-c, var(--color-hint-strong));
+  border-radius: var(--dt-radius);
+  background: color-mix(in srgb, var(--dt-kind-c, var(--color-hint-strong)) var(--dt-kind-tint), var(--color-bg-solid));
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  white-space: nowrap;
+}
+
+.dt-concept-chip .dt-chip-kind {
+  font-size: var(--font-size-tiny);
+  font-weight: var(--font-weight-sans-medium);
+  text-transform: var(--caps-transform);
+  font-variant-caps: var(--caps-caps-variant);
+  letter-spacing: var(--caps-spacing);
+  line-height: 1;
+  color: var(--dt-kind-c, var(--color-hint-strong));
+  border-right: 1px solid var(--dt-kind-c, var(--color-hint-strong));
+  padding: 0 0.3rem;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  /* Small caps have no descenders, so optical center sits a hair high. */
+  transform: translateY(-0.5px);
+}
+
+.dt-concept-chip .dt-chip-label {
+  font-size: var(--font-size-smaller);
+  font-weight: var(--font-weight-sans-medium);
+  line-height: 1.25;
+  color: var(--dt-text);
+  padding: 0.08rem 0.4rem;
+}
+
+.dt-concept-gloss {
+  margin: 0.15rem 0 0.5rem;
+  color: var(--dt-text);
+}
+
+.dt-concept-research {
+  margin-top: 0.2rem;
+  font-size: var(--font-size-tiny);
+  color: var(--dt-text-support);
+  border-left: 2px solid var(--color-border-hint);
+  padding-left: 0.5rem;
+}
+
+/* Claims panel entries name their speakers in speaker colors. */
+/* Exact mentions marked in the summary: speakers colored, entities bold. */
+.dt-name-ref {
+  color: var(--dt-c);
+  font-weight: var(--font-weight-sans-medium);
+}
+
+.dt-entity-ref {
+  font-weight: var(--font-weight-sans-bold);
+}
+
+/* Claims state their makers plainly on a line below the chip. */
+.dt-claim-made-by {
+  margin: 0.2rem 0 0.1rem;
+  font-size: var(--font-size-smaller);
+}
+
+.dt-claim-made-by-label {
+  color: var(--dt-text-support);
+}
+
+.dt-claim-speaker {
+  color: var(--dt-c);
+  font-weight: var(--font-weight-sans-medium);
+  white-space: nowrap;
+}
+
+/* Selected concept's mentions highlighted in the prose, runtime only. */
+.dt-mention {
+  background: var(--color-hover-bg);
+  outline: 2px solid var(--color-border-hint);
+  border-radius: var(--dt-radius);
+}
+
+/* ---- Column placement: slide left to reserve the right rail area ---- */
+
+/* Once the dt views are active, the reading column gives up strict centering
+   on all but narrow screens so the frame gutter and the rail keep room on the
+   right. --dt-col-ml is the column's left margin; with a TOC it floors at the
+   TOC's edge instead. Print never sees any of this. */
+@media screen and (min-width: 1150px) {
+  body.dt-on {
+    --dt-col-ml: max(2rem, calc((100vw - 48rem) / 2 - var(--dt-col-shift)));
+  }
+
+  body.dt-on .content-with-toc.has-toc {
+    --dt-col-ml: max(19rem, calc((100vw - 48rem) / 2 - var(--dt-col-shift)));
+  }
+
+  body.dt-on .long-text {
+    margin-left: var(--dt-col-ml) !important;
+    margin-right: auto !important;
+  }
+}
+
+/* ---- Frame captures: gutter layout and connectors ---- */
+
+/* Applied by dt_frames only on wide-enough viewports; cleared when narrow. */
+@media (min-width: 1150px) {
+  body.dt-frames-gutter .long-text {
+    position: relative;
+  }
+
+  body.dt-frames-gutter .long-text img.frame-capture {
+    position: absolute;
+    left: calc(100% + 1.2rem);
+    width: min(11rem, calc(100vw - var(--dt-col-ml, 2rem) - 48rem - var(--dt-rail-width) - 3.6rem));
+    max-width: 11rem;
+    margin: 0;
+    border-radius: var(--dt-radius);
+    box-shadow: var(--dt-shadow-card);
+    transition: box-shadow var(--dt-t-med) ease-in-out, transform var(--dt-t-med) ease-in-out;
+  }
+
+  /* Hover (or rail hover) lifts a frame above overlapping neighbors; the
+     .dt-raised class is kept briefly after the pointer leaves, tooltip-style,
+     before the deck settles back. */
+  body.dt-frames-gutter .long-text img.frame-capture.dt-raised {
+    z-index: var(--dt-z-raised) !important;
+    transform: scale(1.04);
+  }
+
+  body.dt-frames-gutter .long-text img.frame-capture:hover,
+  body.dt-frames-gutter .long-text img.frame-capture.dt-hot {
+    box-shadow: var(--dt-shadow-card-hot);
+  }
+}
+
+#dt-connectors {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: var(--dt-z-connectors);
+}
+
+.dt-connector {
+  fill: none;
+  stroke: var(--color-hint);
+  stroke-width: 1.2;
+  opacity: 0.5;
+}
+
+.dt-connector.dt-hot {
+  stroke: var(--color-primary);
+  stroke-width: 1.8;
+  opacity: 0.95;
+}
+
+/* ---- Print and motion ---- */
+
+@media print {
+  /* Held out: viewport-bound chrome and pointing surfaces. Their data reaches
+     print through the panels (see the PRINT rule in dt_tokens.css.jinja). */
+  #dt-rail,
+  #dt-connectors,
+  .dt-tip,
+  .dt-ov-marker {
+    display: none !important;
+  }
+
+  /* Frames print inline; gutter placement is screen-only. */
+  body.dt-frames-gutter .long-text img.frame-capture {
+    position: static !important;
+    width: auto !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  /* Transient selection state never prints. */
+  .dt-dimmed {
+    opacity: 1 !important;
+  }
+
+  .dt-concept-chip.dt-selected {
+    box-shadow: none !important;
+  }
+
+  .dt-mention {
+    background: none !important;
+    outline: none !important;
+  }
+
+  /* Hover-only data gets its print form. */
+  .dt-print-only {
+    display: block;
+  }
+
+  /* Keep each visual whole across page breaks. */
+  .dt-panel-title,
+  .dt-overview,
+  .dt-graph,
+  .dt-stats table,
+  .dt-concept-entry,
+  .dt-concept-chip,
+  .long-text .original p {
+    break-inside: avoid;
+  }
+
+  /* A heading never ends a page alone. */
+  .dt-panel-title,
+  .long-text .original h2,
+  strong.dt-speaker-label {
+    break-after: avoid;
+  }
+
+  /* The transcript is the document's second half; start it fresh. */
+  .dt-transcript-heading {
+    break-before: page;
+  }
+
+  /* No single stranded line at a page boundary. */
+  .long-text p,
+  .dt-concept-gloss {
+    orphans: 2;
+    widows: 2;
+  }
+
+  /* Color fills must actually print. */
+  .dt-ov-band,
+  .dt-ov-section,
+  .dt-bar,
+  .dt-track-span,
+  .dt-track-dot,
+  .dt-concept-chip {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-hoverable,
+  .dt-tip,
+  #dt-rail,
+  .dt-rail-seg,
+  .dt-ov-section,
+  .dt-time-chip,
+  body.dt-frames-gutter .long-text img.frame-capture {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,154 @@
+/* ============================================================================
+   Deep Transcribe view design system.
+
+   This file IS the design system: every color, size, radius, duration, and
+   shadow the dt components may use is declared here, with its rule beside it.
+   Component styles in dt_viz.css.jinja consume these tokens and may not
+   introduce literals of their own — tests/test_design_tokens.py enforces it.
+
+   Ground rules, in one place:
+
+   TYPE   Serif (--font-serif) is reserved for the literal transcript text and
+          the page title. Everything else — headings, panels, chips, tooltips,
+          extracted content such as the summary and glosses — is sans.
+          H1: every top section (Summary, Timeline, Speakers, Outline,
+          Concepts, Claims, Transcript): all-caps, centered, sans 600.
+          H2: transcript sections only: sans 600 at --dt-h2-size.
+
+   COLOR  Exactly three text roles (--dt-text / --dt-text-support /
+          --dt-text-faint) plus accents from the speaker palette
+          (--dt-c text-safe, --dt-cv vivid fill) and the concept-kind color
+          (--dt-kind-c). Nothing renders text in any other color, and main
+          text blocks (summary, glosses, transcript, outline) are always
+          --dt-text on screen and in print: gray belongs only to supporting
+          labels and inline timestamps.
+
+   TIME   A timestamp inline with other content renders one way: faint, sans,
+          --font-size-tiny, in brackets, and clicking it opens the video at
+          that moment (falling back to scrolling only when no linkable video
+          exists). Timeline axis numbers are the sanctioned exception: bare
+          and full-prominence, because there time is the content.
+
+   SHAPE  Two radii only. Tooltips are square. Panels are unboxed (no border,
+          --dt-pad padding) and every time-scaled bar spans the full panel
+          content width on one 0-to-duration scale, so bars align vertically
+          across panels.
+
+   PRINT  Everything static and data-bearing prints; only viewport-bound or
+          transient chrome is held out (the rail, connectors, tooltips, the
+          reading marker, selection states). Data that lives in a hover
+          surface on screen reaches print through print-only lines. Charts
+          re-render at --dt-print-width during printing so type keeps its
+          real size.
+   ============================================================================ */
+
+:root {
+  /* --- Speaker palette: 8 hues, assigned by roster order, stable across
+     reruns. --dt-sp-N must stay WCAG AA against the light background; the
+     -vivid variant is the brighter fill toned to read as the same color.
+     Text-safe variants color names and labels; vivid variants fill bands,
+     bars, dots, and markers. --- */
+  --dt-sp-0: #0b7285;
+  --dt-sp-1: #9a5b00;
+  --dt-sp-2: #6741d9;
+  --dt-sp-3: #c2255c;
+  --dt-sp-4: #28803a;
+  --dt-sp-5: #1971c2;
+  --dt-sp-6: #c23d08;
+  --dt-sp-7: #495d92;
+  --dt-sp-0-vivid: #15aabf;
+  --dt-sp-1-vivid: #e8890c;
+  --dt-sp-2-vivid: #7950f2;
+  --dt-sp-3-vivid: #e64980;
+  --dt-sp-4-vivid: #37b24d;
+  --dt-sp-5-vivid: #228be6;
+  --dt-sp-6-vivid: #e8590c;
+  --dt-sp-7-vivid: #647ce8;
+
+  /* --- Text color roles: the only font colors in the dt UI. --- */
+  --dt-text: var(--color-text);           /* content: headings, values, glosses, axis numbers */
+  --dt-text-support: var(--color-hint-strong); /* supporting labels: table headers, research notes */
+  --dt-text-faint: var(--color-tertiary); /* de-emphasized: bracketed timestamps */
+
+  /* --- Concept-kind colors (fixed ontology: topic, entity, claim). Set on
+     .dt-kind-* wrappers; chips, graph borders, and tracks read --dt-kind-c. --- */
+  --dt-kind-topic: var(--color-primary);
+  --dt-kind-entity: var(--dt-text-support);
+  --dt-kind-claim: var(--dt-sp-1);
+  /* Chip grounds are a very pale, theme-aware tint of the kind color. */
+  --dt-kind-tint: 7%;
+
+  /* --- Shape: two radii only. Tooltips are square (no radius token). --- */
+  --dt-radius: 0.25rem;    /* controls: chips, bars, blocks, spans */
+  --dt-radius-lg: 0.4rem;  /* surfaces: the rail, gutter frames */
+
+  /* --- Motion: three durations. Reduced motion disables all of them. --- */
+  --dt-t-fast: 0.12s;  /* hover feedback */
+  --dt-t-med: 0.18s;   /* tooltips, small state changes */
+  --dt-t-slow: 0.35s;  /* the rail arriving and leaving */
+
+  /* --- Elevation: the only shadows. --- */
+  --dt-shadow-tip: 0 3px 12px rgba(0, 0, 0, 0.22);   /* tooltips */
+  --dt-shadow-card: 0 1px 4px rgba(0, 0, 0, 0.25);   /* gutter frames at rest */
+  --dt-shadow-card-hot: 0 0 0 2px var(--color-primary), 0 2px 8px rgba(0, 0, 0, 0.3); /* hovered/linked frame */
+  --dt-ring-focus: 0 0 0 3px var(--color-primary);   /* keyboard focus */
+  --dt-ring-selected: 0 0 0 1.5px var(--dt-kind-c, var(--color-primary)); /* selected chip */
+
+  /* --- Layout constants. Breakpoints cannot be custom properties; the two
+     used in media queries are documented here and must match:
+       1150px  rail + gutter + left-slid column become active
+       (print and narrower screens keep the centered document layout) --- */
+  --dt-pad: 1rem;          /* panel padding; also the shared text edge */
+  --dt-print-width: 620;   /* px; measured printable content width (read by JS) */
+  --dt-rail-width: 3.4rem;
+  --dt-col-shift: 8rem;    /* how far left of center the column slides */
+
+  /* --- Stacking: dt layers sit between the page and the popover. --- */
+  --dt-z-raised: 30;     /* a hovered gutter frame above its neighbors */
+  --dt-z-connectors: 35;
+  --dt-z-rail: 40;
+  --dt-z-tip: 70;
+
+  /* --- Dense chart labels: one step below tiny, for space-constrained
+     text inside visuals (timeline section names). --- */
+  --dt-label-size: 0.78rem;
+
+  /* --- Heading scale. --- */
+  --dt-h1-size: 1rem;        /* all-caps section headings */
+  --dt-h1-spacing: 0.07em;
+  --dt-h2-size: 1.1rem;      /* transcript section headings */
+  --dt-title-weight: 600;
+
+  /* --- Reading: slightly tighter leading than the site default; paragraph
+     spacing is not changed anywhere. --- */
+  --dt-leading: 1.42;
+  --dt-leading-tip: 1.35;
+  --dt-leading-tip-text: 1.45;
+}
+
+[data-theme="dark"] {
+  /* Same hues, lightened to stay AA against the dark background. */
+  --dt-sp-0: #3bc9db;
+  --dt-sp-1: #ffc078;
+  --dt-sp-2: #b197fc;
+  --dt-sp-3: #faa2c1;
+  --dt-sp-4: #8ce99a;
+  --dt-sp-5: #74c0fc;
+  --dt-sp-6: #ffa94d;
+  --dt-sp-7: #a5b4d4;
+}
+
+/* One class per speaker slot; components read only the indirection vars. */
+.dt-s0 { --dt-c: var(--dt-sp-0); --dt-cv: var(--dt-sp-0-vivid); }
+.dt-s1 { --dt-c: var(--dt-sp-1); --dt-cv: var(--dt-sp-1-vivid); }
+.dt-s2 { --dt-c: var(--dt-sp-2); --dt-cv: var(--dt-sp-2-vivid); }
+.dt-s3 { --dt-c: var(--dt-sp-3); --dt-cv: var(--dt-sp-3-vivid); }
+.dt-s4 { --dt-c: var(--dt-sp-4); --dt-cv: var(--dt-sp-4-vivid); }
+.dt-s5 { --dt-c: var(--dt-sp-5); --dt-cv: var(--dt-sp-5-vivid); }
+.dt-s6 { --dt-c: var(--dt-sp-6); --dt-cv: var(--dt-sp-6-vivid); }
+.dt-s7 { --dt-c: var(--dt-sp-7); --dt-cv: var(--dt-sp-7-vivid); }
+
+/* One class per concept kind; chips, graph edges, and tracks read --dt-kind-c. */
+.dt-kind-topic { --dt-kind-c: var(--dt-kind-topic); }
+.dt-kind-entity { --dt-kind-c: var(--dt-kind-entity); }
+.dt-kind-claim { --dt-kind-c: var(--dt-kind-claim); }

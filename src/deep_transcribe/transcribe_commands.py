@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -236,6 +237,16 @@ def _process_transcript(
     if options.insert_frame_captures:
         result = insert_frame_captures(result)
 
+    if options.extract_concepts and options.format:
+        from deep_transcribe.concept_map import extract_transcript_concepts
+
+        result = extract_transcript_concepts(result, web_search=options.web_search)
+
+    if options.build_index and options.format:
+        from deep_transcribe.transcript_index import attach_transcript_index
+
+        result = attach_transcript_index(result)
+
     if not has_overview_stage:
         set_processing_instructions(result, processing_instructions)
 
@@ -396,6 +407,7 @@ def run_transcription(
     no_minify: bool = False,
     rerun: bool = False,
     rerun_processing: bool = False,
+    elements: list[str] | None = None,
 ) -> tuple[Path, Path]:
     """
     Transcribe the audio or video at the given URL using kash with the specified options.
@@ -469,10 +481,61 @@ def run_transcription(
                 rerun_processing=rerun_processing,
             )
 
-            return format_results(result_item, runtime.workspace.base_dir, no_minify=no_minify)
+            return format_results(
+                result_item, runtime.workspace.base_dir, no_minify=no_minify, elements=elements
+            )
 
 
-def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -> tuple[Path, Path]:
+PAGE_ELEMENTS = (
+    "title",
+    "thumbnail",
+    "summary",
+    "timeline",
+    "speakers",
+    "outline",
+    "concepts",
+    "claims",
+    "frames",
+    "transcript",
+)
+"""Parts of the exported page that `--elements` can select. Default: all."""
+
+
+def parse_page_elements(spec: str) -> list[str]:
+    """Parse and validate a comma-separated `--elements` value."""
+    elements = [name.strip() for name in spec.split(",") if name.strip()]
+    unknown = [name for name in elements if name not in PAGE_ELEMENTS]
+    if unknown:
+        raise ValueError(
+            f"Unknown element(s) {', '.join(unknown)}. Valid elements: {', '.join(PAGE_ELEMENTS)}"
+        )
+    if not elements:
+        raise ValueError(f"--elements needs at least one of: {', '.join(PAGE_ELEMENTS)}")
+    return elements
+
+
+def inject_page_elements(html: str, elements: list[str] | None) -> str:
+    """
+    Inject the element selection into the exported page as configuration.
+
+    The client reads `window.DT_ELEMENTS`, skips excluded panels, and hides
+    excluded stored content. No selection means the full page.
+    """
+    if elements is None or set(elements) == set(PAGE_ELEMENTS):
+        return html
+    config = f"<script>window.DT_ELEMENTS = {json.dumps(list(elements))};</script>"
+    marker = "</body>"
+    if marker not in html:
+        return html + config
+    return html.replace(marker, f"{config}\n{marker}", 1)
+
+
+def format_results(
+    result_item: Item,
+    base_dir: Path,
+    no_minify: bool = False,
+    elements: list[str] | None = None,
+) -> tuple[Path, Path]:
     """
     Format the results of a transcription into HTML and ensure proper file paths.
 
@@ -480,6 +543,7 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
         result_item: The transcription result item
         base_dir: Base directory for output files
         no_minify: If True, skip HTML minification
+        elements: Page parts to include (see PAGE_ELEMENTS); None means all
 
     Returns:
         Tuple of (transcript_path, html_path) for the generated files
@@ -503,6 +567,8 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
             add_title_h1=True,
             template_filename="deep_transcribe_webpage.html.jinja",
         )
+    assert raw_html_item.body
+    raw_html_item.body = inject_page_elements(raw_html_item.body, elements)
     current_ws().save(raw_html_item)
 
     if not no_minify:
@@ -521,6 +587,28 @@ def format_results(result_item: Item, base_dir: Path, no_minify: bool = False) -
 
 
 ## Tests
+
+
+def test_parse_page_elements_validates_names() -> None:
+    assert parse_page_elements("summary, timeline") == ["summary", "timeline"]
+
+    import pytest
+
+    with pytest.raises(ValueError, match="Unknown element"):
+        parse_page_elements("summary,bogus")
+    with pytest.raises(ValueError, match="at least one"):
+        parse_page_elements(" , ")
+
+
+def test_inject_page_elements_only_when_subset() -> None:
+    html = "<html><body><p>x</p></body></html>"
+
+    assert inject_page_elements(html, None) == html
+    assert inject_page_elements(html, list(PAGE_ELEMENTS)) == html
+
+    injected = inject_page_elements(html, ["summary", "timeline"])
+    assert 'window.DT_ELEMENTS = ["summary", "timeline"];' in injected
+    assert injected.index("DT_ELEMENTS") < injected.index("</body>")
 
 
 def test_exact_roster_skips_prose_inference() -> None:
@@ -633,6 +721,7 @@ def test_format_results_copies_frame_assets() -> None:
             assert ".theme-toggle" in html_text
             assert ".timestamp-link:hover" in html_text
             assert ".timestamp-link a" in html_text
-            assert "color: var(--color-secondary) !important" in html_text
+            # Screen and print timestamps share the light-gray treatment.
+            assert "color: var(--color-secondary) !important" not in html_text
             assert "display: none !important" in html_text
             assert 'id="yt-popover"' in html_text

@@ -460,6 +460,45 @@ Any missing phrase, wrong proper noun, mixed-speaker paragraph, shifted timestam
 series, hallucinated summary claim, or repeated processing artifact is a release blocker
 until fixed or explicitly accepted by the release owner.
 
+## Timeline and Analytics View
+
+The formatted HTML embeds a transcript index and renders a timeline rail, a speaker
+analytics panel, and frame-capture connectors.
+Verify in a desktop browser wider than 1450 px unless a step says otherwise.
+
+1. Confirm the page contains one `<script type="application/json"
+   id="dt-transcript-index">` element and that its content parses as JSON with
+   `version: 1`.
+2. Scroll the transcript.
+   The rail on the right must keep its reading marker and viewport window in step with
+   the text, with no lag or drift, and the speaker band colors must match the colored
+   speaker labels in the prose and the Speakers table.
+3. Hover the rail at several heights.
+   The tooltip must show the timestamp, the speaker name with their color dot, the
+   section heading, and opening words from that moment.
+4. Click the rail, a Timeline section, or a speaker segment: the video popover
+   opens at that moment and the page does not scroll.
+   With the popover open at the upper right, the rail must start below it.
+5. Tab to the rail and press ArrowDown, ArrowUp, Home, and End.
+   Each keystroke must move the document one speaker turn or to an end.
+6. Hover a frame capture in the gutter: its connector and rail tick must highlight
+   together, and hovering the tick must outline the frame.
+   Narrow the window below 1450 px: frames must return inline with no connectors, and
+   below 1150 px the rail must disappear.
+7. Check the Speakers panel: counts and shares must be plausible for the video, every
+   speaker must be named in text, and clicking a talk-flow segment must scroll to that
+   turn.
+8. Toggle light and dark themes: all speaker colors must stay readable in both.
+9. Print preview: the printed pages carry the analysis — caps section headings,
+   Summary, the Timeline overview (no reading marker), the Speakers table with its
+   colored bars, outline time chips, Concepts with per-concept mention times and
+   typed relations as printed lines, and Claims — while the rail, connectors,
+   tooltips, and selection states are held out and frames return inline.
+   Charts must print at full text size (they re-render at the print width), and
+   no visual may split awkwardly across a page break.
+10. With reduced motion enabled in the OS, rail clicks must jump without smooth
+    scrolling.
+
 ## Report
 
 Record this evidence in the release task or pull request:
@@ -481,6 +520,7 @@ Diarization and speaker-name findings:
 Timestamp findings:
 Annotation and frame-capture findings:
 HTML rendering findings:
+Timeline and analytics findings:
 Material defects or follow-up issues:
 Metadata correction and cache findings:
 Reviewer verdict:
