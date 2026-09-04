@@ -65,9 +65,13 @@
         current = null;
         continue;
       }
-      if (current && current.segment === unit.segment) current.units.push(unit);
-      else {
-        current = { segment: unit.segment, units: [unit] };
+      // Break at section boundaries as well as at segment ones. A run that swallowed a
+      // section heading's paragraphs from both sides would leave the heading stranded
+      // after the collapsed block, with nothing under it.
+      if (current && current.segment === unit.segment && current.section === unit.section) {
+        current.units.push(unit);
+      } else {
+        current = { segment: unit.segment, section: unit.section, units: [unit] };
         runs.push(current);
       }
     }
@@ -89,11 +93,19 @@
         wrap.classList.toggle("dt-collapsed", collapsed);
         head.setAttribute("aria-expanded", collapsed ? "false" : "true");
       });
-      first.parentElement.insertBefore(wrap, first);
+      // The section's heading belongs with the material it heads, so it is set aside
+      // too when it sits immediately above a suppressed run.
+      const heading =
+        first.previousElementSibling && first.previousElementSibling.tagName === "H2"
+          ? first.previousElementSibling
+          : null;
+      const anchor = heading || first;
+      anchor.parentElement.insertBefore(wrap, anchor);
       wrap.appendChild(head);
       const body = document.createElement("div");
       body.className = "dt-segment-body";
       wrap.appendChild(body);
+      if (heading) body.appendChild(heading);
       for (const unit of run.units) if (unit.el) body.appendChild(unit.el);
     }
   }
