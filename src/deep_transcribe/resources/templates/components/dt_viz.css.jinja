@@ -579,6 +579,72 @@ body.yt-open #dt-rail {
   margin: 0.75rem 0 0;
 }
 
+/* ---- Theme groups (long recordings only) ---- */
+
+.dt-theme-group {
+  border-top: 1px solid var(--color-hint);
+  margin-top: 1.4rem;
+}
+
+/* The theme line reads as a row, not a control: the whole width is the target,
+   and the only chrome is the count and the marker. */
+.dt-theme-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--dt-text);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.dt-theme-head::before {
+  content: "";
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentcolor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform: rotate(90deg);
+  transition: transform var(--dt-t-fast) ease-in-out;
+}
+
+.dt-theme-group.dt-collapsed .dt-theme-head::before {
+  transform: rotate(0deg);
+}
+
+.dt-theme-name {
+  flex: 1 1 auto;
+}
+
+.dt-theme-count {
+  flex: none;
+  color: var(--dt-text-faint);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-theme-group.dt-collapsed .dt-theme-body {
+  display: none;
+}
+
+/* A group's first entry already has the head above it. */
+.dt-theme-body > .dt-concept-entry:first-child {
+  margin-top: 0.5rem;
+}
+
+.dt-theme-body {
+  padding-bottom: 0.6rem;
+}
+
 /* One list entry: mini timeline, chip row, gloss. The track spans the full
    panel content width on the same 0-to-duration scale as the Timeline panel
    above, so all the bars are comparable at a glance. */
@@ -853,6 +919,15 @@ body.yt-open #dt-rail {
   /* Hover-only data gets its print form. */
   .dt-print-only {
     display: block;
+  }
+
+  /* Collapsing is a screen affordance; paper shows every theme's concepts. */
+  .dt-theme-group.dt-collapsed .dt-theme-body {
+    display: block;
+  }
+
+  .dt-theme-head::before {
+    display: none;
   }
 
   /* Keep each visual whole across page breaks. */

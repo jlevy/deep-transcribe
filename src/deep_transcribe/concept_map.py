@@ -289,6 +289,232 @@ def merge_concepts(per_chunk: Sequence[Sequence[dict[str, Any]]]) -> list[dict[s
     return list(merged.values())
 
 
+REDUCE_THRESHOLD = 2
+"""
+Chunk count above which the reduce pass runs.
+
+A single-chunk recording has nothing to reconcile: its concepts came from one call that
+already saw them together. Running the pass anyway would spend a call to reorganize a
+list that is short enough to read as-is, and would change output for short media that is
+working.
+"""
+
+REDUCE_PROMPT = dedent("""
+    You are given the concept map of one long recording, extracted in pieces from
+    consecutive stretches of the conversation and then concatenated. Because each piece
+    was extracted without seeing the others, the list has three problems, and your job
+    is to fix exactly those three and change nothing else.
+
+    1. DUPLICATES. The same idea appears more than once under different labels, because
+       adjacent stretches both covered it. Group those together, keeping the id whose
+       label reads best, and list the others as merged into it.
+
+    2. NO STRUCTURE. A flat list of this many concepts is not a map of anything. Group
+       every concept you keep under a theme — a short noun phrase naming a strand the
+       conversation actually follows. Aim for 6 to 12 themes over the whole recording,
+       each holding a handful of concepts. Order themes as the conversation reaches
+       them; order concepts within a theme the same way.
+
+    3. MINOR ENTRIES. Some concepts looked worth naming inside one stretch and do not
+       hold up against the whole conversation — a passing example, an aside. Drop those.
+       Be conservative: dropping a real strand of the conversation is much worse than
+       keeping a thin one, and anything that is the only concept covering its part of
+       the recording stays.
+
+    Return ONLY a JSON object of this exact shape:
+
+    {{"themes": [
+      {{"label": "Short theme name", "concepts": ["concept-id", "concept-id"]}}
+    ],
+    "merges": [{{"keep": "concept-id", "merged": ["concept-id", "concept-id"]}}],
+    "dropped": ["concept-id"]}}
+
+    Rules:
+    - Every id you write MUST be one of the ids listed below, copied exactly. Do not
+      invent ids and do not invent concepts.
+    - Every kept concept appears under exactly one theme. A merged or dropped id must
+      not appear under any theme.
+    - Do not rewrite labels or glosses. You are organizing, not rewriting.
+
+    Concepts, in the order the conversation reaches them:
+
+    {concepts}
+    """).strip()
+
+
+def _format_concepts_for_reduce(concepts: Sequence[dict[str, Any]]) -> str:
+    lines: list[str] = []
+    for concept in concepts:
+        gloss = " ".join(str(concept.get("gloss") or "").split())
+        lines.append(f"- {concept['id']} [{concept.get('kind')}] {concept.get('label')} — {gloss}")
+    return "\n".join(lines)
+
+
+def _parse_reduce(
+    response: str, known: set[str]
+) -> tuple[list[tuple[str, list[str]]], dict[str, str], set[str]]:
+    """
+    Parse a reduce response into (themes, merged-into, dropped), keeping only known ids.
+
+    The model is organizing a list it was handed, so anything it names that was not on
+    that list is a mistake rather than an addition, and is discarded here.
+    """
+    parsed = fuzzy_parse_json(response)
+    if not isinstance(parsed, dict):
+        raise ApiResultError(f"Reduce response is not a JSON object: {response[:200]}")
+    payload = cast(dict[str, Any], parsed)
+
+    merged_into: dict[str, str] = {}
+    for raw in cast(list[object], payload.get("merges") or []):
+        if not isinstance(raw, dict):
+            continue
+        merge = cast(dict[str, Any], raw)
+        keep = str(merge.get("keep") or "")
+        if keep not in known:
+            continue
+        for other in cast(list[object], merge.get("merged") or []):
+            other_id = str(other)
+            if other_id in known and other_id != keep:
+                merged_into[other_id] = keep
+
+    dropped = {str(d) for d in cast(list[object], payload.get("dropped") or [])} & known
+    dropped -= set(merged_into.values())
+
+    themes: list[tuple[str, list[str]]] = []
+    for raw in cast(list[object], payload.get("themes") or []):
+        if not isinstance(raw, dict):
+            continue
+        theme = cast(dict[str, Any], raw)
+        label = " ".join(str(theme.get("label") or "").split())
+        members = [
+            str(c)
+            for c in cast(list[object], theme.get("concepts") or [])
+            if str(c) in known and str(c) not in merged_into and str(c) not in dropped
+        ]
+        if label and members:
+            themes.append((label, members))
+    return themes, merged_into, dropped
+
+
+def _mention_seconds(key: str) -> float:
+    """Citation keys are start times in seconds; an unparsable one sorts last."""
+    try:
+        return float(key)
+    except ValueError:
+        return float("inf")
+
+
+def apply_reduction(
+    concepts: Sequence[dict[str, Any]],
+    themes: Sequence[tuple[str, list[str]]],
+    merged_into: dict[str, str],
+    dropped: set[str],
+) -> list[dict[str, Any]]:
+    """
+    Rewrite the concept list from a reduce result, in theme order.
+
+    Merging folds mentions and relations into the surviving concept, so nothing the
+    transcript actually supports is lost when two labels turn out to name one idea.
+    A concept the model failed to place keeps its place rather than disappearing: an
+    unthemed leftover is a smaller problem than a silently missing concept.
+    """
+    by_id = {str(c["id"]): c for c in concepts}
+    for source, target in merged_into.items():
+        loser, winner = by_id.get(source), by_id.get(target)
+        if not loser or not winner:
+            continue
+        seen = set(cast(list[str], winner.get("mentions") or []))
+        for mention in cast(list[str], loser.get("mentions") or []):
+            if mention not in seen:
+                seen.add(mention)
+                cast(list[str], winner["mentions"]).append(mention)
+        relations = cast(list[dict[str, Any]], winner.get("relations") or [])
+        known = {(r.get("to"), r.get("type")) for r in relations}
+        for relation in cast(list[dict[str, Any]], loser.get("relations") or []):
+            if (relation.get("to"), relation.get("type")) not in known:
+                relations.append(relation)
+        winner["relations"] = relations
+        if not winner.get("gloss"):
+            winner["gloss"] = loser.get("gloss") or ""
+
+    removed = set(merged_into) | dropped
+
+    def first_mention(concept: dict[str, Any]) -> float:
+        times = [_mention_seconds(m) for m in cast(list[str], concept.get("mentions") or [])]
+        return min(times) if times else float("inf")
+
+    # Order by the clock rather than by what the model returned. Themes are asked for in
+    # the order the conversation reaches them and do not always come back that way, and
+    # this is a fact the mentions already settle.
+    placed: set[str] = set()
+    groups: list[tuple[float, str, list[dict[str, Any]]]] = []
+    for label, members in themes:
+        members_kept: list[dict[str, Any]] = []
+        for concept_id in members:
+            concept = by_id.get(concept_id)
+            if concept is None or concept_id in removed or concept_id in placed:
+                continue
+            placed.add(concept_id)
+            members_kept.append({**concept, "theme": label})
+        if members_kept:
+            members_kept.sort(key=first_mention)
+            groups.append((first_mention(members_kept[0]), label, members_kept))
+    groups.sort(key=lambda g: g[0])
+
+    ordered: list[dict[str, Any]] = [c for _, _, members in groups for c in members]
+    # A concept no theme claimed keeps its place at the end rather than disappearing.
+    for concept in concepts:
+        concept_id = str(concept["id"])
+        if concept_id in removed or concept_id in placed:
+            continue
+        ordered.append({**concept, "theme": None})
+    return ordered
+
+
+def reduce_concepts(concepts: Sequence[dict[str, Any]], model: LLMName) -> list[dict[str, Any]]:
+    """
+    Organize a merged concept map: collapse duplicates, group into themes, drop the minor.
+
+    This is the step chunking makes possible. The transcript is 55,000 words but its
+    concept map with glosses is a few thousand, so one call can hold the whole thing and
+    make judgments no single chunk could — that two labels name one idea, that a strand
+    runs through the conversation, that an entry looked bigger from inside its half hour
+    than it does from outside. Extraction is local where the detail is; this is global
+    where the overview is.
+
+    A failure here returns the input unchanged. An unorganized map is still a map.
+    """
+    from kash.llm_utils.llm_completion import llm_template_completion
+
+    prompt = REDUCE_PROMPT.format(concepts=_format_concepts_for_reduce(concepts))
+    escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
+    try:
+        response = llm_template_completion(
+            model=model,
+            system_message=Message(
+                "You organize an already-extracted concept map. You never add, rename, "
+                "or reword anything."
+            ),
+            input="Organize the supplied concept map.",
+            body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
+        ).content
+        themes, merged_into, dropped = _parse_reduce(response, {str(c["id"]) for c in concepts})
+    except (ApiResultError, json.JSONDecodeError) as error:
+        log.warning("Concept reduce pass failed, keeping the unorganized map: %s", error)
+        return list(concepts)
+
+    reduced = apply_reduction(concepts, themes, merged_into, dropped)
+    log.info(
+        "Reduced %d concepts to %d in %d themes (%d merged, %d dropped)",
+        len(concepts),
+        len(reduced),
+        len(themes),
+        len(merged_into),
+        len(dropped),
+    )
+    return reduced
+
+
 WEB_SEARCH_PARAM = Param(
     name="web_search",
     description="Allow concept research notes corroborated by web search.",
@@ -327,6 +553,8 @@ def extract_transcript_concepts(
         (units[-1].start - units[0].start) / 60,
     )
     concepts = merge_concepts(extract_chunks(chunks, model, web_search))
+    if len(chunks) >= REDUCE_THRESHOLD:
+        concepts = reduce_concepts(concepts, model)
     if not concepts:
         return item.derived_copy(type=ItemType.doc)
 
@@ -448,6 +676,98 @@ def test_one_failed_chunk_does_not_lose_the_others() -> None:
         pytest.raises(ApiResultError, match="all 4"),
     ):
         extract_chunks(chunks, LLM.default_structured, False)
+
+
+def _concept(concept_id: str, mentions: list[str]) -> dict[str, Any]:
+    return {
+        "id": concept_id,
+        "label": concept_id.replace("-", " ").capitalize(),
+        "kind": "topic",
+        "gloss": "",
+        "mentions": mentions,
+        "relations": [],
+        "research": None,
+    }
+
+
+def test_reduce_merges_folds_mentions_and_orders_by_theme() -> None:
+    concepts = [
+        _concept("agents", ["1.00"]),
+        _concept("coding-agents", ["2.00"]),
+        _concept("linux", ["3.00"]),
+        _concept("passing-aside", ["4.00"]),
+    ]
+    response = json.dumps(
+        {
+            "themes": [
+                {"label": "Operating systems", "concepts": ["linux"]},
+                {"label": "Agentic coding", "concepts": ["agents"]},
+            ],
+            "merges": [{"keep": "agents", "merged": ["coding-agents"]}],
+            "dropped": ["passing-aside"],
+        }
+    )
+
+    themes, merged_into, dropped = _parse_reduce(response, {str(c["id"]) for c in concepts})
+    reduced = apply_reduction(concepts, themes, merged_into, dropped)
+
+    # The model listed Operating systems first, but agents is mentioned earlier, and the
+    # clock decides.
+    assert [c["id"] for c in reduced] == ["agents", "linux"]
+    assert [c["theme"] for c in reduced] == ["Agentic coding", "Operating systems"]
+    assert reduced[0]["mentions"] == ["1.00", "2.00"]  # the merged concept's mentions survive
+
+
+def test_reduce_orders_themes_and_members_by_the_clock() -> None:
+    concepts = [
+        _concept("late", ["9000.00"]),
+        _concept("early", ["10.00"]),
+        _concept("middle", ["4000.00"]),
+    ]
+    # The model returns the later theme first and its members out of order.
+    themes = [("Second half", ["late", "middle"]), ("Opening", ["early"])]
+
+    reduced = apply_reduction(concepts, themes, {}, set())
+
+    assert [c["theme"] for c in reduced] == ["Opening", "Second half", "Second half"]
+    assert [c["id"] for c in reduced] == ["early", "middle", "late"]
+
+
+def test_reduce_ignores_ids_it_was_never_given() -> None:
+    response = json.dumps(
+        {
+            "themes": [{"label": "T", "concepts": ["real", "invented"]}],
+            "merges": [{"keep": "invented", "merged": ["real"]}],
+            "dropped": ["also-invented"],
+        }
+    )
+
+    themes, merged_into, dropped = _parse_reduce(response, {"real"})
+
+    assert themes == [("T", ["real"])]
+    assert merged_into == {}  # a merge into an id that does not exist is discarded
+    assert dropped == set()
+
+
+def test_reduce_keeps_a_concept_no_theme_claimed() -> None:
+    concepts = [_concept("named", ["1.00"]), _concept("forgotten", ["2.00"])]
+
+    reduced = apply_reduction(concepts, [("T", ["named"])], {}, set())
+
+    assert [c["id"] for c in reduced] == ["named", "forgotten"]
+    assert reduced[1]["theme"] is None
+
+
+def test_reduce_failure_returns_the_map_unchanged() -> None:
+    from unittest.mock import patch
+
+    concepts = [_concept("a", ["1.00"]), _concept("b", ["2.00"])]
+
+    with patch(
+        "kash.llm_utils.llm_completion.llm_template_completion",
+        side_effect=ApiResultError("no"),
+    ):
+        assert reduce_concepts(concepts, LLM.default_structured) == concepts
 
 
 def test_merge_concepts_unions_mentions_and_keeps_first_label() -> None:

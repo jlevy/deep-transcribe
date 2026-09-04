@@ -173,10 +173,63 @@
     }
   }
 
+  /* Long recordings arrive already grouped: the reduce pass names a theme for each
+     concept and orders them by theme, so consecutive runs of one theme are the groups.
+     Below the length where a flat list is still a map, groups start collapsed — a dozen
+     theme lines you can open beats twenty screens you have to scroll. Short media has no
+     themes at all and renders exactly as before. */
+  const FLAT_LIST_LIMIT = 24;
+
+  function groupByTheme(concepts) {
+    const groups = [];
+    for (const concept of concepts) {
+      const theme = concept.theme || null;
+      const last = groups[groups.length - 1];
+      if (last && last.theme === theme) last.concepts.push(concept);
+      else groups.push({ theme, concepts: [concept] });
+    }
+    return groups;
+  }
+
+  function buildThemeGroup(theme, count, collapsed) {
+    const group = el("div", `dt-theme-group${collapsed ? " dt-collapsed" : ""}`);
+    const head = el("button", "dt-theme-head");
+    head.type = "button";
+    head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    head.appendChild(el("span", "dt-theme-name", theme));
+    head.appendChild(el("span", "dt-theme-count", String(count)));
+    head.addEventListener("click", () => {
+      const nowCollapsed = !group.classList.contains("dt-collapsed");
+      group.classList.toggle("dt-collapsed", nowCollapsed);
+      head.setAttribute("aria-expanded", nowCollapsed ? "false" : "true");
+    });
+    group.appendChild(head);
+    const body = el("div", "dt-theme-body");
+    group.appendChild(body);
+    return { group, body };
+  }
+
   function buildDefinitions(concepts) {
     const byId = new Map(concepts.map((c) => [c.id, c]));
     const list = el("div", "dt-concept-defs");
+    const groups = groupByTheme(concepts);
+    const themed = groups.some((g) => g.theme);
+    const collapsed = themed && concepts.length > FLAT_LIST_LIMIT;
+    let target = list;
+    let groupIndex = -1;
     for (const concept of concepts) {
+      // Open a new theme container whenever this concept starts the next group.
+      const nextGroup = groups[groupIndex + 1];
+      if (themed && nextGroup && nextGroup.concepts[0] === concept) {
+        groupIndex += 1;
+        if (nextGroup.theme) {
+          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, collapsed);
+          list.appendChild(built.group);
+          target = built.body;
+        } else {
+          target = list;
+        }
+      }
       const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
       entry.dataset.concept = concept.id;
       const term = el("div", "dt-concept-term");
@@ -211,7 +264,7 @@
       // Reading order: centered chip, its timeline right below, then the gloss.
       // The track's dots carry the mention positions, in print as on screen.
       entry.append(term, buildConceptTrack(concept), detail);
-      list.appendChild(entry);
+      target.appendChild(entry);
     }
     return list;
   }

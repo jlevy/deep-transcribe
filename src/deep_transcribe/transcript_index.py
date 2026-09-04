@@ -460,6 +460,7 @@ def _resolve_concepts(
                 "speakers": speakers,
                 "relations": relations,
                 "research": concept.get("research"),
+                "theme": concept.get("theme") or None,
             }
         )
     return resolved
