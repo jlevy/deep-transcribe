@@ -5,7 +5,7 @@ title: "Long-form scale: make hours-long media work end to end"
 kind: epic
 status: open
 priority: 1
-version: 18
+version: 19
 labels: []
 dependencies: []
 child_order_hints:
@@ -25,8 +25,9 @@ child_order_hints:
   - is-01m1ngetsvzhmab7zqmh2c0259
   - is-01m1ngmw5rmvw53737am2ys73t
   - is-01m1nj101r8h6c0qjqjngbcw66
+  - is-01m1nn9te3sc73grm9rarwq55h
 created_at: 2026-09-04T02:22:50.649Z
-updated_at: 2026-09-04T06:34:47.211Z
+updated_at: 2026-09-04T07:32:02.113Z
 ---
 A 5.3-hour podcast (Lex Fridman #501, 18951s) exposed scale problems in download and transcription. Three upstream bugs found and fixed, each visible only by running at this scale.
 
