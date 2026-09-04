@@ -150,6 +150,8 @@ agree without the document losing text:
   is reused on the second run.
 - [ ] Make concepts, outline, synopsis, statistics, and the timeline respect the marks;
   show excluded time rather than hiding it.
+- [ ] Render excluded runs as a collapsed, expandable line with a kind chip and
+  duration, graying the passage when expanded; print the collapsed line only.
 - [ ] Extend the runbook: detect, review the file by hand, rerun, and verify the cache
   was reused and no sentence was cut.
 
