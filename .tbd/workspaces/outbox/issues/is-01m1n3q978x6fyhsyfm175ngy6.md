@@ -5,7 +5,7 @@ title: Transcript segments with default suppression
 kind: feature
 status: open
 priority: 1
-version: 15
+version: 16
 spec_path: docs/project/specs/active/plan-2026-09-04-transcript-segments.md
 labels: []
 dependencies: []
@@ -20,7 +20,7 @@ child_order_hints:
   - is-01m1na58vampj3d053x9qddjf3
   - is-01m1nq9wwxfa8c5v3h4ngk3z68
 created_at: 2026-09-04T02:24:48.871Z
-updated_at: 2026-09-04T10:00:11.923Z
+updated_at: 2026-09-04T10:20:14.807Z
 ---
 MEASURED against Lex #501 (5.3h) before designing:
 - 23 YouTube chapters with exact boundaries and human titles, including 'Episode highlight' (0:00-1:27) and 'Introduction' (1:27-2:56). Excellent free skeleton.
@@ -83,3 +83,28 @@ The outline's first three entries are "The Rapid Acceleration of AI Progress",
 "Racing, Risk-Taking, and Shifting Paradigms", "Parenthood as Peak Human Experience" —
 the highlight reel, still present because this run passed no hints. That is exactly what
 the segments feature removes, and it is why it is worth having.
+VERIFIED ON THE CLEAN WORKSPACE (rerun with current code, 03:17):
+
+FRAME THINNING
+  frames in the stored document   501 -> 168
+  files in the assets directory   501 -> 168   (they agree, which is the overwrite=True
+                                                fix: before it, the document kept 501
+                                                references to files already deleted)
+  assets on disk                  115 MB -> 39 MB
+
+PREVIEW DETECTION AND THE SUGGESTION
+  Detected 0:00:05-0:01:49 and wrote segments.suggested.yml with the evidence in the
+  note: "6 paragraphs, 83% of them found again later in the recording". The file carries
+  its own instructions, the recording's title, and nothing else — it is meant to be
+  opened and edited, so it explains itself rather than assuming someone read the docs.
+
+  The run said so plainly on the way out:
+    "The opening looks like a highlight reel (0:00:05 to 0:01:49). Suggested hints
+     written to ... — review it and rerun with --segments to leave it out of the
+     analysis."
+
+ONE THING TO WATCH, found by running it: thinning mutates the frame-capture document, so
+the first rerun after this feature landed invalidates the concepts stage and pays for it
+again. That is a one-time migration, since thinning is idempotent and the body is stable
+afterwards — but it means the honest measurement of hint-rerun cost is the SECOND rerun,
+not this one.
