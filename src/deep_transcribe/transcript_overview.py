@@ -370,9 +370,12 @@ def add_transcript_description(item: Item, model: LLMName = LLM.default_standard
     numbered = "\n\n".join(f"{i + 1}. {summary}" for i, summary in enumerate(kept))
     # The reduce reads the summaries, not the transcript, so it is article-sized at any
     # recording length. It keeps the source metadata so it can still name participants.
+    # `prepare_transcript_for_model` already builds the body from the instructions block
+    # plus this text; overwriting that body with the bare summaries, as this used to, threw
+    # the user's instructions away at exactly the step that decides the final wording.
     reduced = _complete(
         model,
         SYNOPSIS_REDUCE_OPTIONS,
-        prepare_transcript_for_model(item, numbered).new_copy_with(body=numbered),
+        prepare_transcript_for_model(item, numbered),
     )
     return wrap_transcript_description(item, reduced)

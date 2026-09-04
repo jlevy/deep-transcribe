@@ -93,12 +93,20 @@
         wrap.classList.toggle("dt-collapsed", collapsed);
         head.setAttribute("aria-expanded", collapsed ? "false" : "true");
       });
-      // The section's heading belongs with the material it heads, so it is set aside
-      // too when it sits immediately above a suppressed run.
-      const heading =
+      // The section's heading belongs with the material it heads — but only when the run
+      // IS that material. A suppressed span usually covers just the opening paragraphs of
+      // a section, and taking the heading along strands everything after it with no
+      // heading at all, which is the inverse of the problem this was meant to solve. So
+      // the heading comes only when the run runs from directly below it to the section's
+      // end. Runs are already split on unit.section, so a run never spans two sections.
+      const above =
         first.previousElementSibling && first.previousElementSibling.tagName === "H2"
           ? first.previousElementSibling
           : null;
+      const last = run.units[run.units.length - 1].el;
+      const after = last ? last.nextElementSibling : null;
+      const runEndsTheSection = !after || after.tagName === "H2";
+      const heading = above && runEndsTheSection ? above : null;
       const anchor = heading || first;
       anchor.parentElement.insertBefore(wrap, anchor);
       wrap.appendChild(head);

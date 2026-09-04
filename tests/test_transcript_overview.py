@@ -265,3 +265,32 @@ def test_an_item_with_no_hints_still_sees_everything(tmp_path: Path) -> None:
     everything_sent = "\n".join(sent)
     for i in range(9):
         assert f"Point {i}." in everything_sent
+
+
+def test_the_synopsis_reduce_still_carries_processing_instructions(tmp_path: Path) -> None:
+    """
+    The reduce decides the synopsis's final wording, so losing the user's instructions
+    there loses them entirely. `prepare_transcript_for_model` built the right body and the
+    call then replaced it with the bare summaries.
+    """
+    item = Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        body=_long_body(9, 10),
+        extra={"transcription": {"processing_instructions": "Write it as a limerick."}},
+    )
+    sent: list[str] = []
+
+    def fake_complete(_model: object, _options: object, prepared: Item) -> str:
+        assert prepared.body
+        sent.append(prepared.body)
+        return "A summary."
+
+    with (
+        _runtime(tmp_path),
+        patch("deep_transcribe.transcript_overview._complete", fake_complete),
+    ):
+        add_transcript_description(item)
+
+    assert len(sent) > 1, "expected a per-chunk pass and a reduce"
+    assert "Write it as a limerick." in sent[-1], "the reduce dropped the instructions"
