@@ -28,6 +28,7 @@ from deep_transcribe.transcription_metadata import (
     remove_segment_hints,
     set_processing_instructions,
     set_segment_hints,
+    strip_volatile_source_fields,
 )
 
 log = logging.getLogger(__name__)
@@ -488,7 +489,9 @@ def run_transcription(
         runtime.workspace.log_workspace_info()
 
         with get_unified_live().status("Processing…"):
-            item = _prepare_source_item(url)
+            # Strip before anything persists the item: a counter that reaches disk is in
+            # the cache key of every stage below it.
+            item = strip_volatile_source_fields(_prepare_source_item(url))
             source_item = item
             source_metadata_changed = False
 

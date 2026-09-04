@@ -431,6 +431,21 @@ context, so nothing uses them; they only ever sat in the identity doing harm.
 """
 
 
+def strip_volatile_source_fields(item: Item) -> Item:
+    """
+    Drop self-changing source fields so they stay out of cache identity.
+
+    Call this on a freshly fetched source item before anything saves it. A URL that is
+    already a media resource never reaches copy_source_metadata — the branch that calls it
+    is skipped for exactly the YouTube and podcast URLs this tool is built for — so
+    stripping there alone left the counters in place on every real run.
+    """
+    if item.extra:
+        for field in VOLATILE_SOURCE_FIELDS:
+            item.extra.pop(field, None)
+    return item
+
+
 def copy_source_metadata(source: Item, target: Item) -> Item:
     """Copy descriptive source metadata to another item without losing target metadata."""
     if source.title is not None:
@@ -645,3 +660,35 @@ def test_a_counter_stored_by_an_earlier_run_is_dropped_too() -> None:
     assert "view_count" not in (target.extra or {})
     assert "like_count" not in (target.extra or {})
     assert (target.extra or {})["channel"] == "A channel"
+
+
+def test_a_url_resource_is_stripped_even_though_copy_is_never_called() -> None:
+    """
+    The branch calling copy_source_metadata is skipped when the source is already a URL
+    resource, which is the case for every YouTube and podcast URL. Stripping only there
+    left view_count on disk on every real run; measured at 11,971,012 on the short source
+    after the supposed fix had shipped.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+
+    item = Item(
+        type=ItemType.resource,
+        format=Format.url,
+        url=Url("https://www.youtube.com/watch?v=example"),
+        extra={"channel": "A channel", "view_count": 11_971_012, "like_count": 2},
+    )
+
+    strip_volatile_source_fields(item)
+
+    assert "view_count" not in (item.extra or {})
+    assert "like_count" not in (item.extra or {})
+    assert (item.extra or {})["channel"] == "A channel"
+
+
+def test_stripping_an_item_with_no_extra_is_harmless() -> None:
+    from kash.model import Format
+    from kash.utils.common.url import Url
+
+    item = Item(type=ItemType.resource, format=Format.url, url=Url("https://example.test"))
+    assert strip_volatile_source_fields(item) is item
