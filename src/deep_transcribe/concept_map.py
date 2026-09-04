@@ -180,17 +180,18 @@ def extract_chunks(
     """
     Extract concepts from each chunk, tolerating a chunk that comes back unusable.
 
-    Chunking multiplies the calls, so it multiplies the chance one of them returns
-    something unparsable — on the first long-form run, one response in ten did. Losing
-    half an hour of the map is much better than losing all of it, so a failed chunk is
-    logged and skipped. Only a total failure is an error.
+    Chunking multiplies the calls, so it multiplies the chance one of them fails — on the
+    first long-form run one response in ten came back unparsable, and a later run hit a
+    provider timeout after ten minutes. Losing half an hour of the map is much better
+    than losing all of it, so a failed chunk is logged and skipped whatever the cause.
+    Only a total failure is an error.
     """
     results: list[list[dict[str, Any]]] = []
     failed = 0
     for position, chunk in enumerate(chunks):
         try:
             results.append(_extract_chunk(chunk, model, web_search))
-        except ApiResultError as error:
+        except Exception as error:
             failed += 1
             log.warning(
                 "Concept extraction failed for chunk %d/%d at %.0f min, continuing: %s",
@@ -475,7 +476,11 @@ def reduce_concepts(concepts: Sequence[dict[str, Any]], model: LLMName) -> list[
             body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
         ).content
         themes, merged_into, dropped = _parse_reduce(response, {str(c["id"]) for c in concepts})
-    except (ApiResultError, json.JSONDecodeError) as error:
+    except Exception as error:
+        # Deliberately broad. This pass is pure improvement over a map that already
+        # exists, so nothing it can raise is worth losing that map for — and the first
+        # real failure was a provider timeout, which is not an ApiResultError and would
+        # have thrown away ten successful chunk extractions on its way out.
         log.warning("Concept reduce pass failed, keeping the unorganized map: %s", error)
         return list(concepts)
 
@@ -635,6 +640,39 @@ def _concept(concept_id: str, mentions: list[str]) -> dict[str, Any]:
         "relations": [],
         "research": None,
     }
+
+
+def test_a_timeout_in_the_reduce_pass_keeps_the_map() -> None:
+    from unittest.mock import patch
+
+    concepts = [_concept("a", ["1.00"]), _concept("b", ["2.00"])]
+
+    # A provider timeout is not an ApiResultError, and losing an extracted map to one
+    # would throw away every chunk call that already succeeded.
+    with patch(
+        "kash.llm_utils.llm_completion.llm_template_completion",
+        side_effect=TimeoutError("Connection timed out after 600.0 seconds"),
+    ):
+        assert reduce_concepts(concepts, LLM.default_structured) == concepts
+
+
+def test_a_timeout_in_one_chunk_does_not_lose_the_others() -> None:
+    from unittest.mock import patch
+
+    chunks = [[_unit(i * 1800.0, i)] for i in range(3)]
+    calls: list[int] = []
+
+    def flaky(_units: object, _model: object, _search: object) -> list[dict[str, Any]]:
+        calls.append(len(calls))
+        if len(calls) == 1:
+            raise TimeoutError("Connection timed out after 600.0 seconds")
+        return [{"id": f"c{len(calls)}", "label": "L", "kind": "topic", "mentions": []}]
+
+    with patch("deep_transcribe.concept_map._extract_chunk", side_effect=flaky):
+        results = extract_chunks(chunks, LLM.default_structured, False)
+
+    assert len(calls) == 3
+    assert len(results) == 2
 
 
 def test_reduce_merges_folds_mentions_and_orders_by_theme() -> None:
