@@ -41,8 +41,8 @@ dependencies = [
     # Imported directly (kash.exec, kash.model, kash.config, kash.web_gen). 0.4.10 is the
     # first release whose web search reaches Anthropic models rather than silently
     # dropping the request.
-    "kash-shell>=0.4.10,<0.5",
-    "kash-media>=0.4.8,<0.5",
+    "kash-shell>=0.4.11,<0.5",
+    "kash-media>=0.4.9,<0.5",
     # Direct metadata parsing and sidematter persistence imports:
     "frontmatter-format>=0.4.0,<0.5",
     "sidematter-format>=0.1.0,<0.2",
