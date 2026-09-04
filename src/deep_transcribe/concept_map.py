@@ -298,19 +298,21 @@ REDUCE_PROMPT = dedent("""
        covering its part of the recording stays. Caution about dropping says nothing
        about merging, which you should do freely.
 
+    Refer to every concept by its NUMBER, never by its label or slug.
+
     Return ONLY a JSON object of this exact shape:
 
     {{"themes": [
-      {{"label": "Short theme name", "concepts": ["concept-id", "concept-id"]}}
+      {{"label": "Short theme name", "concepts": [1, 4, 7]}}
     ],
-    "merges": [{{"keep": "concept-id", "merged": ["concept-id", "concept-id"]}}],
-    "dropped": ["concept-id"]}}
+    "merges": [{{"keep": 1, "merged": [12, 30]}}],
+    "dropped": [9]}}
 
     Rules:
-    - Every id you write MUST be one of the ids listed below, copied exactly. Do not
-      invent ids and do not invent concepts.
-    - Every kept concept appears under exactly one theme. A merged or dropped id must
-      not appear under any theme.
+    - Every number you write MUST be one of the numbers listed below. Do not invent
+      numbers and do not invent concepts.
+    - Every kept concept appears under exactly one theme. A merged or dropped number
+      must not appear under any theme.
     - Do not rewrite labels or glosses. You are organizing, not rewriting.
 
     Concepts, in the order the conversation reaches them:
@@ -320,41 +322,72 @@ REDUCE_PROMPT = dedent("""
 
 
 def _format_concepts_for_reduce(concepts: Sequence[dict[str, Any]]) -> str:
+    """
+    Number the concepts, because the response has to echo most of them back.
+
+    Asked to answer in slugs, the model rewrites every id it keeps — on the measured map
+    that is about 2,900 characters of response spent restating what it was given, against
+    about 430 as numbers. Two of three reduce calls hit the 600-second provider timeout
+    before this change; the work is not hard, the answer was just long.
+    """
     lines: list[str] = []
-    for concept in concepts:
+    for index, concept in enumerate(concepts, start=1):
         gloss = " ".join(str(concept.get("gloss") or "").split())
-        lines.append(f"- {concept['id']} [{concept.get('kind')}] {concept.get('label')} — {gloss}")
+        lines.append(f"{index}. [{concept.get('kind')}] {concept.get('label')} — {gloss}")
     return "\n".join(lines)
 
 
 def _parse_reduce(
-    response: str, known: set[str]
+    response: str, concepts: Sequence[dict[str, Any]]
 ) -> tuple[list[tuple[str, list[str]]], dict[str, str], set[str]]:
     """
-    Parse a reduce response into (themes, merged-into, dropped), keeping only known ids.
+    Parse a reduce response into (themes, merged-into, dropped).
 
-    The model is organizing a list it was handed, so anything it names that was not on
-    that list is a mistake rather than an addition, and is discarded here.
+    The model answers in the numbers it was given, so this maps them back to ids and
+    discards anything out of range. It also accepts a raw id, because a model told to use
+    numbers will occasionally write a slug anyway and there is no reason to lose the
+    whole response over it.
+
+    Anything named that was not on the list is a mistake rather than an addition, and is
+    dropped here.
     """
     parsed = fuzzy_parse_json(response)
     if not isinstance(parsed, dict):
         raise ApiResultError(f"Reduce response is not a JSON object: {response[:200]}")
     payload = cast(dict[str, Any], parsed)
 
+    ids = [str(c["id"]) for c in concepts]
+    by_id = {i: i for i in ids}
+
+    def resolve(ref: object) -> str | None:
+        if isinstance(ref, bool):
+            return None
+        if isinstance(ref, int):
+            return ids[ref - 1] if 1 <= ref <= len(ids) else None
+        text = str(ref).strip()
+        if text.isdigit():
+            index = int(text)
+            return ids[index - 1] if 1 <= index <= len(ids) else None
+        return by_id.get(text)
+
     merged_into: dict[str, str] = {}
     for raw in cast(list[object], payload.get("merges") or []):
         if not isinstance(raw, dict):
             continue
         merge = cast(dict[str, Any], raw)
-        keep = str(merge.get("keep") or "")
-        if keep not in known:
+        keep = resolve(merge.get("keep"))
+        if keep is None:
             continue
         for other in cast(list[object], merge.get("merged") or []):
-            other_id = str(other)
-            if other_id in known and other_id != keep:
+            other_id = resolve(other)
+            if other_id is not None and other_id != keep:
                 merged_into[other_id] = keep
 
-    dropped = {str(d) for d in cast(list[object], payload.get("dropped") or [])} & known
+    dropped = {
+        resolved
+        for resolved in (resolve(d) for d in cast(list[object], payload.get("dropped") or []))
+        if resolved is not None
+    }
     dropped -= set(merged_into.values())
 
     themes: list[tuple[str, list[str]]] = []
@@ -364,9 +397,9 @@ def _parse_reduce(
         theme = cast(dict[str, Any], raw)
         label = " ".join(str(theme.get("label") or "").split())
         members = [
-            str(c)
-            for c in cast(list[object], theme.get("concepts") or [])
-            if str(c) in known and str(c) not in merged_into and str(c) not in dropped
+            resolved
+            for resolved in (resolve(c) for c in cast(list[object], theme.get("concepts") or []))
+            if resolved is not None and resolved not in merged_into and resolved not in dropped
         ]
         if label and members:
             themes.append((label, members))
@@ -475,7 +508,7 @@ def reduce_concepts(concepts: Sequence[dict[str, Any]], model: LLMName) -> list[
             input="Organize the supplied concept map.",
             body_template=MessageTemplate(escaped_prompt + "\n\n{body}"),
         ).content
-        themes, merged_into, dropped = _parse_reduce(response, {str(c["id"]) for c in concepts})
+        themes, merged_into, dropped = _parse_reduce(response, concepts)
     except Exception as error:
         # Deliberately broad. This pass is pure improvement over a map that already
         # exists, so nothing it can raise is worth losing that map for — and the first
@@ -693,7 +726,7 @@ def test_reduce_merges_folds_mentions_and_orders_by_theme() -> None:
         }
     )
 
-    themes, merged_into, dropped = _parse_reduce(response, {str(c["id"]) for c in concepts})
+    themes, merged_into, dropped = _parse_reduce(response, concepts)
     reduced = apply_reduction(concepts, themes, merged_into, dropped)
 
     # The model listed Operating systems first, but agents is mentioned earlier, and the
@@ -701,6 +734,36 @@ def test_reduce_merges_folds_mentions_and_orders_by_theme() -> None:
     assert [c["id"] for c in reduced] == ["agents", "linux"]
     assert [c["theme"] for c in reduced] == ["Agentic coding", "Operating systems"]
     assert reduced[0]["mentions"] == ["1.00", "2.00"]  # the merged concept's mentions survive
+
+
+def test_reduce_accepts_numbers_and_ignores_out_of_range_ones() -> None:
+    concepts = [_concept("first", ["1.00"]), _concept("second", ["2.00"])]
+    response = json.dumps(
+        {
+            "themes": [{"label": "T", "concepts": [1, 2, 99]}],
+            "merges": [{"keep": 1, "merged": [0]}],
+            "dropped": [500],
+        }
+    )
+
+    themes, merged_into, dropped = _parse_reduce(response, concepts)
+
+    assert themes == [("T", ["first", "second"])]  # 99 is not a concept, so it is gone
+    assert merged_into == {}  # 0 is below the first number, which starts at 1
+    assert dropped == set()
+
+
+def test_reduce_still_accepts_a_slug_if_the_model_writes_one() -> None:
+    # The prompt asks for numbers; a model will occasionally answer with the label's
+    # slug anyway, and losing the whole response over that would be silly.
+    concepts = [_concept("agents", ["1.00"]), _concept("linux", ["2.00"])]
+    response = json.dumps(
+        {"themes": [{"label": "Mixed", "concepts": ["agents", 2]}], "merges": [], "dropped": []}
+    )
+
+    themes, _, _ = _parse_reduce(response, concepts)
+
+    assert themes == [("Mixed", ["agents", "linux"])]
 
 
 def test_reduce_orders_themes_and_members_by_the_clock() -> None:
@@ -727,7 +790,7 @@ def test_reduce_ignores_ids_it_was_never_given() -> None:
         }
     )
 
-    themes, merged_into, dropped = _parse_reduce(response, {"real"})
+    themes, merged_into, dropped = _parse_reduce(response, [_concept("real", ["1.00"])])
 
     assert themes == [("T", ["real"])]
     assert merged_into == {}  # a merge into an id that does not exist is discarded
