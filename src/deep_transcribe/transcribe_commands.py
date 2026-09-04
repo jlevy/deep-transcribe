@@ -489,9 +489,11 @@ def run_transcription(
         runtime.workspace.log_workspace_info()
 
         with get_unified_live().status("Processing…"):
-            # Strip before anything persists the item: a counter that reaches disk is in
-            # the cache key of every stage below it.
-            item = strip_volatile_source_fields(_prepare_source_item(url))
+            item = _prepare_source_item(url)
+            # kash's fetch has already written this item to disk, counters included, so
+            # stripping in memory is not enough — the stored metadata is what every action
+            # hashes. Persist below when anything was removed.
+            counters_stripped = strip_volatile_source_fields(item)
             source_item = item
             source_metadata_changed = False
 
@@ -518,7 +520,7 @@ def run_transcription(
             old_metadata = item.metadata()
             if metadata:
                 apply_transcription_metadata(item, metadata)
-            if source_metadata_changed or item.metadata() != old_metadata:
+            if counters_stripped or source_metadata_changed or item.metadata() != old_metadata:
                 persist_item_metadata(item, runtime.workspace)
 
             result_item = transcribe_with_options(

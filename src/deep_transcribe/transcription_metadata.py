@@ -352,8 +352,23 @@ def remove_segment_hints(item: Item) -> object:
     transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
     if isinstance(transcription, dict):
         cast(dict[str, Any], transcription).pop(SEGMENTS_KEY, None)
+    _prune_empty_transcription(item_extra)
     item.extra = item_extra
     return hints
+
+
+def _prune_empty_transcription(item_extra: dict[str, Any]) -> None:
+    """
+    Drop the transcription mapping once nothing is left in it.
+
+    An item that never carried hints or instructions has no `transcription` key at all,
+    so leaving an empty mapping behind makes the two shapes differ. kash hashes the
+    stored metadata, so that difference re-runs speech-to-text and everything below it —
+    the exact cost the removal exists to avoid.
+    """
+    value = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    if isinstance(value, dict) and not cast(dict[str, Any], value):
+        del item_extra[TRANSCRIPTION_METADATA_KEY]
 
 
 def remove_processing_instructions(item: Item) -> str | None:
@@ -365,6 +380,7 @@ def remove_processing_instructions(item: Item) -> str | None:
     transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
     if isinstance(transcription, dict):
         cast(dict[str, Any], transcription).pop("processing_instructions", None)
+    _prune_empty_transcription(item_extra)
     item.extra = item_extra
     return instructions
 
@@ -431,19 +447,25 @@ context, so nothing uses them; they only ever sat in the identity doing harm.
 """
 
 
-def strip_volatile_source_fields(item: Item) -> Item:
+def strip_volatile_source_fields(item: Item) -> bool:
     """
     Drop self-changing source fields so they stay out of cache identity.
 
-    Call this on a freshly fetched source item before anything saves it. A URL that is
+    Returns whether anything was removed, because kash's fetch has ALREADY written the
+    item to disk by the time this runs — stripping in memory alone leaves the counter in
+    the stored metadata that every action hashes. The caller must persist when this
+    returns True. A URL that is
     already a media resource never reaches copy_source_metadata — the branch that calls it
     is skipped for exactly the YouTube and podcast URLs this tool is built for — so
     stripping there alone left the counters in place on every real run.
     """
-    if item.extra:
-        for field in VOLATILE_SOURCE_FIELDS:
-            item.extra.pop(field, None)
-    return item
+    if not item.extra:
+        return False
+    removed = False
+    for name in VOLATILE_SOURCE_FIELDS:
+        if item.extra.pop(name, None) is not None:
+            removed = True
+    return removed
 
 
 def copy_source_metadata(source: Item, target: Item) -> Item:
@@ -464,8 +486,8 @@ def copy_source_metadata(source: Item, target: Item) -> Item:
     # A counter already stored by an earlier version must go too, or the item keeps the
     # value it was first saved with and stays out of step with a freshly fetched one.
     if target.extra:
-        for field in VOLATILE_SOURCE_FIELDS:
-            target.extra.pop(field, None)
+        for name in VOLATILE_SOURCE_FIELDS:
+            target.extra.pop(name, None)
     return target
 
 
@@ -691,4 +713,61 @@ def test_stripping_an_item_with_no_extra_is_harmless() -> None:
     from kash.utils.common.url import Url
 
     item = Item(type=ItemType.resource, format=Format.url, url=Url("https://example.test"))
-    assert strip_volatile_source_fields(item) is item
+    assert strip_volatile_source_fields(item) is False
+
+
+def test_removing_hints_leaves_the_shape_of_an_item_that_never_had_them() -> None:
+    """
+    kash hashes the stored metadata, so an emptied `transcription: {}` mapping is not
+    equivalent to no mapping at all — it re-runs speech-to-text and every stage below it.
+    The existing boundary test missed this because its fixture always carried other
+    transcription keys, so the mapping was never left empty.
+    """
+    from kash.model import Format
+
+    def resource(extra: dict[str, Any]) -> Item:
+        return Item(type=ItemType.resource, format=Format.url, extra=extra)
+
+    never_hinted = resource({"duration": 19000})
+    was_hinted = resource(
+        {"duration": 19000, "transcription": {"segments": {"segments": [{"at": "0:00 - 1:00"}]}}}
+    )
+
+    remove_segment_hints(was_hinted)
+
+    assert was_hinted.extra == never_hinted.extra
+    assert "transcription" not in (was_hinted.extra or {})
+
+
+def test_removing_instructions_also_leaves_no_empty_mapping() -> None:
+    from kash.model import Format
+
+    item = Item(
+        type=ItemType.resource,
+        format=Format.url,
+        extra={"duration": 5, "transcription": {"processing_instructions": "Be brief."}},
+    )
+
+    remove_processing_instructions(item)
+
+    assert item.extra == {"duration": 5}
+
+
+def test_an_emptied_mapping_survives_when_something_else_remains() -> None:
+    """Only an empty mapping goes; a roster or key terms must stay."""
+    from kash.model import Format
+
+    item = Item(
+        type=ItemType.resource,
+        format=Format.url,
+        extra={
+            "transcription": {
+                "speaker_roster": ["A", "B"],
+                "segments": {"segments": [{"at": "0:00 - 1:00"}]},
+            }
+        },
+    )
+
+    remove_segment_hints(item)
+
+    assert (item.extra or {})["transcription"] == {"speaker_roster": ["A", "B"]}
