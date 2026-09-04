@@ -3,9 +3,9 @@ type: is
 id: is-01m1nax75yngmqmeeempej0hke
 title: Chunk the outline and reduce the synopsis
 kind: feature
-status: open
+status: closed
 priority: 0
-version: 6
+version: 8
 spec_path: docs/project/specs/active/plan-2026-09-04-chunked-extraction.md
 labels: []
 dependencies:
@@ -13,7 +13,11 @@ dependencies:
     target: is-01m1ng5b07vkx3hx5ghky3sxf5
 parent_id: is-01m1nax66j442h166dee52zt3r
 created_at: 2026-09-04T04:30:23.422Z
-updated_at: 2026-09-04T08:07:26.051Z
+updated_at: 2026-09-04T08:50:09.157Z
+closed_at: 2026-09-04T08:50:09.155Z
+close_reason: "Outline chunks, synopsis map-reduces, and the reduce pass groups into 12 themes and merges duplicates. Measured: outline 172 labels all correctly formed; synopsis covers the whole arc in 76 s; reduce 119 -> 108 concepts merging the right 11 and leaving genuinely distinct ones alone."
+resolution: null
+duplicate_of: null
 ---
 Outline is already sectional, so per-chunk outlines concatenate in timeline order. Synopsis becomes map-reduce: per-chunk summaries, then a final pass over those summaries.
 
@@ -67,3 +71,27 @@ regression: the old single call was silently compressing 194 sections into ~113 
 The complete outline is genuinely long at this length, which is what dt-bomk is for.
 
 Still open on this bead: the reduce pass's deduplication, which merged only 4 of 119.
+DEDUP FIX VERIFIED (1e3b235), run in isolation against the same 119-concept map:
+
+  before   119 -> 115, 4 merged
+  after    119 -> 108, 11 merged, still 12 themes, 267 s
+
+And it merged the right ones. Of the duplicates named earlier:
+  "AI psychosis" / "AI psychosis / delirium framing"                    MERGED
+  "Engagement-maximizing algorithms" / "Engagement-driven reward"       MERGED
+  "Omakub/Quattro written 100% by AI" / "Quattro built by AI agents"    MERGED
+  "Glimmers of AGI" / "Glimmers of AI consciousness"                    left separate
+  the Omarchy and Omakub entries                                        left separate
+
+The last two are correct to leave. Glimmers of AGI in coding agents and glimmers of AI
+consciousness are different claims that happen to share a word. The Omarchy and Omakub
+entries are distinct sub-topics — ISO size, bash as config language, install speed, the
+Dell XPS gift — not one idea named four ways.
+
+So the fix was the prompt confusing two different instructions, exactly as suspected:
+telling the model to be conservative about DROPPING made it conservative about merging
+too. Separating them explicitly, and saying to merge on reasonable suspicion, was enough.
+
+The first attempt at this test failed with a 600 s provider timeout while the full
+pipeline run was doing speaker correction against the same API — contention, not a code
+problem, but it exposed that neither failure handler covered a timeout. Fixed in b19f972.
