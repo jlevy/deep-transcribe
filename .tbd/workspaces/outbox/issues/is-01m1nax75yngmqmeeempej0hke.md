@@ -5,7 +5,7 @@ title: Chunk the outline and reduce the synopsis
 kind: feature
 status: open
 priority: 0
-version: 5
+version: 6
 spec_path: docs/project/specs/active/plan-2026-09-04-chunked-extraction.md
 labels: []
 dependencies:
@@ -13,7 +13,7 @@ dependencies:
     target: is-01m1ng5b07vkx3hx5ghky3sxf5
 parent_id: is-01m1nax66j442h166dee52zt3r
 created_at: 2026-09-04T04:30:23.422Z
-updated_at: 2026-09-04T07:32:02.996Z
+updated_at: 2026-09-04T08:07:26.051Z
 ---
 Outline is already sectional, so per-chunk outlines concatenate in timeline order. Synopsis becomes map-reduce: per-chunk summaries, then a final pass over those summaries.
 
@@ -53,3 +53,17 @@ not a fair test of the merge.
 
 Still open on this bead: chunk the outline, reduce the synopsis, and order the outline
 as a progression. Those still send the whole document (dt-2sam).
+OUTLINE AND SYNOPSIS DONE (6a01bd8, 93fc320). Measured on the 5.3-hour recording:
+
+  outline    10 chunks, 356 s. 172 top-level bullets, ALL of them bold section labels,
+             529 sub-bullets. Before the prompt fix the same run gave 304 top-level of
+             which only 114 were labels, with the first 27 loose points.
+  synopsis   10 chunk summaries then one reduce, 76 s. Covers the whole arc rather than
+             over-weighting the opening, which is what the single whole-document call
+             tended to do.
+
+The outline is 11,645 words against 1,989 for the old whole-document one. That is not a
+regression: the old single call was silently compressing 194 sections into ~113 entries.
+The complete outline is genuinely long at this length, which is what dt-bomk is for.
+
+Still open on this bead: the reduce pass's deduplication, which merged only 4 of 119.
