@@ -121,9 +121,24 @@
     return { wrap, edges, nodes, width };
   }
 
+  /* The time range a set of concepts actually occupies, padded so the first and last
+     chips are not flush against the edges. */
+  function spanOf(concepts) {
+    let first = Infinity;
+    let last = -Infinity;
+    for (const concept of concepts) {
+      first = Math.min(first, concept.span[0]);
+      last = Math.max(last, concept.span[1]);
+    }
+    if (!isFinite(first) || last <= first) return null;
+    return { start: first, length: last - first };
+  }
+
   function layoutGraph(graph) {
     const { wrap, edges, nodes, width } = graph;
-    const { start, length } = timeSpan();
+    // A theme's graph spans the theme, not the recording. Laying a thirty-minute theme
+    // out on a five-hour axis would crowd every chip into the left tenth of it.
+    const { start, length } = graph.span || timeSpan();
     const rowGap = 12;
     const x = (t) => 8 + ((t - start) / length) * (width - 24);
     const rows = [];
@@ -434,6 +449,7 @@
             const width = Math.floor(group.body.getBoundingClientRect().width);
             if (!width) continue;
             const graph = buildGraph(group.concepts, width);
+            graph.span = spanOf(group.concepts);
             graph.wrap.classList.add("dt-graph-screen", "dt-theme-graph");
             group.body.prepend(graph.wrap);
             layoutGraph(graph);
