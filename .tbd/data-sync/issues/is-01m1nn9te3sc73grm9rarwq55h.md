@@ -3,14 +3,18 @@ type: is
 id: is-01m1nn9te3sc73grm9rarwq55h
 title: Make the concept graph legible at a hundred concepts
 kind: task
-status: in_progress
+status: closed
 priority: 1
-version: 2
+version: 3
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T07:32:02.113Z
-updated_at: 2026-09-04T08:35:00.557Z
+updated_at: 2026-09-04T16:11:19.375Z
+closed_at: 2026-09-04T16:11:19.374Z
+close_reason: "Verified in a browser: 13 per-theme graphs of 114 chips total, none stuck at x=0, global graph correctly suppressed. Concepts panel 18,623 px -> 865 px."
+resolution: null
+duplicate_of: null
 ---
 With the definition list grouped into themes, the concept graph is what keeps the
 Concepts panel long.
