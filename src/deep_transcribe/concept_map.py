@@ -14,7 +14,7 @@ from kash.model import Item, ItemType, Param, common_params
 from kash.utils.errors import ApiResultError, InvalidInput
 
 from deep_transcribe.chunking import drop_suppressed, plan_chunks
-from deep_transcribe.segment_hints import parse_hints
+from deep_transcribe.segment_hints import format_time, parse_hints
 from deep_transcribe.transcript_index import (
     CONCEPT_RELATION_TYPES,
     RawUnit,
@@ -309,10 +309,10 @@ working.
 """
 
 REDUCE_PROMPT = dedent("""
-    You are given the concept map of one long recording, extracted in pieces from
-    consecutive stretches of the conversation and then concatenated. Because each piece
-    was extracted without seeing the others, the list has three problems, and your job
-    is to fix exactly those three and change nothing else.
+    {scope}
+
+    Because each piece was extracted without seeing the others, the list has three
+    problems, and your job is to fix exactly those three and change nothing else.
 
     1. DUPLICATES. The same idea appears more than once under different labels, because
        adjacent stretches both covered it. Merge these freely — this is the one place
@@ -331,16 +331,16 @@ REDUCE_PROMPT = dedent("""
 
     2. NO STRUCTURE. A flat list of this many concepts is not a map of anything. Group
        every concept you keep under a theme — a short noun phrase naming a strand the
-       conversation actually follows. Aim for 6 to 12 themes over the whole recording,
-       each holding a handful of concepts. Order themes as the conversation reaches
-       them; order concepts within a theme the same way.
+       conversation actually follows. Order themes as the conversation reaches them;
+       order concepts within a theme the same way.
+       {theme_aim}
 
     3. MINOR ENTRIES. Some concepts looked worth naming inside one stretch and do not
-       hold up against the whole conversation — a passing example, an aside. Drop those.
-       Here, and only here, be conservative: dropping a real strand of the conversation
-       is much worse than keeping a thin one, and anything that is the only concept
-       covering its part of the recording stays. Caution about dropping says nothing
-       about merging, which you should do freely.
+       hold up against the rest of what you are shown — a passing example, an aside.
+       Drop those. Here, and only here, be conservative: dropping a real strand of the
+       conversation is much worse than keeping a thin one, and anything that is the only
+       concept covering its part of the recording stays. Caution about dropping says
+       nothing about merging, which you should do freely.
 
     Refer to every concept by its NUMBER, never by its label or slug.
 
@@ -525,13 +525,82 @@ def apply_reduction(
     return ordered
 
 
+def _batch_clock_range(batch: Sequence[dict[str, Any]]) -> str | None:
+    """
+    The stretch of the clock a batch's concepts cover, for the per-batch framing.
+
+    Concepts do not carry a span at this stage — spans are derived later, by the index
+    stage — so the range comes from the citation keys, which are start times in seconds.
+    A batch whose keys are all unreadable gets no range rather than an invented one.
+    """
+    times = [
+        seconds
+        for concept in batch
+        for seconds in (
+            _mention_seconds(mention) for mention in cast(list[str], concept.get("mentions") or [])
+        )
+        if seconds != float("inf")
+    ]
+    if not times:
+        return None
+    return f"{format_time(min(times))} to {format_time(max(times))}"
+
+
+def _reduce_scope(batch: Sequence[dict[str, Any]], position: int, total: int) -> tuple[str, str]:
+    """
+    Tell one reduce call what it is actually looking at.
+
+    Batching means a call usually sees a slice of the map rather than the map. Handed the
+    whole-map framing, a model names the slice as though it were the recording: twenty
+    minutes of a five-hour interview comes back as "Overview of the discussion", and each
+    batch picks its own grain, so the labels neither stay distinct nor line up with each
+    other. The consolidation pass can collapse two names for one strand, but it cannot
+    rescue six names that all describe the whole recording.
+
+    So a batched call is told which stretch it has and where that stretch falls, and is
+    asked for a name that only fits this stretch. A map small enough to fit in one batch
+    really is the whole map and is told so instead — claiming it is a partial stretch
+    would be a lie, and would push the model to name it too narrowly.
+
+    Returns the opening framing and the sentence setting the theme count.
+    """
+    if total <= 1:
+        return (
+            "You are given the concept map of one long recording, extracted in pieces "
+            "from consecutive stretches of the conversation and then concatenated. This "
+            "is the whole map, so your themes cover the whole recording.",
+            "Aim for 6 to 12 themes over the whole recording, each holding a handful of concepts.",
+        )
+
+    clock = _batch_clock_range(batch)
+    covering = f", covering roughly {clock} of the recording" if clock else ""
+    return (
+        f"You are given ONE STRETCH of the concept map of a long recording: the concepts "
+        f"from stretch {position} of {total}{covering}. This is not the whole map. The "
+        f"other stretches are being organized by separate calls that cannot see this "
+        f"one, and you cannot see them. Everything below was extracted in pieces from "
+        f"consecutive parts of this stretch and then concatenated.\n\n"
+        f"Name your themes for what THIS stretch is about, specifically enough that a "
+        f"stretch from elsewhere in the recording would not earn the same name. A label "
+        f"that would fit any part of the recording equally well is useless here, because "
+        f"the other stretches would produce it too: no Overview of the discussion, no "
+        f"Key topics, no Main themes, no Introduction and background. Do NOT write a "
+        f"theme that summarizes the whole recording. You have not seen the whole "
+        f"recording.",
+        "Aim for 2 to 5 themes over this stretch, each holding a handful of concepts.",
+    )
+
+
 def _reduce_batch(
-    batch: Sequence[dict[str, Any]], model: LLMName
+    batch: Sequence[dict[str, Any]], model: LLMName, position: int, total: int
 ) -> tuple[list[tuple[str, list[str]]], dict[str, str], set[str]]:
     """Organize one batch. Raises on failure so the caller can keep the batch as it is."""
     from kash.llm_utils.llm_completion import llm_template_completion
 
-    prompt = REDUCE_PROMPT.format(concepts=_format_concepts_for_reduce(batch))
+    scope, theme_aim = _reduce_scope(batch, position, total)
+    prompt = REDUCE_PROMPT.format(
+        scope=scope, theme_aim=theme_aim, concepts=_format_concepts_for_reduce(batch)
+    )
     escaped_prompt = prompt.replace("{", "{{").replace("}", "}}")
     response = llm_template_completion(
         model=model,
@@ -628,7 +697,7 @@ def reduce_concepts(concepts: Sequence[dict[str, Any]], model: LLMName) -> list[
     failures = 0
     for position, batch in enumerate(batches):
         try:
-            themes, merges, drops = _reduce_batch(batch, model)
+            themes, merges, drops = _reduce_batch(batch, model, position + 1, len(batches))
         except Exception as error:
             failures += 1
             log.warning(
@@ -938,7 +1007,7 @@ def test_one_failed_batch_does_not_lose_the_other_themes() -> None:
     concepts = [_concept(f"c{i}", [f"{i * 100}.00"]) for i in range(60)]
     calls: list[int] = []
 
-    def flaky(batch: object, _model: object) -> object:
+    def flaky(batch: object, _model: object, _position: int, _total: int) -> object:
         calls.append(len(calls))
         if len(calls) == 2:
             raise TimeoutError("timed out")
@@ -959,6 +1028,82 @@ def test_one_failed_batch_does_not_lose_the_other_themes() -> None:
     assert len(reduced) == 60
     assert sum(1 for c in reduced if c.get("theme")) == 35
     assert sum(1 for c in reduced if not c.get("theme")) == 25
+
+
+def _capture_reduce_prompts(concepts: Sequence[dict[str, Any]]) -> list[str]:
+    """
+    Run the real reduce pass against a fake model and return the prompt each batch got.
+
+    This drives `reduce_concepts` rather than `_reduce_batch`, because what matters is the
+    text that reaches the model on the real path. Consolidation is stubbed out so that
+    every captured prompt is a batch prompt.
+    """
+    from unittest.mock import patch
+
+    class _Result:
+        content: str = json.dumps(
+            {"themes": [{"label": "A named strand", "concepts": [1]}], "merges": [], "dropped": []}
+        )
+
+    prompts: list[str] = []
+
+    def capture(**kwargs: Any) -> object:
+        prompts.append(str(kwargs["body_template"].template))
+        return _Result()
+
+    with (
+        patch("kash.llm_utils.llm_completion.llm_template_completion", side_effect=capture),
+        patch(
+            "deep_transcribe.concept_map.consolidate_theme_names",
+            side_effect=_identity_names,
+        ),
+    ):
+        reduce_concepts(list(concepts), LLM.default_structured)
+    return prompts
+
+
+def test_each_reduce_batch_is_told_it_sees_one_stretch() -> None:
+    # 60 concepts at 25 per batch is three batches; ten minutes between mentions.
+    concepts = [_concept(f"c{i}", [f"{i * 600}.00"]) for i in range(60)]
+
+    prompts = _capture_reduce_prompts(concepts)
+
+    assert len(prompts) == 3
+    for position, prompt in enumerate(prompts, start=1):
+        assert f"from stretch {position} of 3" in prompt
+        assert "This is not the whole map." in prompt
+        assert "Do NOT write a theme that summarizes the whole recording." in prompt
+        assert "Aim for 2 to 5 themes over this stretch" in prompt
+        # The whole-map aim would ask 25 concepts to cover the recording.
+        assert "themes over the whole recording" not in prompt
+
+    # Each batch is also told the clock it covers, so its names can be placed.
+    assert "covering roughly 0:00:00 to 4:00:00 of the recording" in prompts[0]
+    assert "covering roughly 4:10:00 to 8:10:00 of the recording" in prompts[1]
+    assert "covering roughly 8:20:00 to 9:50:00 of the recording" in prompts[2]
+
+
+def test_a_map_that_fits_one_batch_is_not_called_a_partial_stretch() -> None:
+    concepts = [_concept(f"c{i}", [f"{i * 60}.00"]) for i in range(10)]
+
+    prompts = _capture_reduce_prompts(concepts)
+
+    assert len(prompts) == 1
+    assert "stretch 1 of 1" not in prompts[0]
+    assert "This is not the whole map." not in prompts[0]
+    assert "This is the whole map, so your themes cover the whole recording." in prompts[0]
+    assert "Aim for 6 to 12 themes over the whole recording" in prompts[0]
+
+
+def test_a_batch_with_unreadable_mentions_gets_no_invented_clock_range() -> None:
+    concepts = [_concept(f"c{i}", ["not-a-time"]) for i in range(30)]
+
+    prompts = _capture_reduce_prompts(concepts)
+
+    assert len(prompts) == 2
+    for position, prompt in enumerate(prompts, start=1):
+        assert f"from stretch {position} of 2. This is not the whole map." in prompt
+        assert "covering roughly" not in prompt
 
 
 def test_reduce_accepts_numbers_and_ignores_out_of_range_ones() -> None:
