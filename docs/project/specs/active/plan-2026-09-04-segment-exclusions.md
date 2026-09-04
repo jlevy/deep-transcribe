@@ -37,8 +37,10 @@ person can read and correct, not a silent deletion inside a pipeline stage.
   as a file a person can review, edit, and keep.
 - Accept that file on a later run and apply it, with transcription reusing its cache
   untouched.
-- Truncate on natural boundaries, never mid-sentence: snap each range outward or inward
-  to the nearest paragraph or sentence edge so the surviving text still reads cleanly.
+- Truncate on natural boundaries, never mid-sentence: resolve each boundary by seeking
+  both directions to the nearest paragraph break, falling back to a sentence break, so
+  excluded regions are whole runs of paragraphs and the surviving text still reads
+  cleanly.
 - Keep every downstream view consistent with the exclusions: concepts, outline,
   synopsis, speaker statistics, and the timeline.
 - Make what was removed visible rather than silent, with the excluded time reported.
@@ -91,14 +93,33 @@ the processing-instructions work already relies on.
 
 ### Boundary snapping
 
-A range from detection is approximate.
-Before applying, each boundary moves to the nearest structural edge within a tolerance:
-paragraph break first, then sentence break, then citation timestamp.
-The rule is to prefer the edge that keeps whole thoughts: a start snaps forward to the
-first boundary at or after it, an end snaps backward to the last boundary at or before
-it, so an excluded range never eats into surviving speech.
-If snapping would invert or empty a range, it is dropped with a warning rather than
-guessed at.
+A range from detection is approximate, so each boundary is resolved against the
+document’s real structure before anything is excluded.
+
+The unit of exclusion is the paragraph.
+Sponsor reads and intros begin and end at paragraph breaks in practice, and paragraphs
+are what the timestamps already anchor, so an excluded region should be a whole run of
+paragraphs rather than an arbitrary time window.
+
+For each proposed boundary the search seeks **both directions** from that time, rather
+than being forced one way, and takes the nearest candidate by this preference:
+
+1. a paragraph break,
+2. failing that, a sentence break,
+3. failing that, a citation timestamp.
+
+A paragraph break within tolerance always wins over a nearer sentence break, since
+landing on the stronger boundary matters more than landing on the closest one.
+When two candidates of the same strength are equally near, the tie goes to the one that
+excludes less — the later start, the earlier end — so a snap can never eat into
+surviving speech.
+
+This is the same bidirectional token seeking `backfill_timestamps` already uses to
+resolve timestamps (`search_tokens(...).at(offset).seek_back(...)` and its forward
+counterpart), applied to boundary resolution instead.
+
+If snapping would invert a range or leave it empty, the range is dropped with a warning
+rather than guessed at.
 
 ### Downstream consistency
 
