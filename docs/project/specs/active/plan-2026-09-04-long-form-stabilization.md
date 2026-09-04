@@ -140,16 +140,16 @@ None new. `--segments none` / `--instructions none` (review R6) is landing separ
   verification of the result: frame count, theme count, outline groups, teaser
   collapsed, no broken frames, no traceback. Record the per-stage times. (dt-qc7j child,
   new)
-- [ ] Rewrite `docs.md` row 162 to what is measured: a hint change reuses the transcript
+- [x] Rewrite `docs.md` row 162 to what is measured: a hint change reuses the transcript
   and speaker correction and repeats paragraph formatting and section headings, about 45
   minutes on a five-hour recording. Honest now; Phase 2 makes it cheap. (new)
-- [ ] Reword the 12-hour claim to "tested end to end at five hours; the design has no
+- [x] Reword the 12-hour claim to "tested end to end at five hours; the design has no
   ceiling below that scale" until a longer run exists. (dt-qc7j)
-- [ ] Land the five outstanding review fixes—R6, R8, R9, R10, R11—and post the
+- [x] Land the five outstanding review fixes—R6, R8, R9, R10, R11—and post the
   disposition map on PR #19. (dt-348i)
-- [ ] Preflight free disk space before download and before frame capture, with a clear
+- [x] Preflight free disk space before download and before frame capture, with a clear
   message. A run died last night when the boot volume filled. (dt-bier)
-- [ ] Report a stage failure as one line naming the stage and the cause, not a
+- [x] Report a stage failure as one line naming the stage and the cause, not a
   traceback. A two-hour run that ends in a stack dump is not clean. (dt-ljkg)
 - [ ] Confirm and close the two segment beads the work already covers: views respect
   exclusions (dt-hesk, the collapse) and the detection pass (dt-88st,
