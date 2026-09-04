@@ -100,6 +100,36 @@ summarizes those summaries into the two-paragraph synopsis.
 The reduce step reads a few thousand words rather than the whole transcript, so it stays
 within budget at any length.
 
+### The reduce pass works on structure, not text
+
+The reason this scales is that everything after extraction is small.
+
+A five-hour transcript is 55,000 words, but its *outline* is a couple of thousand, and
+50 to 70 concepts with their glosses are about the same.
+Whatever the recording’s length, the reduce pass reads an amount of material closer to a
+long article than to a book — and a twelve-hour recording changes that by a factor of
+two, not by a factor that breaks anything.
+
+That headroom is what turns the reduce pass from plumbing into the step that makes the
+analysis coherent. Working from the extracted structure, it can afford to actually
+organize:
+
+- **Merge what is the same.** Chunk boundaries produce near-duplicates that exact
+  identity matching misses — “AI coding agents” in one chunk and “agentic coding” in the
+  next. A pass that can see all the labels at once can collapse them; a merge keyed only
+  on identity cannot.
+- **Group into themes.** With fifty or more concepts, a flat list stops being a map.
+  The reduce pass can impose a second level — a handful of themes, each holding its
+  concepts — which is exactly the hierarchy the timeline spec left as an open question
+  for long recordings.
+- **Order and prune.** It can put the outline in a sensible progression rather than raw
+  chunk order, and drop concepts that turned out to be minor once the whole conversation
+  is in view — a judgment no single chunk could make.
+
+So the pipeline is: extract locally where the detail is, organize globally where the
+overview is. Neither step ever sees more than it can handle, and the global step is the
+one that decides what the analysis actually says.
+
 ### Ordering and determinism
 
 Chunks are processed in timeline order and merged in that order, so a rerun produces the
@@ -123,6 +153,9 @@ fixes.
 
 - [ ] Generate the outline per chunk and concatenate in timeline order.
 - [ ] Generate per-chunk summaries and reduce them into the final synopsis.
+- [ ] Extend the reduce pass beyond merging: collapse near-duplicate concepts that
+  identity matching misses, group concepts into themes once there are enough to need it,
+  and order the outline as a progression rather than in raw chunk order.
 - [ ] Confirm no stage sends the whole document, and that a fourteen-hour transcript,
   which cannot fit one call, completes.
 
