@@ -200,8 +200,10 @@ re-transcribing.
 
 ### Phase 2: Detection where chapters do not reach
 
-- [ ] Add the detection pass for unchaptered interjections and for sources with no
-  chapters at all, citing citation keys and dropping what does not resolve.
+- [ ] Add near-duplicate preview detection: match early text against later text and mark
+  a leading run of verbatim repeats as `preview`. No model call needed.
+- [ ] Add the model pass for the kinds that need it — sponsor interjections, intro and
+  outro register — citing citation keys and dropping what does not resolve.
 - [ ] Snap all boundaries, chapter and detected alike.
 - [ ] Write and read the reviewable segment file; confirm a rerun reuses the
   transcription cache.
