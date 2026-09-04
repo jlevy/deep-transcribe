@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 
 # Keep kash imports minimal initially.
@@ -530,6 +531,53 @@ def inject_page_elements(html: str, elements: list[str] | None) -> str:
     return html.replace(marker, f"{config}\n{marker}", 1)
 
 
+# Matches a sidematter assets directory prefix in an image path, e.g.
+# `watch_step13_insert_frame_captures_1.doc.assets/frame_0000.jpg`.
+_ASSETS_REF = re.compile(r"(?P<prefix>[A-Za-z0-9][A-Za-z0-9._-]*\.assets)/")
+
+
+def relocate_referenced_assets(html_path: Path, source_dir: Path) -> bool:
+    """
+    Copy the assets an exported page references into the page's own sidematter.
+
+    Frame captures are written into the sidematter of the `insert_frame_captures` step,
+    and every stage deriving from it carries the body forward without the assets. Those
+    references resolve only while the file sits beside the step that owns them, so an
+    export written to a different directory has every image broken. Copy what the page
+    actually references and repoint the paths at the copy.
+
+    Operates on the written file rather than the item, because the item that reaches
+    disk last (after minification) is external and will not be rewritten by a save.
+
+    Returns True if the page was rewritten.
+    """
+    from sidematter_format import Sidematter
+    from strif import atomic_output_file
+
+    text = html_path.read_text()
+    own_assets = Sidematter(html_path).assets_dir
+    prefixes = {m.group("prefix") for m in _ASSETS_REF.finditer(text)} - {own_assets.name}
+    if not prefixes:
+        return False
+
+    copied = 0
+    for prefix in sorted(prefixes):
+        src_dir = source_dir / prefix
+        if not src_dir.is_dir():
+            log.warning("Referenced assets are missing, images will break: %s", src_dir)
+            continue
+        copied += len(Sidematter(html_path).copy_assets_from(src_dir))
+        text = text.replace(f"{prefix}/", f"{own_assets.name}/")
+
+    if not copied:
+        return False
+
+    log.info("Relocated %s referenced assets into %s", copied, own_assets)
+    with atomic_output_file(html_path) as temp_path:
+        temp_path.write_text(text)
+    return True
+
+
 def format_results(
     result_item: Item,
     base_dir: Path,
@@ -583,6 +631,8 @@ def format_results(
     transcript_path = base_dir / Path(result_item.store_path)
     html_path = base_dir / Path(html_item.store_path)
 
+    relocate_referenced_assets(html_path, transcript_path.parent)
+
     return transcript_path, html_path
 
 
@@ -609,6 +659,46 @@ def test_inject_page_elements_only_when_subset() -> None:
     injected = inject_page_elements(html, ["summary", "timeline"])
     assert 'window.DT_ELEMENTS = ["summary", "timeline"];' in injected
     assert injected.index("DT_ELEMENTS") < injected.index("</body>")
+
+
+def test_format_results_relocates_assets_through_minification() -> None:
+    """
+    Minification derives yet another item, so the assets have to follow the item that is
+    actually written, not the one that was rendered.
+    """
+    from tempfile import TemporaryDirectory
+
+    from kash.exec import kash_runtime
+    from kash.model import Format, ItemType
+    from kash.workspaces import current_ws
+    from sidematter_format import Sidematter
+    from strif import atomic_output_file
+
+    with TemporaryDirectory() as temp_dir:
+        with kash_runtime(Path(temp_dir) / "workspace"):
+            ws = current_ws()
+            frames_item = Item(
+                type=ItemType.doc,
+                format=Format.md_html,
+                title="Minified transcript with frames",
+            )
+            frames_path = ws.assign_store_path(frames_item)
+            frames_assets = Sidematter(frames_path).assets_dir
+            frames_item.body = f'<img src="{frames_assets.name}/frame.jpg" alt="Frame">'
+            ws.save(frames_item)
+            with atomic_output_file(frames_assets / "frame.jpg", make_parents=True) as tmp:
+                tmp.write_bytes(b"frame")
+
+            result_item = frames_item.derived_copy(type=ItemType.doc)
+            ws.save(result_item)
+
+            _, html_path = format_results(result_item, ws.base_dir)
+
+            html_assets = Sidematter(html_path).assets_dir
+            html_text = html_path.read_text()
+            assert f"{html_assets.name}/frame.jpg" in html_text
+            assert (html_assets / "frame.jpg").read_bytes() == b"frame"
+            assert frames_assets.name not in html_text
 
 
 def test_exact_roster_skips_prose_inference() -> None:
@@ -683,19 +773,26 @@ def test_format_results_copies_frame_assets() -> None:
         workspace_dir = Path(temp_dir) / "workspace"
         with kash_runtime(workspace_dir):
             ws = current_ws()
-            result_item = Item(
+            # Frames land in the sidematter of the frame-capture step, and later stages
+            # derive new docs from it without carrying the assets. Reproduce that shape:
+            # the item being exported must not own the assets its body points at.
+            frames_item = Item(
                 type=ItemType.doc,
                 format=Format.md_html,
                 title="Transcript with frames",
             )
-            source_path = ws.assign_store_path(result_item)
-            source_assets = Sidematter(source_path).assets_dir
-            result_item.body = f'<img src="{source_assets.name}/frame.jpg" alt="Frame">'
-            ws.save(result_item)
+            frames_path = ws.assign_store_path(frames_item)
+            frames_assets = Sidematter(frames_path).assets_dir
+            frames_item.body = f'<img src="{frames_assets.name}/frame.jpg" alt="Frame">'
+            ws.save(frames_item)
 
-            frame_path = source_assets / "frame.jpg"
-            with atomic_output_file(frame_path, make_parents=True) as temp_path:
-                temp_path.write_bytes(b"frame")
+            with atomic_output_file(frames_assets / "frame.jpg", make_parents=True) as tmp:
+                tmp.write_bytes(b"frame")
+
+            result_item = frames_item.derived_copy(type=ItemType.doc)
+            source_path = ws.assign_store_path(result_item)
+            ws.save(result_item)
+            assert not Sidematter(source_path).assets_dir.exists()
 
             transcript_path, html_path = format_results(
                 result_item,
@@ -708,6 +805,9 @@ def test_format_results_copies_frame_assets() -> None:
             assert transcript_path == source_path
             assert f"{html_assets.name}/frame.jpg" in html_text
             assert (html_assets / "frame.jpg").read_bytes() == b"frame"
+            # Nothing may still point at the upstream step's directory, or the export
+            # only works while it sits beside that step.
+            assert frames_assets.name not in html_text
             assert "Transcribed by github.com/jlevy/deep-transcribe" in html_text
             assert "font-family: var(--font-sans) !important" in html_text
             assert html_text.count("font-size: 9pt") == 3
