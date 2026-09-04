@@ -115,6 +115,9 @@ Use `--instructions` for trusted requests about the derived output, such as emph
 structure, or level of detail.
 Keeping them separate lets models treat source metadata as evidence without accidentally
 following instructions embedded in fetched metadata.
+Instructions stick to the source: they are stored with it, so a later run without the flag
+still follows them.
+Pass `--instructions none` to drop them and go back to the default output.
 For supported URL inputs, the media extractor fetches the source title, description,
 canonical URL, and available channel and publication fields.
 Deep Transcribe includes a bounded version automatically as reference evidence.
@@ -160,6 +163,7 @@ iterations.
 | --- | --- | --- |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
 | Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses the cached transcript and everything through section headings |
+| Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |
@@ -210,6 +214,11 @@ an intro is kept because it is short and genuinely about the conversation — an
 Suppressed stretches are **set aside, not deleted**.
 The concept map, outline and synopsis do not read them; the transcript still contains
 every word, collapsed behind a line naming what it is, and prints expanded.
+
+Hints stick to the source, so a later run without `--segments` still honors the last file
+you passed.
+To go back to a recording with nothing set aside, pass `--segments none`, which removes the
+stored hints instead of reading a file.
 
 The rerun is cheap by design.
 Hints join the pipeline at the same point as processing instructions, so transcription,

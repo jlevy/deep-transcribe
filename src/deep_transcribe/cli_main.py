@@ -247,12 +247,11 @@ def _add_transcription_arguments(
     )
     guidance.add_argument(
         "--segments",
-        type=Path,
         metavar="PATH",
         help=(
             "YAML listing stretches to mark (teaser, intro, promo, outro); suppressed "
             "ones are left out of the analysis. Editing it and rerunning reuses the "
-            "transcript"
+            "transcript. Hints stick to the source; pass `none` to clear them"
         ),
     )
     guidance.add_argument(
@@ -260,7 +259,10 @@ def _add_transcription_arguments(
         action="append",
         default=[],
         metavar="TEXT",
-        help="Trusted post-transcription processing instructions; repeat to join paragraphs",
+        help=(
+            "Trusted post-transcription processing instructions; repeat to join "
+            "paragraphs. Instructions stick to the source; pass `none` to clear them"
+        ),
     )
     guidance.add_argument(
         "--instructions-file",
@@ -547,6 +549,21 @@ def _speaker_hint(value: str) -> tuple[str, str]:
     return speaker_id.strip(), name.strip()
 
 
+CLEAR_TOKEN = "none"
+"""
+Literal value that clears a sticky guidance input instead of setting one.
+
+`--segments` and `--instructions` are written back onto the stored source, so a later run
+without the flag still honors them. Without a spelling for "remove it" the only way back
+is hand-editing the resource YAML in the workspace.
+"""
+
+
+def _is_clear_token(value: object) -> bool:
+    """Whether a flag value is the literal clear request rather than a value to store."""
+    return str(value).strip().casefold() == CLEAR_TOKEN
+
+
 def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMetadata":
     from deep_transcribe.transcription_metadata import (
         TranscriptionMetadata,
@@ -577,10 +594,12 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
         inline_data["speaker_roster"] = list(
             dict.fromkeys([*metadata.speaker_roster, *args.speaker_role])
         )
-    if getattr(args, "segments", None):
+    segments_arg = getattr(args, "segments", None)
+    clear_segments = bool(segments_arg) and _is_clear_token(segments_arg)
+    if segments_arg and not clear_segments:
         from deep_transcribe.segment_hints import format_time, load_hints
 
-        hints = load_hints(args.segments)
+        hints = load_hints(Path(segments_arg))
         if hints.segments:
             overlaps = hints.overlaps()
             if overlaps:
@@ -600,10 +619,12 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
                 ]
             }
 
+    instruction_values = [value.strip() for value in args.instructions]
+    clear_instructions = any(_is_clear_token(value) for value in instruction_values)
     instruction_parts = (
         [metadata.processing_instructions or ""]
         + [path.read_text(encoding="utf-8").strip() for path in args.instructions_file]
-        + [value.strip() for value in args.instructions]
+        + [value for value in instruction_values if not _is_clear_token(value)]
     )
     instruction_parts = [value for value in instruction_parts if value]
     if instruction_parts:
@@ -611,6 +632,19 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
 
     if inline_data:
         metadata = metadata.merged_with(transcription_metadata_from_mapping(inline_data))
+    # Supplying replacement text already overwrites the stored value, so `none` alongside
+    # real instructions is the text winning rather than a clear.
+    clear_instructions = clear_instructions and not instruction_parts
+    if clear_segments or clear_instructions:
+        from dataclasses import replace
+
+        metadata = replace(
+            metadata,
+            clear_segments=metadata.clear_segments or clear_segments,
+            clear_processing_instructions=(
+                metadata.clear_processing_instructions or clear_instructions
+            ),
+        )
     return metadata
 
 

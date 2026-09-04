@@ -87,9 +87,11 @@ Natural-Language Guidance:
                         join files
   --segments PATH       YAML listing stretches to mark (teaser, intro, promo,
                         outro); suppressed ones are left out of the analysis.
-                        Editing it and rerunning reuses the transcript
+                        Editing it and rerunning reuses the transcript. Hints
+                        stick to the source; pass `none` to clear them
   --instructions TEXT   Trusted post-transcription processing instructions;
-                        repeat to join paragraphs
+                        repeat to join paragraphs. Instructions stick to the
+                        source; pass `none` to clear them
   --instructions-file PATH
                         UTF-8 post-transcription processing instructions;
                         repeat to join files

@@ -9,8 +9,12 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from kash.model import Item
 
 from deep_transcribe.cli_main import (
     build_parser,
@@ -562,3 +566,117 @@ def test_metadata_still_rejects_a_genuinely_unknown_field() -> None:
 
     with pytest.raises(ValueError, match="Unsupported"):
         transcription_metadata_from_mapping({"not_a_field": 1})
+
+
+def _item_with_stored_guidance() -> Item:
+    """A source item shaped like one a previous run left hints and instructions on."""
+    from kash.model import Item, ItemType
+
+    from deep_transcribe.transcription_metadata import set_segment_hints
+
+    item = Item(
+        type=ItemType.resource,
+        extra={
+            "transcription": {
+                "key_terms": ["SignalFlow"],
+                "speaker_roster": ["Host", "Guest"],
+                "processing_instructions": "Emphasize the open questions.",
+            }
+        },
+    )
+    set_segment_hints(item, {"segments": [{"at": "0:00:00 - 0:01:49", "purpose": "teaser"}]})
+    return item
+
+
+def _stored_transcription(item: Item) -> dict[str, object]:
+    assert item.extra is not None
+    transcription = item.extra["transcription"]
+    assert isinstance(transcription, dict)
+    return transcription
+
+
+def test_segments_none_clears_stored_hints() -> None:
+    """
+    Hints are written back onto the stored source so a later run keeps honoring them,
+    which leaves a user who marked a teaser and now wants it back with no way out but
+    editing the workspace YAML by hand.
+    """
+    from deep_transcribe.transcription_metadata import (
+        apply_transcription_metadata,
+        get_segment_hints,
+    )
+
+    args = build_parser().parse_args(["--segments", "none", "https://example.com/video"])
+    metadata = build_transcription_metadata(args)
+    item = _item_with_stored_guidance()
+    assert get_segment_hints(item) is not None
+
+    apply_transcription_metadata(item, metadata)
+
+    assert metadata.clear_segments is True
+    assert get_segment_hints(item) is None
+    assert "segments" not in _stored_transcription(item)
+
+
+def test_instructions_none_clears_stored_instructions() -> None:
+    from deep_transcribe.transcription_metadata import (
+        apply_transcription_metadata,
+        get_processing_instructions,
+    )
+
+    args = build_parser().parse_args(["--instructions", "NONE", "https://example.com/video"])
+    metadata = build_transcription_metadata(args)
+    item = _item_with_stored_guidance()
+    assert get_processing_instructions(item) == "Emphasize the open questions."
+
+    apply_transcription_metadata(item, metadata)
+
+    assert metadata.clear_processing_instructions is True
+    assert get_processing_instructions(item) is None
+    assert "processing_instructions" not in _stored_transcription(item)
+
+
+def test_clearing_leaves_the_rest_of_the_stored_transcription_metadata_alone() -> None:
+    """A clear must remove exactly one key, not reset the source's other guidance."""
+    from deep_transcribe.transcription_metadata import apply_transcription_metadata
+
+    args = build_parser().parse_args(
+        ["--segments", "none", "--instructions", "none", "https://example.com/video"]
+    )
+    metadata = build_transcription_metadata(args)
+    item = _item_with_stored_guidance()
+
+    apply_transcription_metadata(item, metadata)
+
+    assert item.extra == {
+        "transcription": {
+            "key_terms": ["SignalFlow"],
+            "speaker_roster": ["Host", "Guest"],
+        }
+    }
+
+
+def test_a_segments_file_path_is_still_read_as_a_path(tmp_path: Path) -> None:
+    """`none` is a literal, so an ordinary hints file must be unaffected by it."""
+    from deep_transcribe.transcription_metadata import (
+        apply_transcription_metadata,
+        get_segment_hints,
+    )
+
+    hints = tmp_path / "segments.yml"
+    hints.write_text('segments:\n  - at: "0:00 - 1:49"\n    purpose: promo\n')
+
+    args = build_parser().parse_args(
+        ["--segments", str(hints), "--instructions", "Keep it short.", "https://example.com/video"]
+    )
+    metadata = build_transcription_metadata(args)
+    item = _item_with_stored_guidance()
+
+    apply_transcription_metadata(item, metadata)
+
+    assert metadata.clear_segments is False
+    assert metadata.clear_processing_instructions is False
+    carried = get_segment_hints(item)
+    assert isinstance(carried, dict)
+    assert carried["segments"][0]["purpose"] == "promo"
+    assert _stored_transcription(item)["processing_instructions"] == "Keep it short."

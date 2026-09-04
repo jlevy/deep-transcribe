@@ -275,6 +275,8 @@ transcript, and rerunning after an edit reuses the transcript and everything thr
 section headings, so the loop of looking at the output and revising the hints costs
 minutes.
 A run that finds an opening repeated later drafts the file for you.
+Hints and `--instructions` stick to the source once given, so a later run without the flag
+still honors them; `--segments none` and `--instructions none` remove what was stored.
 
 ## Output
 

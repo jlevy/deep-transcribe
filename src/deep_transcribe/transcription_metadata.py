@@ -23,12 +23,21 @@ class TranscriptionMetadata:
 
     `extra` stays extensible while Deep Transcribe normalizes the currently recognized
     `extra.transcription` fields.
+
+    The `clear_*` flags are how a caller asks for a stored value to be REMOVED. Segment
+    hints and processing instructions stick to the source item on purpose, so a later run
+    without the flag still honors them; absent an explicit clear there is no way to say
+    "and now stop honoring it" short of editing the stored YAML by hand. They are separate
+    fields rather than a None in `extra` because None is already how "not specified" is
+    spelled everywhere else here.
     """
 
     title: str | None = None
     description: str | None = None
     additional_context: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    clear_segments: bool = False
+    clear_processing_instructions: bool = False
 
     def merged_with(self, other: TranscriptionMetadata) -> TranscriptionMetadata:
         """Merge metadata with nonempty values from `other` taking precedence."""
@@ -41,6 +50,10 @@ class TranscriptionMetadata:
                 else self.additional_context
             ),
             extra=_deep_merge(self.extra, other.extra),
+            clear_segments=self.clear_segments or other.clear_segments,
+            clear_processing_instructions=(
+                self.clear_processing_instructions or other.clear_processing_instructions
+            ),
         )
 
     @property
@@ -226,6 +239,12 @@ def apply_transcription_metadata(item: Item, metadata: TranscriptionMetadata) ->
         item.additional_context = metadata.additional_context
     if metadata.extra:
         item.extra = _deep_merge(item.extra or {}, metadata.extra)
+    # Clears run after the merge so an explicit clear wins over both the value already
+    # stored on the item and anything a metadata file supplied in the same run.
+    if metadata.clear_segments:
+        remove_segment_hints(item)
+    if metadata.clear_processing_instructions:
+        remove_processing_instructions(item)
     return item
 
 

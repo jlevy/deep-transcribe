@@ -229,3 +229,67 @@ def test_late_inputs_carry_both_instructions_and_hints() -> None:
     assert hints["segments"][0]["purpose"] == "teaser"
     # The source item is untouched, so its own identity is unchanged.
     assert get_segment_hints(item) is None
+
+
+def test_clearing_a_hint_reaches_the_stored_resource_on_disk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Drive the real CLI path: `--segments none` must delete the key from the resource file.
+
+    Hints and instructions are sticky by design — they are written back onto the stored
+    source so a later run without the flag still honors them — so a clear only counts if
+    the stored YAML in the workspace loses the key. An in-memory removal would leave the
+    next run reading the hint straight back off disk while every unit test still passed.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    from deep_transcribe.cli_main import build_parser, build_transcription_metadata
+    from deep_transcribe.transcription_metadata import set_segment_hints
+
+    stored_path: list[Path] = []
+    before_clear: list[str] = []
+
+    def fake_prepare(_source: str) -> Item:
+        workspace = current_ws()
+        item = Item(
+            type=ItemType.resource,
+            format=Format.url,
+            url=Url("https://example.com/video"),
+            title="Fixture",
+            extra={"transcription": {"speaker_roster": ["Host", "Guest"]}},
+        )
+        set_segment_hints(item, {"segments": [{"at": "0:00:00 - 0:01:49", "purpose": "teaser"}]})
+        workspace.save(item)
+        path = workspace.base_dir / str(item.store_path)
+        stored_path.append(path)
+        before_clear.append(path.read_text())
+        return item
+
+    def fake_transcribe(item: Item, *_args: object, **_kwargs: object) -> Item:
+        return item
+
+    def fake_format(_result: Item, _base_dir: Path, **_kwargs: object) -> tuple[Path, Path]:
+        return Path("transcript.md"), Path("transcript.html")
+
+    monkeypatch.setattr(transcribe_commands, "_prepare_source_item", fake_prepare)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "format_results", fake_format)
+
+    args = build_parser().parse_args(["--segments", "none", "https://example.com/video"])
+
+    with TemporaryDirectory() as temp_dir:
+        transcribe_commands.run_transcription(
+            Path(temp_dir),
+            "https://example.com/video",
+            TranscribeOptions.basic(),
+            "en",
+            metadata=build_transcription_metadata(args),
+        )
+        after = stored_path[0].read_text()
+
+    assert "purpose: teaser" in before_clear[0]
+    assert "segments" not in after
+    assert "speaker_roster" in after
