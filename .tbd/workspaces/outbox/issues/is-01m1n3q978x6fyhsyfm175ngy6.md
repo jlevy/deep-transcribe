@@ -5,7 +5,7 @@ title: Transcript segments with default suppression
 kind: feature
 status: open
 priority: 1
-version: 17
+version: 18
 spec_path: docs/project/specs/active/plan-2026-09-04-transcript-segments.md
 labels: []
 dependencies: []
@@ -20,8 +20,9 @@ child_order_hints:
   - is-01m1na58vampj3d053x9qddjf3
   - is-01m1nq9wwxfa8c5v3h4ngk3z68
   - is-01m1q3by2vaj7zs9cct9xqpsem
+  - is-01m1qdyhhry2322zwqx0dsscr2
 created_at: 2026-09-04T02:24:48.871Z
-updated_at: 2026-09-04T20:57:05.882Z
+updated_at: 2026-09-05T00:02:01.399Z
 ---
 MEASURED against Lex #501 (5.3h) before designing:
 - 23 YouTube chapters with exact boundaries and human titles, including 'Episode highlight' (0:00-1:27) and 'Introduction' (1:27-2:56). Excellent free skeleton.

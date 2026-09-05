@@ -136,7 +136,7 @@ None new. `--segments none` / `--instructions none` (review R6) is landing separ
 
 ### Phase 1: Prove it, and make every claim true
 
-- [ ] Full-scale run of the current code on #501, plain then `--segments`, and browser
+- [x] Full-scale run of the current code on #501, plain then `--segments`, and browser
   verification of the result: frame count, theme count, outline groups, teaser
   collapsed, no broken frames, no traceback. Record the per-stage times. (dt-qc7j child,
   new)
