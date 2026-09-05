@@ -127,6 +127,21 @@ The print graph is the same builder at `--dt-print-width`. A recording that is n
 grouped gets one band with no label on the recording's time axis, which is exactly
 today's flat graph.
 
+### The layout toggle
+
+A control above the graph, screen only, chooses between two layouts of the same chips.
+"Grouped" is the bands above. "Spread" is a deterministic force-style placement: edges
+pull related chips together, each chip is pulled a little toward its theme's center
+(enough to keep a theme in one place, not enough to pack it), and chips push apart until
+no two overlap; fixed start positions and a fixed number of steps, no animation loop. In
+the spread each theme is outlined by a dotted convex hull around its chips, with the
+theme's label at the hull's top left; the label is a node of the same simulation, so
+labels and chips keep apart the same way. Measured on Lex #501: 103 chips and 11 labels,
+2,771 px, 0 overlaps, 147 ms. Print keeps the bands.
+
+Selecting a chip highlights it, its mentions in the prose, and its spans on the rail; it
+no longer dims every other chip, which the owner found aggressive for no clear benefit.
+
 ### The lists
 
 Outline and Concepts keep `buildThemeGroup`, now gated by `model.grouped` alone. Claims
@@ -157,6 +172,12 @@ claims, one flat graph. No code path is new; the gate is.
   0 overlaps, 77 claims in 9 groups with counts, outline in 9 groups; `--grouping off`
   on the same export: flat, no heads, one band. SNL (4 min, no themes): flat by default
   and flat with `--grouping on`, no error.
+
+### Phase 3: The layout toggle
+
+- [x] "Grouped | Spread" above the graph; the spread layout with dotted theme outlines;
+  print unchanged. (dt-wf0k)
+- [x] Selection no longer dims the other chips. (dt-c2wp)
 
 ## Testing Strategy
 

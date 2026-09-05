@@ -613,6 +613,71 @@ body.yt-open #dt-rail {
   font-weight: 400;
 }
 
+/* Spread layout: the bands give way to a dotted outline around each theme's chips,
+   with the label at the outline's top left. */
+.dt-graph.dt-graph-spread .dt-graph-band {
+  display: none;
+}
+
+.dt-graph.dt-graph-spread .dt-graph-band-label {
+  right: auto;
+  padding: 0;
+}
+
+/* Spread out, a label is one of eleven on a crowded canvas; the time range is
+   for the bands. */
+.dt-graph.dt-graph-spread .dt-graph-band-when {
+  display: none;
+}
+
+.dt-graph.dt-graph-spread .dt-graph-band-name {
+  display: inline-block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-graph-hull {
+  fill: none;
+  stroke: var(--dt-text-faint);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  stroke-linejoin: round;
+}
+
+/* The layout toggle sits above the graph, right-aligned, in the tiny UI size. */
+.dt-graph-toggle {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.3rem;
+  margin: 0.25rem 0 0;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-tiny);
+  color: var(--dt-text-faint);
+}
+
+.dt-graph-toggle-label {
+  margin-right: 0.2rem;
+}
+
+.dt-graph-toggle-choice {
+  border: 1px solid var(--color-border-hint);
+  border-radius: var(--dt-radius);
+  background: none;
+  padding: 0.1rem 0.5rem;
+  font: inherit;
+  color: var(--dt-text-support);
+  cursor: pointer;
+}
+
+.dt-graph-toggle-choice[aria-pressed="true"] {
+  color: var(--dt-text);
+  border-color: var(--dt-text-support);
+}
+
 /* Two prebuilt layouts, one per medium: the screen graph tracks the panel
    width, the print graph is laid out at --dt-print-width. The print copy
    sits off-screen rather than hidden, since a display:none element cannot
@@ -631,7 +696,8 @@ body.yt-open #dt-rail {
     visibility: visible;
   }
 
-  .dt-graph-screen {
+  .dt-graph-screen,
+  .dt-graph-toggle {
     display: none !important;
   }
 }
