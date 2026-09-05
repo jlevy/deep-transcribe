@@ -9,7 +9,7 @@ author: Joshua Levy with Claude assistance
 
 **Author:** Joshua Levy with Claude assistance
 
-**Status:** Draft
+**Status:** Phases 1 to 3 done; Phase 4 (owner review of the page) in progress
 
 ## Overview
 
@@ -199,6 +199,57 @@ the cache resumes at the failed stage on rerun.
 
 - [x] Envelope recorded; dt-qc7j closed on it.
 
+### Phase 4: The owner's review of the Lex #501 page
+
+The page the first three phases produced was reviewed in a browser by the owner on
+2026-09-05, in rounds. Each finding is a bead under the epic dt-oa75; the small ones
+were fixed in place, and the ones that changed a feature's design got a spec. What is
+done and what is still open, as of the last push:
+
+Regressions from the kash 0.4.11 grid and the collapse work, all fixed and verified:
+
+- [x] Timeline block labels truncated to one line again; measured, two-line labels
+  restored. (dt-sy01)
+- [x] The vertical rail showed at load instead of after scrolling to the transcript.
+  (dt-fs0g)
+- [x] The page lost the left contents column and the right gutter for the rail and
+  frames. (dt-olti)
+- [x] Timeline and timestamp clicks did not open the player: the export was a
+  `file://` page, which YouTube refuses to embed in. `--open` serves the export on
+  loopback and opens the browser. (dt-m50h)
+
+Small fixes, done in beads:
+
+- [x] Timeline condensed: 6 rows, 740 px, from 11 rows, 1,520 px. (dt-rq6w)
+- [x] Claim chips flush left. (dt-2lpl)
+- [x] Contents column without its box; title rule and thin scrollbar kept. (dt-xzu6)
+- [x] A speaker label the heading stage split off went unstyled; decorated in a second
+  pass. (dt-d4r4)
+- [x] Speaker names in faux small caps everywhere they label. (dt-lae2)
+- [x] Theme heads read "Name (8 items)"; the rules between groups removed. (dt-m13y)
+- [x] Timeline section tooltips carry the section's outline bullets. (dt-pslx)
+- [x] Uppercase only for people's names and entity kind tags, never topics, as three
+  design tokens; tooltips included. (dt-206m)
+- [x] Contents column narrower on wide screens: 13 to 16rem. (dt-qjvl)
+- [x] Section previews appeared on clicking the contents: kash's own link-preview
+  tooltip on the TOC anchors. Removed from the contents column after kash attaches
+  them. (dt-1eqt)
+
+Feature changes, planned in `plan-2026-09-05-theme-grouping-across-the-page.md`:
+
+- [x] One grouping rule for long against short recordings, with `--grouping` as an
+  export-time control. (dt-oa7n)
+- [x] One unified concept graph with the themes as visible bands. (dt-td4s)
+- [x] Claims grouped by theme. (dt-r25q)
+
+Still open, waiting on the owner:
+
+- [ ] Print layout: text column too wide, margins too small. Measured identical to the
+  SNL reference PDF, so the owner is looking at a different document; which one is
+  the open question. (dt-8akr)
+- [ ] The `>=` glyph in a title, to be set in a sans at the right weight. Not present
+  on the Lex page; same question. (dt-8qti)
+
 ## Testing Strategy
 
 The full-scale run is the test. Supporting it: the fresh-workspace three-pass script
@@ -222,6 +273,9 @@ Phase 2 and 3 are follow-on PRs.
 ## References
 
 - `plan-2026-09-04-chunked-extraction.md`, `plan-2026-09-04-transcript-segments.md`
+- `plan-2026-09-05-theme-grouping-across-the-page.md`: the feature changes from Phase 4
+- `plan-2026-09-04-agent-iteration-loop.md`: the recipe, `--report`, `--export-only`,
+  `--rerun-from`, and `--open`
 - PR #19 and its review: https://github.com/jlevy/deep-transcribe/pull/19
 - Measurements are recorded on the beads linked to this spec.
 
