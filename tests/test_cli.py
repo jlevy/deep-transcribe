@@ -18,6 +18,8 @@ import pytest
 if TYPE_CHECKING:
     from kash.model import Item
 
+    from deep_transcribe.serve_export import ExportServer
+
 from deep_transcribe.cli_main import (
     build_parser,
     build_transcription_metadata,
@@ -1165,6 +1167,171 @@ def test_export_only_without_a_prior_run_is_a_usage_error(
     assert EXPORTED_SOURCE in error_lines[0]
     assert "--export-only" in error_lines[0]
     assert "Traceback" not in reported
+
+
+def _stage_trap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Booby-trap every stage entry, so a re-export that ran one is caught here."""
+    from deep_transcribe import transcribe_commands
+
+    def no_stage_may_run(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("--export-only ran a pipeline stage")
+
+    monkeypatch.setattr(transcribe_commands, "run_transcription", no_stage_may_run)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", no_stage_may_run)
+    monkeypatch.setattr(transcribe_commands, "_process_transcript", no_stage_may_run)
+    for var in ("DEEPGRAM_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def _watch_the_browser_and_the_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[list[str], list[ExportServer]]:
+    """
+    Record what `--open` would have opened, and stop it settling in to serve.
+
+    The server itself is left real: what has to be tested is that the page and its assets
+    come back over the URL the command printed. Only the browser and the wait for Ctrl-C
+    are stood in for, since neither belongs in a test run.
+    """
+    import webbrowser
+
+    from deep_transcribe.serve_export import ExportServer
+
+    opened: list[str] = []
+    servers: list[ExportServer] = []
+
+    def record_open(url: str, *_args: object, **_kwargs: object) -> bool:
+        opened.append(url)
+        return True
+
+    def record_instead_of_waiting(self: ExportServer) -> None:
+        servers.append(self)
+
+    monkeypatch.setattr(webbrowser, "open", record_open)
+    monkeypatch.setattr(ExportServer, "block_until_interrupt", record_instead_of_waiting)
+    return opened, servers
+
+
+def test_open_serves_the_export_over_loopback_and_opens_the_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The whole point of the flag: the page the run just wrote is reachable over http, so the
+    embedded player has an origin YouTube will serve an embed to. A file:// page cannot,
+    which is why the URL and not the path is the thing to print.
+
+    The server is real here, so this also pins that the directory served is the one holding
+    the export rather than the workspace root. With `--report` the URL has to come last,
+    after the report and the paths, which is checked over one merged stream.
+    """
+    import re
+    import urllib.request
+
+    ws_root = tmp_path / f"ws-{tmp_path.name}"
+    _store_a_finished_run(ws_root)
+    _stage_trap(monkeypatch)
+    opened, servers = _watch_the_browser_and_the_wait(monkeypatch)
+
+    # One buffer for both streams: the report and the paths go to stdout and the URL to
+    # stderr, and the order they reach the terminal in is the thing being asserted.
+    console = StringIO()
+    with redirect_stdout(console), redirect_stderr(console):
+        main(
+            [
+                "--workspace",
+                str(ws_root),
+                "--export-only",
+                "--report",
+                "--open",
+                EXPORTED_SOURCE,
+            ]
+        )
+
+    printed = console.getvalue()
+    found = re.findall(r"http://\S+", printed)
+    assert len(found) == 1, f"expected one URL on screen, got {found} in:\n{printed}"
+    url = found[0]
+
+    assert url.startswith("http://127.0.0.1:"), url
+    assert url.endswith(".html"), url
+    assert printed.index("headings 2") < printed.index("All done!") < printed.index(url)
+    assert "Ctrl-C" in printed
+
+    assert opened == [url], f"--open did not hand the browser the URL it printed: {opened}"
+
+    assert len(servers) == 1
+    served = servers[0]
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            assert response.status == 200
+            page = response.read()
+        # The bytes are the export on disk, in the exports directory beside its assets.
+        on_disk = served.directory / url.rsplit("/", 1)[1]
+        assert on_disk.is_file(), f"the served URL names no file: {on_disk}"
+        assert page == on_disk.read_bytes()
+    finally:
+        served.shutdown()
+
+
+def test_open_adds_the_url_to_the_json_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    An agent or a script reads one document, so the URL belongs beside the paths in it —
+    and it has to be printed before the process settles into serving, or nothing would ever
+    read it. The URL names the very export the same JSON reports.
+    """
+    ws_root = tmp_path / f"ws-{tmp_path.name}"
+    _store_a_finished_run(ws_root)
+    _stage_trap(monkeypatch)
+    opened, servers = _watch_the_browser_and_the_wait(monkeypatch)
+
+    output = StringIO()
+    with redirect_stdout(output):
+        main(
+            [
+                "--workspace",
+                str(ws_root),
+                "--export-only",
+                "--json",
+                "--open",
+                EXPORTED_SOURCE,
+            ]
+        )
+
+    payload = json.loads(output.getvalue())
+    url = payload["url"]
+    assert url.startswith("http://127.0.0.1:"), url
+    assert url.endswith(f"/{Path(payload['html']).name}"), (url, payload["html"])
+    assert opened == [url]
+
+    assert len(servers) == 1
+    servers[0].shutdown()
+
+
+def test_open_without_a_prior_run_is_a_usage_error_and_serves_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Nothing was exported, so there is nothing to serve: the answer is the one usage line
+    `--export-only` already gives, and no server and no browser tab.
+    """
+    ws_root = tmp_path / f"ws-{tmp_path.name}"
+    _stage_trap(monkeypatch)
+    opened, servers = _watch_the_browser_and_the_wait(monkeypatch)
+
+    errors = StringIO()
+    with redirect_stderr(errors), pytest.raises(SystemExit) as raised:
+        main(["--workspace", str(ws_root), "--export-only", "--open", EXPORTED_SOURCE])
+
+    assert raised.value.code == 2
+    reported = errors.getvalue()
+    error_lines = [line for line in reported.splitlines() if "error:" in line]
+    assert len(error_lines) == 1, f"expected one error line, got:\n{reported}"
+    assert "--export-only" in error_lines[0]
+    assert "http://127.0.0.1" not in reported
+    assert opened == []
+    assert servers == []
 
 
 def test_export_only_refuses_to_be_combined_with_a_rerun(tmp_path: Path) -> None:

@@ -31,7 +31,7 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--rerun-from STAGE] [--report]
-                       [--export-only] [--json] [--docs | --skill |
+                       [--export-only] [--open] [--json] [--docs | --skill |
                        --install-skill] [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 
@@ -156,6 +156,12 @@ Models, Execution, and Output:
                         capitalized spellings to choose --key-term values from
   --export-only         Rebuild the HTML from the cached final item without
                         running any stage, for a template or --elements change
+  --open                Serve the finished export from 127.0.0.1 on a free
+                        port and open it in your browser, so the embedded
+                        player works — a page opened as a file:// URL cannot
+                        embed the video. Keeps serving in the foreground until
+                        Ctrl-C; with --json the URL is added to the output
+                        first
   --json                Print final workspace and artifact paths as JSON
 
 Built-in Documentation and Agent Skill:
@@ -264,7 +270,7 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--rerun-from STAGE] [--report]
-                       [--export-only] [--json] [--docs | --skill |
+                       [--export-only] [--open] [--json] [--docs | --skill |
                        --install-skill] [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 deep-transcribe: error: argument --models: invalid ModelProvider value: 'invalid'

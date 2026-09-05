@@ -427,6 +427,16 @@ def _add_transcription_arguments(
         ),
     )
     execution.add_argument(
+        "--open",
+        action="store_true",
+        help=(
+            "Serve the finished export from 127.0.0.1 on a free port and open it in your "
+            "browser, so the embedded player works — a page opened as a file:// URL "
+            "cannot embed the video. Keeps serving in the foreground until Ctrl-C; with "
+            "--json the URL is added to the output first"
+        ),
+    )
+    execution.add_argument(
         "--json",
         action="store_true",
         help="Print final workspace and artifact paths as JSON",
@@ -534,8 +544,15 @@ def display_results(
     *,
     as_json: bool,
     report: "TranscriptReport | None" = None,
+    serve_url: str | None = None,
 ) -> None:
-    """Display generated artifact paths, and the report when one was built."""
+    """
+    Display generated artifact paths, and the report when one was built.
+
+    `serve_url` is where `--open` is serving the page. With `--json` it belongs in the one
+    document; the text form gets it from `_announce_serving` instead, on stderr and
+    unstyled, so the URL is exactly what a copy-paste picks up.
+    """
     from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
 
     # `base_dir` is the root the user passed; the kash workspace, where the pipeline
@@ -551,6 +568,10 @@ def display_results(
         # An agent driving the review loop needs to find this without reading the log.
         if suggested.exists():
             result["suggested_segments"] = str(suggested.resolve())
+        # Printed before the process settles into serving, so a caller reading one line of
+        # JSON is not waiting on a server that only stops at Ctrl-C.
+        if serve_url is not None:
+            result["url"] = serve_url
         # Folded into the one document rather than printed beside it, so `--json` output
         # stays parseable by a single read.
         if report is not None:
@@ -602,6 +623,22 @@ def display_results(
                 analysis. The transcript is reused, so the rerun is quick.
                 """)
         )
+
+
+def _announce_serving(url: str, *, as_json: bool) -> None:
+    """
+    Say where the export is being served, and why the command has not exited.
+
+    Printed on stderr, and without rich markup or wrapping: the URL is meant to be
+    copy-pasted, and stdout stays whatever the run already put there.
+    """
+    if not as_json:
+        print(f"\nThe export is being served at:\n\n    {url}\n", file=sys.stderr)
+    print(
+        "A page opened straight from disk cannot embed the video player, so the export is "
+        "served here instead. Serving until you press Ctrl-C.",
+        file=sys.stderr,
+    )
 
 
 def _display_model_profiles(
@@ -993,13 +1030,28 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
                 elements=elements,
                 report=args.report,
             )
+        # Started before anything is printed, because with --json the URL has to go into
+        # the one document; nothing reaches the console until display_results runs, so the
+        # report still comes first and the URL still comes last.
+        served = None
+        if args.open:
+            from deep_transcribe.serve_export import serve_and_open
+
+            served = serve_and_open(outputs.html_path, block=False)
+
         display_results(
             workspace,
             outputs.transcript_path,
             outputs.html_path,
             as_json=args.json,
             report=outputs.report,
+            serve_url=served.url if served is not None else None,
         )
+
+        if served is not None:
+            _announce_serving(served.url, as_json=args.json)
+            # Ctrl-C leaves through main's handler, which reports the interrupt as usual.
+            served.block_until_interrupt()
     except Exception as error:
         from kash.config.logger import get_log_settings
 

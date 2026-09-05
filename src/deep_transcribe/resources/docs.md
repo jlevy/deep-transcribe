@@ -437,6 +437,15 @@ gets both the paths and the counts.
 Add `--export-only` alongside it to report on a workspace that is already finished without
 running any stage.
 
+Add `--open` when the page is going to be read rather than filed.
+Opened straight from disk, as a `file://` URL, the export cannot embed the YouTube player,
+because YouTube refuses an embed to a page that sends no referer; a click on a timeline
+block or a timestamp then falls back to opening the video in a new tab.
+So `--open` serves the export from `127.0.0.1` on a free port and opens that URL in the
+default browser, where the embedded player works.
+It keeps the command in the foreground until Ctrl-C, and with `--json` the URL is added to
+the output under a `url` key before the serving begins.
+
 ### Save the HTML as a PDF
 
 The HTML export is the presentation source.
