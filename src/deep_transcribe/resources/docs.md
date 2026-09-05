@@ -165,6 +165,14 @@ The useful workflow is:
 4. Rerun the same source in the same workspace.
 5. Verify both cache reuse and output quality.
 
+Read `--report` after every run before opening the page: it lists the section headings
+and their density, the themes with concept counts, the segments in effect, the speaker
+turn counts, the frames kept, and the most frequent capitalized words — which is how
+misspelled names show up as variants and become `key_terms`. Keep everything a source
+needs in one directory, as `docs/examples/lex-501/` does: a metadata file for
+`--metadata`, a hints file for `--segments`, and a README with the command. Editing
+those files and rerunning is the loop; the table below says what each edit costs.
+
 The normal cache-aware rerun resumes at the first affected action.
 Do not delete the workspace, change its path, or change the source spelling between
 iterations.

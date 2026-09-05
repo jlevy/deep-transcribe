@@ -109,16 +109,16 @@ option. No change to existing flag semantics.
 
 ### Phase 1: Close the loop
 
-- [ ] `--report` over the final item, text and JSON, including spelling variants.
+- [x] `--report` over the final item, text and JSON, including spelling variants.
   (dt-i6mg)
-- [ ] `--export-only`. (dt-269j)
-- [ ] Docs: point the iteration section at `docs/examples/lex-501/`; add the report to
+- [x] `--export-only`. (dt-269j)
+- [x] Docs: point the iteration section at `docs/examples/lex-501/`; add the report to
   the loop; add rerun-table rows for the new flags; update the skill's "Iterate on a
   Reviewed Result".
 
 ### Phase 2: The quality levers
 
-- [ ] Back-channel folding, default on. Measure turn count before and after on Lex #501.
+- [x] Back-channel folding, default on. Measure turn count before and after on Lex #501.
   (dt-aueh)
 - [ ] Publisher chapters as the H2 skeleton, model headings demoted to H3. The index,
   outline and timeline already read only H2, so no downstream change is needed; Lex #501
