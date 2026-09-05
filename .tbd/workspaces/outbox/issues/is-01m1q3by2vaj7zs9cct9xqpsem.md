@@ -5,13 +5,13 @@ title: Store analysis-only inputs outside the hashed metadata
 kind: feature
 status: closed
 priority: 2
-version: 7
+version: 8
 spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-04T20:57:05.882Z
-updated_at: 2026-09-05T02:02:36.824Z
+updated_at: 2026-09-05T02:35:07.887Z
 closed_at: 2026-09-05T02:02:36.822Z
 close_reason: "Mechanism found and fixed: kash serializes original_filename, history and modified_at only when set, and sets them on load, so the first re-persist after a load changed the resource's hashed bytes and re-ran every stage below. Proven by the recorded sha1s and a line-level diff; persist_item_metadata now writes all three from the start; the byte-equality test fails with any one removed. Late inputs can stay on the resource — the cost was never the hints."
 resolution: null
@@ -41,4 +41,4 @@ What does not hold is the claim that editing a hint is cheap.
 
 ## Notes
 
-Final scope after measurement: only the FIRST application of hints to a workspace pays the ~45 min formatting rerun; every later edit resumes at the outline (20 min at scale). This is a one-time cost per source, not per iteration. Reprioritize accordingly; P2 is defensible.
+Confirmed at scale on the third launch of dt-lex501 (19:34): after the persist fix, the resume reused attempt 2's lineage (watch_1_step02) with the same resource sha1 instead of starting a third; only the interrupted stage re-ran.
