@@ -1,0 +1,74 @@
+---
+type: is
+id: is-01m1n3knrvxt38paq147xp42s3
+title: "Long-form scale: make hours-long media work end to end"
+kind: epic
+status: open
+priority: 1
+version: 53
+labels: []
+dependencies: []
+child_order_hints:
+  - is-01m1n3kp47xvjpgapq51syjb7b
+  - is-01m1n3kpfatq1ywx1k86vhsmd2
+  - is-01m1n3kpt8rkxq4xa2hq48afzy
+  - is-01m1n3kq58arx57sxjtzw53400
+  - is-01m1n3q978x6fyhsyfm175ngy6
+  - is-01m1n53d3bmpb1e479ans2y953
+  - is-01m1n6gctkkxnqy75w1z619mfs
+  - is-01m1n7c8d8yvrhkejcfjtva5r3
+  - is-01m1n945s0m25334ssbw9gfwqe
+  - is-01m1nax66j442h166dee52zt3r
+  - is-01m1ng4k98ct0rh0aez0f65mq1
+  - is-01m1ng5apmffpyrmqedmf8nk2v
+  - is-01m1ng5b07vkx3hx5ghky3sxf5
+  - is-01m1ngetsvzhmab7zqmh2c0259
+  - is-01m1ngmw5rmvw53737am2ys73t
+  - is-01m1nj101r8h6c0qjqjngbcw66
+  - is-01m1nn9te3sc73grm9rarwq55h
+  - is-01m1nwtknp04qqvtpdghs0342s
+  - is-01m1nyv8q14zgfe1wypmpf6443
+  - is-01m1p0rsvvp8ah3tczzv446xdc
+  - is-01m1pq181axzacfacqbp68av56
+  - is-01m1q1zs4f81krjzenfbtmp35t
+  - is-01m1q8mqy5vtyy8cpnspnwghbk
+  - is-01m1q9ez1hagwh5bhzv4cpax85
+  - is-01m1q9kbn4kyzynek1b4mc3nhp
+  - is-01m1qb09xcdef6ecr98dczqmmp
+  - is-01m1qdyhy7011j40jc6xejs5kh
+  - is-01m1qfckpw6jydvdt2y5wga7vy
+  - is-01m1qfkw8vxpzmyds5qsxm798b
+  - is-01m1rh756898vm7ydh5ds8p4p1
+  - is-01m1s8pn6129vv1bcp0b32vzew
+  - is-01m1s8pnh7wvc7vzs8r4n5285w
+  - is-01m1s8wkvs8zx6d83442kn6nrs
+  - is-01m1s910mg6ph22ksszk34aj45
+  - is-01m1s97njysjqc0w3rrt67cp2x
+  - is-01m1s97ny06r6tfr1ftczgx11r
+  - is-01m1sac5hs021v3t1hty9rymg9
+  - is-01m1safb3wg16kt8yzzadhpxbx
+  - is-01m1sajadvedqzrp1d8x2dc61b
+  - is-01m1sajasbn3rt30rkhzsqkqnz
+  - is-01m1sakf28njeegwcwzkd5e184
+  - is-01m1saq5qmcj906h8cg2yfs4m7
+  - is-01m1sb1sfw4tph2z2dyd34g40m
+  - is-01m1sb1st0c2z24xgdym5b5sw7
+  - is-01m1sb1t47dptzyt729vns6cpa
+  - is-01m1sb1tepsmr6hv8v2sk1mr19
+  - is-01m1sbk5smjv26q7vxzrxz2rs9
+  - is-01m1sbkwa43maypdxpye9jq1q2
+  - is-01m1sbp4pcxp51c7ee4gd5e8ax
+  - is-01m1sdc19zhgf6t5f7nng78w0d
+  - is-01m1sdc1p74bg5qyzq6zyztxtf
+created_at: 2026-09-04T02:22:50.649Z
+updated_at: 2026-09-05T18:30:24.198Z
+---
+A 5.3-hour podcast (Lex Fridman #501, 18951s) exposed scale problems in download and transcription. Three upstream bugs found and fixed, each visible only by running at this scale.
+
+MEASURED, run 1 (before fixes) vs run 3 (after):
+  run 1: 13 GB pulled, ffmpeg pinned at 414% CPU for 45+ min still transcoding, never reached transcription
+  run 3: 1.8 GB merged mp4 (f137 H.264 + f140 AAC), zero transcoding, download AND merge complete in 5 min 33 s
+
+Fixes: kash #23 (TranscriptionLimits — request budget scales with duration), kash-media #12 (remux instead of re-encode; prefer H.264 over Premium VP9; VideoDownloadOptions control surface).
+
+Remaining: output quality and legibility at this scale (dt-sfoz), and non-interview segment handling (dt-vkmf).

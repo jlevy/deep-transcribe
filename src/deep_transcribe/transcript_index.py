@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import bisect
 import json
+import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import cast
 
@@ -10,6 +12,8 @@ from kash.exec import kash_action, kash_precondition
 from kash.exec.preconditions import has_simple_text_body, has_timestamps
 from kash.model import Item
 from kash.utils.errors import InvalidInput
+
+from deep_transcribe.segment_hints import SegmentHints, parse_hints
 
 INDEX_ELEMENT_ID = "dt-transcript-index"
 """DOM id of the embedded JSON transcript index."""
@@ -32,6 +36,8 @@ _FRAME_PATTERN = re.compile(
     r"[^>]*>"
 )
 _SPEAKER_LABEL_PATTERN = re.compile(r"^\*\*(?P<name>[^*\n]{1,80}?):\*\*")
+
+log = logging.getLogger(__name__)
 _DIV_LINE_PATTERN = re.compile(r"^\s*</?div[^>]*>\s*$", re.MULTILINE)
 _TAG_PATTERN = re.compile(r"<[^>]+>")
 _ISLAND_PATTERN = re.compile(
@@ -87,6 +93,8 @@ class UnitEntry:
     sentences: int
     sentence_times: list[float]
     excerpt: str
+    segment: str | None = None
+    """Purpose of the suppressed segment covering this unit, or None if it is ordinary."""
 
 
 @dataclass(frozen=True)
@@ -152,6 +160,7 @@ class TranscriptIndex:
                     "sentences": u.sentences,
                     "sentence_times": u.sentence_times,
                     "excerpt": u.excerpt,
+                    **({"segment": u.segment} if u.segment else {}),
                 }
                 for u in self.units
             ],
@@ -204,6 +213,28 @@ class RawUnit:
     start: float
     label: str | None
     text: str
+    section: int
+    """Index of the `##` heading this unit falls under; -1 before the first heading."""
+
+
+def scan_section_offsets(body: str) -> list[int]:
+    """
+    Byte offsets of each `##` heading, indexed the way `RawUnit.section` counts them.
+
+    Chunking cuts the body at these, so a chunk starts with the heading that opens it
+    rather than mid-section.
+    """
+    return [match.start() for match in _H2_PATTERN.finditer(body)]
+
+
+def scan_section_headings(body: str) -> list[str]:
+    """
+    The `##` heading texts, in the order `RawUnit.section` indexes them.
+
+    Shares the heading pattern with the index and the chunker, so a report of how many
+    sections a run produced cannot drift from the sections the pipeline actually saw.
+    """
+    return [match.group("heading") for match in _H2_PATTERN.finditer(body)]
 
 
 def scan_raw_units(body: str) -> list[RawUnit]:
@@ -211,6 +242,7 @@ def scan_raw_units(body: str) -> list[RawUnit]:
     citations = list(_CITATION_PATTERN.finditer(body))
     headings = list(_H2_PATTERN.finditer(body))
     frames = list(_FRAME_PATTERN.finditer(body))
+    heading_starts = [h.start() for h in headings]
     raw_units: list[RawUnit] = []
     for i, citation in enumerate(citations):
         # A unit's text runs from the nearest structural boundary to its citation.
@@ -231,7 +263,11 @@ def scan_raw_units(body: str) -> list[RawUnit]:
             text = text[label_match.end() :].strip()
         raw_units.append(
             RawUnit(
-                key=citation.group("ts"), start=float(citation.group("ts")), label=label, text=text
+                key=citation.group("ts"),
+                start=float(citation.group("ts")),
+                label=label,
+                text=text,
+                section=bisect.bisect_right(heading_starts, citation.start()) - 1,
             )
         )
     return raw_units
@@ -247,6 +283,7 @@ def build_transcript_index(
     sentence_onsets: list[float] | None = None,
     has_video: bool = False,
     concepts: list[dict[str, object]] | None = None,
+    hints: SegmentHints | None = None,
 ) -> TranscriptIndex:
     """
     Build the transcript index from a formatted transcript body.
@@ -350,7 +387,21 @@ def build_transcript_index(
             )
         )
 
+    if hints is not None and hints.segments:
+        # Mark rather than remove. The reader keeps every word and can see what was set
+        # aside and why; only the analysis stages actually drop these.
+        units = [
+            replace(unit, segment=covering.purpose.value)
+            if (covering := hints.suppressed_at(unit.start)) is not None
+            else unit
+            for unit in units
+        ]
+        marked = sum(1 for unit in units if unit.segment)
+        log.info("Marked %d of %d units as suppressed segments", marked, len(units))
+
     reported_duration = duration if duration is not None and duration >= last_end - 0.5 else None
+    # Concepts resolve against the marked units, so a mention landing in a suppressed
+    # stretch still resolves — the analysis simply should not have produced one.
     resolved_concepts = _resolve_concepts(concepts or [], units)
     return TranscriptIndex(
         media_url=url,
@@ -365,6 +416,19 @@ def build_transcript_index(
         frames=frame_entries,
         concepts=resolved_concepts,
     )
+
+
+MIN_MENTION_WORDS = 3
+"""
+A mention has to point at a unit that says something.
+
+An extractor asked to cite where a concept comes up will sometimes land on the
+acknowledgment that follows it — "Mhmm.", "Yeah.", "Right." A one-word unit cannot be
+about anything, and one of them an hour away from the rest stretches the concept's span
+across most of the recording: on a 5.3-hour interview, eight such mentions pushed six of
+twenty-four concepts past 15% of the running time. Three words is the smallest bar that
+clears those without touching real short answers ("I'd say mass immigration.").
+"""
 
 
 def _resolve_concepts(
@@ -399,6 +463,16 @@ def _resolve_concepts(
         if not mention_units:
             log.warning("Dropping concept %r: no valid mentions", concept.get("id"))
             continue
+        substantive = [u for u in mention_units if u.words >= MIN_MENTION_WORDS]
+        # Keep everything if a concept only ever lands on short units, rather than
+        # losing the concept over a rule meant to trim its outliers.
+        if substantive and len(substantive) < len(mention_units):
+            log.info(
+                "Dropping %d acknowledgment mention(s) for concept %r",
+                len(mention_units) - len(substantive),
+                concept.get("id"),
+            )
+            mention_units = substantive
         raw_relations = concept.get("relations")
         relation_dicts = [
             cast("dict[str, object]", r)
@@ -429,6 +503,7 @@ def _resolve_concepts(
                 "speakers": speakers,
                 "relations": relations,
                 "research": concept.get("research"),
+                "theme": concept.get("theme") or None,
             }
         )
     return resolved
@@ -555,7 +630,11 @@ def attach_transcript_index(item: Item) -> Item:
     The visible prose is untouched; the index binds to existing citation spans by
     their `data-timestamp` values.
     """
-    from deep_transcribe.transcription_metadata import get_concepts, get_speaker_roster
+    from deep_transcribe.transcription_metadata import (
+        get_concepts,
+        get_segment_hints,
+        get_speaker_roster,
+    )
 
     if not item.body:
         raise InvalidInput(f"Item must have a body: {item}")
@@ -571,6 +650,7 @@ def attach_transcript_index(item: Item) -> Item:
         sentence_onsets=_resolve_sentence_onsets(item),
         has_video=has_video,
         concepts=get_concepts(item),
+        hints=parse_hints(get_segment_hints(item)),
     )
     return item.derived_copy(body=f"{body.rstrip()}\n\n{render_index_island(index)}\n")
 
@@ -663,6 +743,69 @@ def test_build_index_appends_unknown_labels_to_roster() -> None:
     assert index.speakers[1].id == "s1"
 
 
+def test_acknowledgment_mentions_do_not_stretch_a_span() -> None:
+    def unit(key: str, start: float, end: float, words: int) -> UnitEntry:
+        return UnitEntry(
+            uid=f"p{key}",
+            key=key,
+            speaker="s0",
+            section="sec0",
+            start=start,
+            end=end,
+            words=words,
+            sentences=1,
+            sentence_times=[start],
+            excerpt="",
+        )
+
+    units = [
+        unit("1.00", 1.0, 40.0, 90),
+        unit("50.00", 50.0, 90.0, 80),
+        unit("9000.00", 9000.0, 9002.0, 1),  # "Mhmm." an hour later
+    ]
+    concept: dict[str, object] = {
+        "id": "c1",
+        "label": "A concept",
+        "kind": "topic",
+        "mentions": ["1.00", "50.00", "9000.00"],
+    }
+
+    [resolved] = _resolve_concepts([concept], units)
+
+    assert [m["key"] for m in cast("list[dict[str, object]]", resolved["mentions"])] == [
+        "1.00",
+        "50.00",
+    ]
+    assert resolved["span"] == [1.0, 90.0]
+
+
+def test_a_concept_of_only_short_mentions_keeps_them() -> None:
+    units = [
+        UnitEntry(
+            uid="p1",
+            key="1.00",
+            speaker="s0",
+            section=None,
+            start=1.0,
+            end=3.0,
+            words=2,
+            sentences=1,
+            sentence_times=[1.0],
+            excerpt="",
+        )
+    ]
+    concept: dict[str, object] = {
+        "id": "c1",
+        "label": "Terse",
+        "kind": "topic",
+        "mentions": ["1.00"],
+    }
+
+    [resolved] = _resolve_concepts([concept], units)
+
+    assert len(cast("list[object]", resolved["mentions"])) == 1
+
+
 def test_extract_sentence_onsets_ignores_citations() -> None:
     raw = (
         '<span data-timestamp="1.00">Hi.</span> <span data-timestamp="2.50">There.</span> '
@@ -724,3 +867,36 @@ def test_minify_preserves_json_island(tmp_path: Path) -> None:
     match = re.search(f'id="{INDEX_ELEMENT_ID}">(.*?)</script>', result.stdout, re.DOTALL)
     assert match
     assert json.loads(match.group(1)) == index.to_json_dict()
+
+
+def test_hints_mark_units_without_removing_them() -> None:
+    from deep_transcribe.segment_hints import parse_hints
+
+    hints = parse_hints({"segments": [{"at": "0:00 - 0:06", "purpose": "teaser"}]})
+
+    index = build_transcript_index(
+        _TEST_BODY,
+        roster=["Alice", "Bob"],
+        duration=20.0,
+        hints=hints,
+    )
+
+    # Every unit is still present: the reader keeps the words, the analysis drops them.
+    assert len(index.units) == 4
+    assert [u.segment for u in index.units] == ["teaser", "teaser", None, None]
+
+    payload = index.to_json_dict()
+    units = payload["units"]
+    assert isinstance(units, list)
+    assert units[0]["segment"] == "teaser"
+    # An ordinary unit carries no key at all, so the island does not grow for nothing.
+    assert "segment" not in units[2]
+
+
+def test_no_hints_leaves_the_index_exactly_as_it_was() -> None:
+    plain = build_transcript_index(_TEST_BODY, roster=["Alice", "Bob"], duration=20.0)
+
+    assert all(u.segment is None for u in plain.units)
+    units = plain.to_json_dict()["units"]
+    assert isinstance(units, list)
+    assert all("segment" not in u for u in units)

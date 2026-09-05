@@ -1,0 +1,38 @@
+# Recipe for Lex Fridman Podcast #501 (DHH), 5h15m.
+# Pass with --metadata; edit and rerun. Key terms change the transcript's cache key, so
+# changing them costs a fresh speech-to-text request; everything else reuses it.
+title: "DHH: Future of Programming, AI, Agentic Engineering, Vibe Coding & Linux | Lex Fridman Podcast #501"
+additional_context: >-
+  Lex Fridman Podcast #501 with David Heinemeier Hansson (DHH), creator of Ruby on Rails
+  and co-owner and CTO of 37signals, makers of Basecamp and HEY. Two speakers: Lex Fridman
+  hosting and DHH. Label them "Lex Fridman" and "DHH". The Linux distribution DHH created
+  is spelled Omarchy (its fourth release is called Quattro); his earlier Ubuntu setup is
+  Omakub. The "brains and hands" pattern is credited to Tobi Lütke of Shopify.
+key_terms:
+  - Omarchy
+  - Omakub
+  - DHH
+  - David Heinemeier Hansson
+  - 37signals
+  - Basecamp
+  - HEY
+  - Ruby on Rails
+  - Arch Linux
+  - Hyprland
+  - Tobi Lütke
+  - Shopify
+  - Claude Code
+  - Codex
+  - Anthropic
+  - Cursor
+  - Grok
+replacements:
+  Omachi: Omarchy
+  Hansen: Hansson
+processing_instructions: >-
+  Spell the Linux distribution "Omarchy" and the guest's surname "Hansson". The synopsis is
+  two paragraphs that name both speakers and say what was argued, not what was discussed.
+  Outline entries name concrete claims, numbers, and examples rather than topics.
+speaker_roster:
+  - Lex Fridman
+  - DHH

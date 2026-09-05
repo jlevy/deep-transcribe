@@ -15,6 +15,9 @@ from sidematter_format import Sidematter
 
 TRANSCRIPTION_METADATA_KEY = "transcription"
 
+REPLACEMENTS_KEY = "replacements"
+"""Key under `extra.transcription` where wrong-to-right text replacements are stored."""
+
 
 @dataclass(frozen=True)
 class TranscriptionMetadata:
@@ -23,12 +26,21 @@ class TranscriptionMetadata:
 
     `extra` stays extensible while Deep Transcribe normalizes the currently recognized
     `extra.transcription` fields.
+
+    The `clear_*` flags are how a caller asks for a stored value to be REMOVED. Segment
+    hints and processing instructions stick to the source item on purpose, so a later run
+    without the flag still honors them; absent an explicit clear there is no way to say
+    "and now stop honoring it" short of editing the stored YAML by hand. They are separate
+    fields rather than a None in `extra` because None is already how "not specified" is
+    spelled everywhere else here.
     """
 
     title: str | None = None
     description: str | None = None
     additional_context: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    clear_segments: bool = False
+    clear_processing_instructions: bool = False
 
     def merged_with(self, other: TranscriptionMetadata) -> TranscriptionMetadata:
         """Merge metadata with nonempty values from `other` taking precedence."""
@@ -41,6 +53,10 @@ class TranscriptionMetadata:
                 else self.additional_context
             ),
             extra=_deep_merge(self.extra, other.extra),
+            clear_segments=self.clear_segments or other.clear_segments,
+            clear_processing_instructions=(
+                self.clear_processing_instructions or other.clear_processing_instructions
+            ),
         )
 
     @property
@@ -52,6 +68,20 @@ class TranscriptionMetadata:
         if not isinstance(terms, list):
             return []
         return [term for term in cast(list[object], terms) if isinstance(term, str)]
+
+    @property
+    def replacements(self) -> dict[str, str]:
+        transcription = self.extra.get(TRANSCRIPTION_METADATA_KEY)
+        if not isinstance(transcription, dict):
+            return {}
+        mapping = cast(dict[str, Any], transcription).get(REPLACEMENTS_KEY)
+        if not isinstance(mapping, dict):
+            return {}
+        return {
+            wrong: right
+            for wrong, right in cast(dict[object, object], mapping).items()
+            if isinstance(wrong, str) and isinstance(right, str)
+        }
 
     @property
     def speaker_roster(self) -> list[str]:
@@ -107,6 +137,28 @@ def _normalize_key_terms(value: object) -> list[str]:
     return list(dict.fromkeys(term.strip() for term in string_terms if term.strip()))
 
 
+def normalize_replacements(value: object) -> dict[str, str]:
+    """
+    Validate and normalize a wrong-to-right text replacement mapping.
+
+    Both sides must be plain nonempty strings. A YAML author who writes a list, or lets a
+    bare `Omarchy:` parse to None, gets told what the shape is rather than a stage failing
+    on unusable data an hour into a run.
+    """
+    if not isinstance(value, dict):
+        raise ValueError("`replacements` must map misrecognized text to its correction")
+    mapping: dict[str, str] = {}
+    for wrong, right in cast(dict[object, object], value).items():
+        if not isinstance(wrong, str) or not wrong.strip():
+            raise ValueError("`replacements` keys must be nonempty strings")
+        if not isinstance(right, str) or not right.strip():
+            raise ValueError(
+                f"`replacements` values must be nonempty strings; `{wrong}` has {right!r}"
+            )
+        mapping[wrong.strip()] = right.strip()
+    return mapping
+
+
 def _normalize_speaker_hints(value: object) -> dict[str, str]:
     if not isinstance(value, dict):
         raise ValueError("`speaker_hints` must map speaker IDs to names")
@@ -149,6 +201,8 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         "speaker_hints",
         "speaker_roster",
         "processing_instructions",
+        REPLACEMENTS_KEY,
+        SEGMENTS_KEY,
     }
     unexpected_fields = sorted(str(key) for key in data_dict if key not in allowed_fields)
     if unexpected_fields:
@@ -170,6 +224,8 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         transcription["speaker_hints"] = _normalize_speaker_hints(transcription["speaker_hints"])
     if "speaker_roster" in transcription:
         transcription["speaker_roster"] = normalize_speaker_roster(transcription["speaker_roster"])
+    if REPLACEMENTS_KEY in transcription:
+        transcription[REPLACEMENTS_KEY] = normalize_replacements(transcription[REPLACEMENTS_KEY])
     if "processing_instructions" in transcription:
         transcription["processing_instructions"] = _optional_text(
             transcription["processing_instructions"], "processing_instructions"
@@ -180,10 +236,20 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         transcription["speaker_hints"] = _normalize_speaker_hints(data_dict["speaker_hints"])
     if "speaker_roster" in data_dict:
         transcription["speaker_roster"] = normalize_speaker_roster(data_dict["speaker_roster"])
+    if REPLACEMENTS_KEY in data_dict:
+        transcription[REPLACEMENTS_KEY] = normalize_replacements(data_dict[REPLACEMENTS_KEY])
     if "processing_instructions" in data_dict:
         transcription["processing_instructions"] = _optional_text(
             data_dict["processing_instructions"], "processing_instructions"
         )
+    # Segment hints pass through as the mapping the hints file parsed to; the pipeline
+    # strips them before the cached stages and validates them where they are used.
+    for source in (transcription, data_dict):
+        if SEGMENTS_KEY in source:
+            hints = source[SEGMENTS_KEY]
+            if hints is not None and not isinstance(hints, dict):
+                raise ValueError(f"`{SEGMENTS_KEY}` must be a mapping")
+            transcription[SEGMENTS_KEY] = hints
     if transcription or TRANSCRIPTION_METADATA_KEY in extra:
         extra[TRANSCRIPTION_METADATA_KEY] = transcription
 
@@ -217,6 +283,12 @@ def apply_transcription_metadata(item: Item, metadata: TranscriptionMetadata) ->
         item.additional_context = metadata.additional_context
     if metadata.extra:
         item.extra = _deep_merge(item.extra or {}, metadata.extra)
+    # Clears run after the merge so an explicit clear wins over both the value already
+    # stored on the item and anything a metadata file supplied in the same run.
+    if metadata.clear_segments:
+        remove_segment_hints(item)
+    if metadata.clear_processing_instructions:
+        remove_processing_instructions(item)
     return item
 
 
@@ -255,6 +327,46 @@ def get_concepts(item: Item) -> list[dict[str, Any]]:
 def get_processing_instructions(item: Item) -> str | None:
     """Read trusted post-transcription instructions from item metadata."""
     return TranscriptionMetadata(extra=item.extra or {}).processing_instructions
+
+
+def get_replacements(item: Item) -> dict[str, str]:
+    """Read the wrong-to-right text replacements from item metadata."""
+    return TranscriptionMetadata(extra=item.extra or {}).replacements
+
+
+def set_replacements(item: Item, replacements: dict[str, str]) -> Item:
+    """Attach text replacements to an item, in place."""
+    if not replacements:
+        return item
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.setdefault(TRANSCRIPTION_METADATA_KEY, {})
+    if not isinstance(transcription, dict):
+        raise ValueError("`extra.transcription` must be a mapping")
+    cast(dict[str, Any], transcription)[REPLACEMENTS_KEY] = dict(replacements)
+    item.extra = item_extra
+    return item
+
+
+def remove_replacements(item: Item) -> dict[str, str]:
+    """
+    Remove text replacements in place and return them for later restoration.
+
+    Same shape and the same reason as `remove_processing_instructions`: the mapping is an
+    input to the correction stage, not to speech-to-text. Left on the stored resource it
+    would be inside the raw transcription's cache key, so fixing one misheard name would
+    buy a fresh paid Deepgram request for a five-hour recording — the opposite of why a
+    deterministic replacement list exists.
+    """
+    replacements = get_replacements(item)
+    if not replacements:
+        return {}
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    if isinstance(transcription, dict):
+        cast(dict[str, Any], transcription).pop(REPLACEMENTS_KEY, None)
+    _prune_empty_transcription(item_extra)
+    item.extra = item_extra
+    return replacements
 
 
 # Display names for the extractor services whose metadata we surface to models, so a
@@ -326,6 +438,42 @@ def source_prompt_context(
     return abbrev_on_words("\n".join(parts), max_len)
 
 
+def remove_segment_hints(item: Item) -> object:
+    """
+    Remove segment hints in place and return them for later restoration.
+
+    Same shape as `remove_processing_instructions`, and for the same reason: hints are an
+    input to the analysis, not to the transcription. If they rode along into the early
+    stages they would be part of every cache key from speech-to-text onward, and editing
+    a hint would cost a fresh transcription and half an hour of speaker correction —
+    which is exactly the loop this feature exists to make cheap.
+    """
+    hints = get_segment_hints(item)
+    if hints is None:
+        return None
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    if isinstance(transcription, dict):
+        cast(dict[str, Any], transcription).pop(SEGMENTS_KEY, None)
+    _prune_empty_transcription(item_extra)
+    item.extra = item_extra
+    return hints
+
+
+def _prune_empty_transcription(item_extra: dict[str, Any]) -> None:
+    """
+    Drop the transcription mapping once nothing is left in it.
+
+    An item that never carried hints or instructions has no `transcription` key at all,
+    so leaving an empty mapping behind makes the two shapes differ. kash hashes the
+    stored metadata, so that difference re-runs speech-to-text and everything below it —
+    the exact cost the removal exists to avoid.
+    """
+    value = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    if isinstance(value, dict) and not cast(dict[str, Any], value):
+        del item_extra[TRANSCRIPTION_METADATA_KEY]
+
+
 def remove_processing_instructions(item: Item) -> str | None:
     """Remove output-only instructions in place and return them for later restoration."""
     instructions = get_processing_instructions(item)
@@ -335,8 +483,41 @@ def remove_processing_instructions(item: Item) -> str | None:
     transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
     if isinstance(transcription, dict):
         cast(dict[str, Any], transcription).pop("processing_instructions", None)
+    _prune_empty_transcription(item_extra)
     item.extra = item_extra
     return instructions
+
+
+SEGMENTS_KEY = "segments"
+"""Key under `extra.transcription` where segment hints are stored."""
+
+
+def set_segment_hints(item: Item, hints: object) -> Item:
+    """
+    Record segment hints on an item, as plain data.
+
+    Stored beside the processing instructions and set at the same point in the pipeline,
+    which is what makes editing hints cheap: everything up to the section headings is
+    already cached and keeps its identity, and only the analysis and the page are redone.
+    """
+    extra: dict[str, Any] = dict(item.extra or {})
+    raw = extra.get("transcription")
+    transcription: dict[str, Any] = (
+        dict(cast("dict[str, Any]", raw)) if isinstance(raw, dict) else {}
+    )
+    transcription[SEGMENTS_KEY] = hints
+    extra["transcription"] = transcription
+    item.extra = extra
+    return item
+
+
+def get_segment_hints(item: Item) -> object:
+    """Read raw segment hint data off an item, or None."""
+    extra: dict[str, Any] = dict(item.extra or {})
+    transcription = extra.get("transcription")
+    if not isinstance(transcription, dict):
+        return None
+    return cast("dict[str, Any]", transcription).get(SEGMENTS_KEY)
 
 
 def set_processing_instructions(item: Item, instructions: str | None) -> Item:
@@ -352,6 +533,44 @@ def set_processing_instructions(item: Item, instructions: str | None) -> Item:
     return item
 
 
+VOLATILE_SOURCE_FIELDS = frozenset(
+    {"view_count", "like_count", "comment_count", "channel_follower_count", "concurrent_view_count"}
+)
+"""
+Source fields that change on their own and must stay out of cache identity.
+
+Every downstream action hashes the item's metadata, so anything stored there is part of
+the cache key. A view counter on a popular video moves by the minute, which means a rerun
+a few hours later re-does the entire pipeline — speaker correction, paragraph formatting,
+section headings, and paid speech-to-text — because a number nothing reads went up.
+
+Measured on Lex #501: 1,227,118 views at the first run and 1,238,631 six hours later, and
+the second run repeated every stage. These counters were already excluded from the prompt
+context, so nothing uses them; they only ever sat in the identity doing harm.
+"""
+
+
+def strip_volatile_source_fields(item: Item) -> bool:
+    """
+    Drop self-changing source fields so they stay out of cache identity.
+
+    Returns whether anything was removed, because kash's fetch has ALREADY written the
+    item to disk by the time this runs — stripping in memory alone leaves the counter in
+    the stored metadata that every action hashes. The caller must persist when this
+    returns True. A URL that is
+    already a media resource never reaches copy_source_metadata — the branch that calls it
+    is skipped for exactly the YouTube and podcast URLs this tool is built for — so
+    stripping there alone left the counters in place on every real run.
+    """
+    if not item.extra:
+        return False
+    removed = False
+    for name in VOLATILE_SOURCE_FIELDS:
+        if item.extra.pop(name, None) is not None:
+            removed = True
+    return removed
+
+
 def copy_source_metadata(source: Item, target: Item) -> Item:
     """Copy descriptive source metadata to another item without losing target metadata."""
     if source.title is not None:
@@ -365,7 +584,13 @@ def copy_source_metadata(source: Item, target: Item) -> Item:
     if source.thumbnail_url is not None:
         target.thumbnail_url = source.thumbnail_url
     if source.extra:
-        target.extra = _deep_merge(target.extra or {}, source.extra)
+        stable = {k: v for k, v in source.extra.items() if k not in VOLATILE_SOURCE_FIELDS}
+        target.extra = _deep_merge(target.extra or {}, stable)
+    # A counter already stored by an earlier version must go too, or the item keeps the
+    # value it was first saved with and stays out of step with a freshly fetched one.
+    if target.extra:
+        for name in VOLATILE_SOURCE_FIELDS:
+            target.extra.pop(name, None)
     return target
 
 
@@ -378,6 +603,24 @@ def persist_item_metadata(item: Item, workspace: FileStore) -> None:
     """
     if not item.store_path:
         raise ValueError("Cannot persist metadata for an unsaved item")
+    # kash sets original_filename when it loads an item and leaves it unset on one built in
+    # memory, and serializes it either way. So the first persist after a load changes the
+    # stored bytes by exactly that line, and every action that hashes the file re-runs once
+    # — which on a five-hour recording is speaker correction, paragraphs and section
+    # headings. Measured on a fresh workspace: resource sha1 ac09fe6b on the first run,
+    # 12d98647 on the resume, with original_filename None -> set the only source-side
+    # difference. Writing it from the start makes the first save and every later one agree.
+    if not item.original_filename:
+        item.original_filename = Path(str(item.store_path)).name
+    # Two more fields kash fills on load and leaves unset on a fresh item, both serialized
+    # only when set: history becomes [], and modified_at is read back from the file (the
+    # upload date on a fetched URL resource, the file's mtime otherwise). Pinning them here
+    # makes the first save byte-identical to every later one. "Unmodified since creation"
+    # is the truthful value for a never-modified item, and it is stable across loads.
+    if item.history is None:
+        item.history = []
+    if item.modified_at is None:
+        item.modified_at = item.created_at
     if item.format and item.format.supports_frontmatter:
         workspace.save(item, overwrite=True)
     else:
@@ -426,6 +669,65 @@ def test_transcription_metadata_normalizes_merges_and_applies() -> None:
             "speaker_roster": ["Alice Chen", "Bob Diaz"],
         }
     }
+
+
+def test_replacements_are_parsed_from_a_recipe_file() -> None:
+    parsed = parse_transcription_metadata(
+        dedent("""
+            replacements:
+              Omachi: Omarchy
+              Hansen: Hansson
+            """).strip()
+    )
+
+    assert parsed.replacements == {"Omachi": "Omarchy", "Hansen": "Hansson"}
+    assert parsed.extra["transcription"][REPLACEMENTS_KEY] == parsed.replacements
+    item = Item(type=ItemType.doc)
+    apply_transcription_metadata(item, parsed)
+    assert get_replacements(item) == {"Omachi": "Omarchy", "Hansen": "Hansson"}
+
+
+def test_replacements_reject_shapes_that_cannot_be_applied() -> None:
+    """
+    A recipe file is hand-edited, and both mistakes here are easy to make: writing a list
+    instead of a mapping, and leaving the correction off so YAML parses it as None. Failing
+    at parse time with the shape named beats failing an hour into a run.
+    """
+    for value, expected in (
+        (["Omachi", "Omarchy"], "must map misrecognized text to its correction"),
+        ({"Omachi": None}, "values must be nonempty strings"),
+        ({"Omachi": 7}, "values must be nonempty strings"),
+        ({"Omachi": "  "}, "values must be nonempty strings"),
+        ({"  ": "Omarchy"}, "keys must be nonempty strings"),
+    ):
+        try:
+            transcription_metadata_from_mapping({"replacements": value})
+        except ValueError as error:
+            assert expected in str(error), f"{value!r} gave {error}"
+        else:
+            raise AssertionError(f"{value!r} must be rejected")
+
+
+def test_replacements_can_be_excluded_from_upstream_cache_identity() -> None:
+    """
+    The mapping is read only by the correction stage, so it must leave no trace on the
+    resource kash hashes for the paid speech-to-text request.
+    """
+    item = Item(
+        type=ItemType.doc,
+        extra={"transcription": {"replacements": {"Omachi": "Omarchy"}}},
+    )
+
+    replacements = remove_replacements(item)
+
+    assert replacements == {"Omachi": "Omarchy"}
+    assert item.extra == {}
+    assert get_replacements(item) == {}
+    # Removing from an item that never had them is a no-op, not a mutation.
+    assert remove_replacements(item) == {}
+    assert item.extra == {}
+    set_replacements(item, replacements)
+    assert get_replacements(item) == replacements
 
 
 def test_speaker_roster_rejects_ambiguous_duplicate_labels() -> None:
@@ -508,3 +810,172 @@ def test_copy_source_metadata_preserves_canonical_media_links() -> None:
 
     assert target.url == source.url
     assert target.thumbnail_url == source.thumbnail_url
+
+
+def test_a_moving_view_count_does_not_change_item_identity() -> None:
+    """
+    Every downstream action hashes item.metadata(), so a counter stored there is inside
+    the cache key of the whole pipeline. On the measured recording the view count moved
+    from 1,227,118 to 1,238,631 in six hours and the rerun repeated every stage,
+    including paid speech-to-text.
+    """
+    from kash.model import Format
+
+    def source(views: int) -> Item:
+        return Item(
+            type=ItemType.resource,
+            format=Format.yaml,
+            title="A recording",
+            extra={"channel": "A channel", "view_count": views, "upload_date": "2026-08-26"},
+        )
+
+    first = Item(type=ItemType.resource, format=Format.yaml)
+    copy_source_metadata(source(1_227_118), first)
+
+    second = Item(type=ItemType.resource, format=Format.yaml)
+    copy_source_metadata(source(1_238_631), second)
+
+    # Compare everything the two runs would hash, less the creation stamp, which differs
+    # because the test builds two items rather than reusing one.
+    def identity(item: Item) -> dict[str, Any]:
+        return {k: v for k, v in item.metadata().items() if k != "created_at"}
+
+    assert identity(first) == identity(second)
+    assert "view_count" not in (first.extra or {})
+    # The fields that actually describe the source are still carried.
+    assert (first.extra or {})["channel"] == "A channel"
+    assert (first.extra or {})["upload_date"] == "2026-08-26"
+
+
+def test_a_counter_stored_by_an_earlier_run_is_dropped_too() -> None:
+    """An item saved before this rule existed still carries the counter; it must go."""
+    from kash.model import Format
+
+    target = Item(
+        type=ItemType.resource,
+        format=Format.yaml,
+        extra={"view_count": 999, "like_count": 5, "channel": "A channel"},
+    )
+
+    copy_source_metadata(Item(type=ItemType.resource, format=Format.yaml, title="T"), target)
+
+    assert "view_count" not in (target.extra or {})
+    assert "like_count" not in (target.extra or {})
+    assert (target.extra or {})["channel"] == "A channel"
+
+
+def test_a_url_resource_is_stripped_even_though_copy_is_never_called() -> None:
+    """
+    The branch calling copy_source_metadata is skipped when the source is already a URL
+    resource, which is the case for every YouTube and podcast URL. Stripping only there
+    left view_count on disk on every real run; measured at 11,971,012 on the short source
+    after the supposed fix had shipped.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+
+    item = Item(
+        type=ItemType.resource,
+        format=Format.url,
+        url=Url("https://www.youtube.com/watch?v=example"),
+        extra={"channel": "A channel", "view_count": 11_971_012, "like_count": 2},
+    )
+
+    strip_volatile_source_fields(item)
+
+    assert "view_count" not in (item.extra or {})
+    assert "like_count" not in (item.extra or {})
+    assert (item.extra or {})["channel"] == "A channel"
+
+
+def test_stripping_an_item_with_no_extra_is_harmless() -> None:
+    from kash.model import Format
+    from kash.utils.common.url import Url
+
+    item = Item(type=ItemType.resource, format=Format.url, url=Url("https://example.test"))
+    assert strip_volatile_source_fields(item) is False
+
+
+def test_removing_hints_leaves_the_shape_of_an_item_that_never_had_them() -> None:
+    """
+    kash hashes the stored metadata, so an emptied `transcription: {}` mapping is not
+    equivalent to no mapping at all — it re-runs speech-to-text and every stage below it.
+    The existing boundary test missed this because its fixture always carried other
+    transcription keys, so the mapping was never left empty.
+    """
+    from kash.model import Format
+
+    def resource(extra: dict[str, Any]) -> Item:
+        return Item(type=ItemType.resource, format=Format.url, extra=extra)
+
+    never_hinted = resource({"duration": 19000})
+    was_hinted = resource(
+        {"duration": 19000, "transcription": {"segments": {"segments": [{"at": "0:00 - 1:00"}]}}}
+    )
+
+    remove_segment_hints(was_hinted)
+
+    assert was_hinted.extra == never_hinted.extra
+    assert "transcription" not in (was_hinted.extra or {})
+
+
+def test_removing_instructions_also_leaves_no_empty_mapping() -> None:
+    from kash.model import Format
+
+    item = Item(
+        type=ItemType.resource,
+        format=Format.url,
+        extra={"duration": 5, "transcription": {"processing_instructions": "Be brief."}},
+    )
+
+    remove_processing_instructions(item)
+
+    assert item.extra == {"duration": 5}
+
+
+def test_an_emptied_mapping_survives_when_something_else_remains() -> None:
+    """Only an empty mapping goes; a roster or key terms must stay."""
+    from kash.model import Format
+
+    item = Item(
+        type=ItemType.resource,
+        format=Format.url,
+        extra={
+            "transcription": {
+                "speaker_roster": ["A", "B"],
+                "segments": {"segments": [{"at": "0:00 - 1:00"}]},
+            }
+        },
+    )
+
+    remove_segment_hints(item)
+
+    assert (item.extra or {})["transcription"] == {"speaker_roster": ["A", "B"]}
+
+
+def test_the_first_persist_writes_the_same_bytes_as_a_persist_after_load(tmp_path: Path) -> None:
+    """
+    Every action hashes the stored file. On a fresh workspace the first persist of a
+    resource wrote different bytes from the next one, because kash fills original_filename
+    only when it loads an item. That single line re-ran speaker correction, paragraphs and
+    section headings once per workspace, and looked for a whole day like "the first hints
+    file is expensive".
+    """
+    from kash.exec import kash_runtime
+    from kash.model import Format, StorePath
+    from kash.utils.common.url import Url
+
+    with kash_runtime(tmp_path / f"ws-{tmp_path.name}") as rt:
+        item = Item(
+            type=ItemType.resource, format=Format.url, url=Url("https://example.test/v"), title="T"
+        )
+        rt.workspace.save(item)
+        assert item.store_path
+        persist_item_metadata(item, rt.workspace)
+        stored = rt.workspace.base_dir / str(item.store_path)
+        first = stored.read_bytes()
+
+        loaded = rt.workspace.load(StorePath(str(item.store_path)))
+        persist_item_metadata(loaded, rt.workspace)
+
+        assert stored.read_bytes() == first, "a persist after load changed the stored bytes"

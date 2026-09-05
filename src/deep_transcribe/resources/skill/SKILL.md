@@ -72,6 +72,18 @@ Do not guess unsupported names.
 
 ## Iterate on a Reviewed Result
 
+After each run, read `--report` (add `--json` to get it as data) before opening the page;
+it names the headings, themes, segments, speakers, frames, and spelling variants an
+agent needs to choose the next correction. Keep a source's recipe in one directory
+(`--metadata` file, `--segments` file, README with the command), as
+`docs/examples/lex-501/` does, and rebuild the page alone with `--export-only`. View
+settings such as `--grouping on|off|MINUTES` (whether the outline, concepts, claims,
+and graph group by theme; automatic from 45 minutes) take effect on a re-export, so
+change them and re-export rather than rerun. When the
+user is going to click through the page, add `--open`: it serves the export locally and
+opens it in the browser, which the embedded video player needs and a `file://` URL cannot
+give it.
+
 Preserve the exact source and workspace.
 Inspect the current transcript and HTML, update the private metadata or add requested
 processing instructions or stages, then run the same command normally.

@@ -52,8 +52,58 @@ Choose the least expensive preset that produces the requested result:
 | `--annotated` | Formatting, sections, a synopsis, a structural outline, frames, and HTML |
 | `--deep` | Annotated output plus researched paragraph notes |
 
+From `--formatted` up, a turn that is nothing but an acknowledgement (`Mhmm.`, `Yeah.`,
+`So`) is folded into the end of the previous paragraph as an attributed aside like
+`[DHH: Mhmm.]` instead of getting a paragraph and a timestamp of its own, and
+`--keep-backchannel` leaves those turns standing.
+
 Use `--with STAGE[,STAGE]` to add individual stages to a preset.
 Run `deep-transcribe --help` for the current stage list and Deepgram model options.
+
+## Long Recordings
+
+Hours-long sources work end to end.
+The longest recording verified through the whole pipeline is a five-and-a-quarter-hour
+interview. Nothing in the design imposes a ceiling below twelve hours, but no recording
+that long has been run yet, so treat twelve hours as the design target rather than a
+tested limit. Every stage whose cost grows with duration is windowed or chunked, so a
+twelve-hour recording is expected to take roughly four hours of wall time and to stay
+inside every provider cap by a wide margin.
+
+Nothing about the transcript is chunked or stitched together.
+Speech-to-text sends the audio as a single request, so timestamps come back on one
+continuous timeline rather than being reconciled across segment boundaries.
+The cost of preparing that audio is flat in duration, because conversion streams through
+ffmpeg rather than decoding the recording into memory.
+
+Two practical notes for long sources:
+
+- Downloads are sized for the job.
+  Video is fetched at up to 1080p in H.264, which remuxes without re-encoding and keeps
+  a multi-hour download to a couple of gigabytes rather than ten.
+  Only the frame-capture stage needs video at all.
+  Free space on the workspace volume is checked before the download and again before
+  frame capture, and a run that would not fit stops with a message naming the volume and
+  the sizes rather than filling the disk partway through.
+- The request budget for speech-to-text scales with the length of the audio, so a long
+  recording is not cut off by a timeout meant for short clips.
+
+Expect the wall-clock time of a long run to be dominated by downloading and by the LLM
+stages, not by speech-to-text: a five-hour recording transcribes in about a minute.
+
+Sections come from the publisher’s chapters when the source has them.
+The heading stage judges a topic change from the paragraphs in the window in front of it,
+which on a long recording means a heading every minute or two: 206 of them on a five-hour
+interview whose publisher had already written 23 chapters with the boundaries a human
+chose. Those chapters become the sections, and the model’s headings are kept underneath
+them as sub-headings, so the outline, the timeline, and the analytics views all follow the
+published structure while nothing the model found is lost.
+A boundary that falls in the middle of a paragraph opens the next one, so a section may
+start a few seconds later than the published time.
+Pass `--no-chapters` to ignore them and let the model’s headings be the sections.
+Chapters are read from the source once and stored with it, which puts them in the
+source’s cache identity, so a publisher who later edits the chapter list changes the
+source, and a rerun then repeats the whole pipeline, speech-to-text included.
 
 ## Supply Recording Context
 
@@ -91,6 +141,9 @@ Use `--instructions` for trusted requests about the derived output, such as emph
 structure, or level of detail.
 Keeping them separate lets models treat source metadata as evidence without accidentally
 following instructions embedded in fetched metadata.
+Instructions stick to the source: they are stored with it, so a later run without the flag
+still follows them.
+Pass `--instructions none` to drop them and go back to the default output.
 For supported URL inputs, the media extractor fetches the source title, description,
 canonical URL, and available channel and publication fields.
 Deep Transcribe includes a bounded version automatically as reference evidence.
@@ -99,10 +152,12 @@ run. Use `--context` for relevant facts the publisher did not include or that re
 review, such as a complete cast-to-role mapping.
 
 The speaker roster step reads that metadata alongside your context, and is told which
-evidence came from you and which was fetched from the source service. It may state only
-what one of those supports. `--web-search` additionally lets it corroborate facts it
-finds; it is off by default because search can mislead. Local files have no metadata to
-fetch and nothing to corroborate, so context is the only evidence there.
+evidence came from you and which was fetched from the source service.
+It may state only what one of those supports.
+`--web-search` additionally lets it corroborate facts it finds; it is off by default
+because search can mislead.
+Local files have no metadata to fetch and nothing to corroborate, so context is the only
+evidence there.
 
 `--title`, `--description`, and repeatable `--key-term` flags provide simple exact
 values without a schema.
@@ -111,6 +166,24 @@ Use `--speaker ID=NAME` only after verifying that a provider ID consistently bel
 one speaker. Use the repeatable `--speaker-role` override only when the prose is
 ambiguous or the inferred complete roster needs an exact correction.
 Do not guess names that are not supported by the recording context.
+
+Key terms raise the odds that Deepgram spells an unusual name correctly, but they do not
+settle it, and what is left sits in the transcript body where processing instructions
+cannot reach it: those are read only by the synopsis and outline stages.
+Repeatable `--replace WRONG=RIGHT` corrects the residue.
+Measured on a five-hour interview already carrying seventeen key terms, the raw
+transcript still spelled the Linux distribution `Omachi` 19 times; `--replace
+Omachi=Omarchy` removed all 19 and left the citation structure untouched.
+Corrections apply to whole words only, so `Omachi` never rewrites the middle of a longer
+word, and each occurrence keeps its own case: `omachi` becomes `omarchy`, `OMACHI`
+becomes `OMARCHY`, and a possessive or plural follows the word.
+Text inside HTML tags and attributes is never touched.
+List several corrections under `replacements:` in a `--metadata` file when the recipe is
+worth keeping.
+Use them for words the recognizer got wrong, not to change what a speaker said.
+Correcting the transcript early is what makes it worth doing: every later stage, from
+speaker correction to the synopsis, reads the corrected words, and changing the list
+never repeats speech-to-text.
 
 ## Iterate Without Repeating Speech-to-Text
 
@@ -124,6 +197,14 @@ The useful workflow is:
 4. Rerun the same source in the same workspace.
 5. Verify both cache reuse and output quality.
 
+Read `--report` after every run before opening the page: it lists the section headings
+and their density, the themes with concept counts, the segments in effect, the speaker
+turn counts, the frames kept, and the most frequent capitalized words — which is how
+misspelled names show up as variants and become `key_terms`. Keep everything a source
+needs in one directory, as `docs/examples/lex-501/` does: a metadata file for
+`--metadata`, a hints file for `--segments`, and a README with the command. Editing
+those files and rerunning is the loop; the table below says what each edit costs.
+
 The normal cache-aware rerun resumes at the first affected action.
 Do not delete the workspace, change its path, or change the source spelling between
 iterations.
@@ -132,8 +213,16 @@ iterations.
 
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
+| See what the last run produced before deciding what to change | Add `--report`, or `--report --export-only` to read an existing workspace without running anything | Reuses everything; the report is read from the final item |
+| Rebuild the HTML after a template or `--elements` change | Add `--export-only` | Runs no stage at all and re-renders the cached final item |
+| Turn theme grouping on or off, or move its cutoff (the outline, concepts, claims, and graph group by theme from 45 minutes by default) | Add `--grouping on`, `--grouping off`, or `--grouping MINUTES` with `--export-only` | Runs no stage at all; grouping is a view setting read from the page |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
+| Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses everything through section headings and resumes at the outline; about 20 minutes on a five-hour recording |
+| Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
+| Add or change a `--replace WRONG=RIGHT` correction | Run the same command with the new correction | Reuses the cached transcript and resumes at the correction stage, so every stage below it is redone |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
+| Turn the publisher’s chapters off or on | Run the same command with or without `--no-chapters` | Reuses the cached transcript and resumes at section headings |
+| A stage’s code changed | Add `--rerun-from STAGE` | Sets that stage’s cached results aside and reuses everything above it |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |
 | Deliberately repeat every action | Add `--rerun` | Makes a new paid speech-to-text request |
@@ -148,6 +237,72 @@ synopsis and outline stages.
 Use `--rerun-processing` when inputs outside the item metadata changed, such as a saved
 model profile, or when a complete semantic regeneration is the actual goal.
 Use `--rerun` only when a fresh Deepgram result is wanted.
+
+A cached result is keyed on the item that went into the stage and the stage’s name, never
+on the code that produced it, so fixing a stage and rerunning reuses the old, wrong output
+and finishes in seconds.
+`--rerun-from STAGE` is the narrow answer: it moves that stage’s cached results, and every
+cached result below them, into `set-aside/TIMESTAMP/` inside the workspace and then runs
+normally, so the run misses the cache exactly there and recomputes downward.
+Nothing is deleted — if the wrong stage was named, the items are still in that directory.
+`deep-transcribe --help` lists the stage names.
+Measured on the five-hour recording after `demote_model_headings` was fixed: a plain rerun
+took 45 seconds and changed nothing, `--rerun-processing` recomputes every
+post-transcription stage at about 96 minutes, and setting that stage and the six below it
+aside recomputed in about 20.
+
+### Set Aside Parts That Are Not the Conversation
+
+A long recording is often not all conversation.
+Many podcasts open with a highlight reel cut from the interview that follows, break for
+read advertisements, and close with an outro.
+Those stretches distort the analysis: a teaser is the same words as the moments it
+previews, so leaving it in counts them twice, and an ad read is not about the
+conversation at all.
+
+Mark them in a hints file and pass it with `--segments`:
+
+```yaml
+segments:
+  - at: "0:00:00 - 0:01:48"
+    purpose: teaser
+    note: "Highlight reel; the interview starts after it"
+  - at: "1:12:30 - 1:14:05"
+    purpose: promo
+```
+
+`purpose` is one of `teaser`, `intro`, `promo`, `outro`, or `other`, and any other word is
+an error naming the ones that work.
+It is a closed set rather than a free label because the purpose decides both whether the
+stretch is left out of the analysis and what the collapsed block is called, so a word
+quietly read as `other` would change the run without saying so.
+Times read as `H:MM:SS`, `MM:SS`, or plain seconds, and a span may also be written as
+separate `start` and `end`.
+Suppression follows the purpose — teaser, promo and outro are left out of the analysis,
+an intro is kept because it is short and genuinely about the conversation — and
+`suppress: true` or `false` overrides that for one entry.
+
+Suppressed stretches are **set aside, not deleted**.
+The concept map, outline and synopsis do not read them; the transcript still contains
+every word, collapsed behind a line naming what it is, and prints expanded.
+
+Hints stick to the source, so a later run without `--segments` still honors the last file
+you passed.
+To go back to a recording with nothing set aside, pass `--segments none`, which removes the
+stored hints instead of reading a file.
+
+The rerun is cheap by design.
+Hints join the pipeline at the same point as processing instructions, so transcription,
+speaker correction, paragraph formatting and section headings all keep their cache
+identity, and only the analysis and the page are rebuilt.
+Editing a hint and rerunning a five-hour recording costs minutes, not a fresh pipeline.
+
+When a run finds an opening that repeats later, it writes `segments.suggested.yml` into
+the workspace and says so.
+That file is a draft to review, never applied on its own, and a run that already has
+hints does not overwrite it.
+The intended loop is: run, look at the output, revise the hints, run again — which an
+agent can drive as readily as a person.
 
 ### Correct a Reviewed Result
 
@@ -268,6 +423,29 @@ Each successful run reports:
 Use `--json` when another tool or agent needs stable artifact paths.
 Open the workspace with `kash` when intermediate items or action history require deeper
 inspection.
+
+Add `--report` to read what a run produced without opening the page: the section headings
+with their count and per-hour density, the number of outline entries, the themes with
+their concept counts, the segments in effect with their spans, the speaker turn counts,
+the frames kept, and the capitalized words that recur most often.
+Every number comes from the final transcript item rather than from the HTML, so the
+report describes the analysis and not the template.
+The spelling list is the practical reason to run it: one name transcribed several ways is
+invisible in a five-hour transcript and obvious in that list, and each variant is a
+`--key-term` worth passing on the next run.
+With `--json` the same report is folded into the output under a `report` key, so one parse
+gets both the paths and the counts.
+Add `--export-only` alongside it to report on a workspace that is already finished without
+running any stage.
+
+Add `--open` when the page is going to be read rather than filed.
+Opened straight from disk, as a `file://` URL, the export cannot embed the YouTube player,
+because YouTube refuses an embed to a page that sends no referer; a click on a timeline
+block or a timestamp then falls back to opening the video in a new tab.
+So `--open` serves the export from `127.0.0.1` on a free port and opens that URL in the
+default browser, where the embedded player works.
+It keeps the command in the foreground until Ctrl-C, and with `--json` the URL is added to
+the output under a `url` key before the serving begins.
 
 ### Save the HTML as a PDF
 

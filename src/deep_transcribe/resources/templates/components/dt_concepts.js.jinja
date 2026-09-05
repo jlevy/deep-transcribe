@@ -36,7 +36,6 @@
     for (const scope of [root, ...rootExtras].filter(Boolean)) {
       scope.querySelectorAll("[data-concept]").forEach((node) => {
         node.classList.toggle("dt-selected", node.dataset.concept === selected);
-        node.classList.toggle("dt-dimmed", selected != null && node.dataset.concept !== selected);
       });
     }
   }
@@ -105,51 +104,346 @@
   /* Deterministic time-layered graph: the actual chip elements are positioned
      over an SVG that draws only the relation edges, so graph nodes and
      standalone chips are identical by construction. Chips are measured in the
-     document, then packed into rows by first-mention time. */
-  function buildGraph(concepts, width) {
+     document, then packed into rows by first-mention time.
+
+     Grouped, it is one graph in bands. Each theme is a band — a label line, then
+     its chips in clock order, flowing left to right and wrapping — and the bands
+     stack in the order the conversation reaches the themes. Inside a band the
+     axis is ordinal, not time: a theme's concepts are introduced in one cluster
+     of minutes while the theme itself spans hours, so on a time axis they stack
+     into a column of rows (23 rows for one theme on the measured recording). The
+     edges are drawn across bands in the one SVG, so a relation between themes is
+     visible. Ungrouped, there is one unlabeled band on the recording's time axis:
+     the flat graph. */
+  function buildGraph(concepts, width, groups) {
     const wrap = el("div", "dt-graph");
     const edges = svgEl("svg", { class: "dt-graph-edges" });
     wrap.appendChild(edges);
-    const nodes = concepts.map((concept) => {
-      const chip = makeConceptChip(concept);
-      chip.classList.add("dt-graph-chip");
-      model.tooltip.attach(chip, () => `${concept.label} — ${concept.gloss}`);
-      wrap.appendChild(chip);
-      return { concept, chip };
+    const bands = (groups || [{ theme: null, concepts }]).map((group) => {
+      const band = { nodes: [], span: null, ground: null, label: null };
+      if (group.theme) {
+        band.span = spanOf(group.concepts);
+        band.ground = el("div", "dt-graph-band");
+        wrap.appendChild(band.ground);
+        band.label = el("div", "dt-graph-band-label");
+        band.label.appendChild(el("span", "dt-graph-band-name", group.theme));
+        if (band.span) {
+          const end = band.span.start + band.span.length;
+          band.label.appendChild(
+            el(
+              "span",
+              "dt-graph-band-when dt-timestamp",
+              `${model.formatTime(band.span.start)}–${model.formatTime(end)}`
+            )
+          );
+        }
+        wrap.appendChild(band.label);
+      }
+      for (const concept of group.concepts) {
+        const chip = makeConceptChip(concept);
+        chip.classList.add("dt-graph-chip");
+        model.tooltip.attach(chip, () => `${concept.label} — ${concept.gloss}`);
+        wrap.appendChild(chip);
+        band.nodes.push({ concept, chip });
+      }
+      return band;
     });
-    return { wrap, edges, nodes, width };
+    const nodes = bands.flatMap((band) => band.nodes);
+    return { wrap, edges, nodes, bands, width };
   }
 
-  function layoutGraph(graph) {
-    const { wrap, edges, nodes, width } = graph;
-    const { start, length } = timeSpan();
-    const rowGap = 12;
-    const x = (t) => 8 + ((t - start) / length) * (width - 24);
-    const rows = [];
-    let chipHeight = 0;
-    for (const node of nodes) {
-      node.w = node.chip.offsetWidth;
-      chipHeight = Math.max(chipHeight, node.chip.offsetHeight);
-      node.x = Math.max(8, Math.min(x(node.concept.mentions[0].t), width - node.w - 8));
-      let row = rows.findIndex((endX) => node.x > endX + 10);
-      if (row === -1) {
-        row = rows.length;
-        rows.push(-Infinity);
-      }
-      node.row = row;
-      rows[row] = node.x + node.w;
+  /* The time range a set of concepts actually occupies, for the band label. */
+  function spanOf(concepts) {
+    let first = Infinity;
+    let last = -Infinity;
+    for (const concept of concepts) {
+      first = Math.min(first, concept.span[0]);
+      last = Math.max(last, concept.span[1]);
     }
-    const rowHeight = chipHeight + rowGap;
-    for (const node of nodes) {
-      node.y = 6 + node.row * rowHeight;
+    if (!isFinite(first) || last <= first) return null;
+    return { start: first, length: last - first };
+  }
+
+  /* Two layouts for the same chips, chosen by graph.mode. "bands" snaps each
+     theme's chips into its band; "spread" lets them find their own places, with
+     a dotted outline around each theme. Print always gets the bands. */
+  function layoutGraph(graph) {
+    const spread = graph.mode === "spread";
+    graph.wrap.classList.toggle("dt-graph-spread", spread);
+    for (const node of graph.nodes) {
+      node.w = node.chip.offsetWidth;
+      node.h = node.chip.offsetHeight;
+    }
+    if (spread) layoutSpread(graph);
+    else layoutBands(graph);
+    for (const node of graph.nodes) {
       node.chip.style.left = `${node.x}px`;
       node.chip.style.top = `${node.y}px`;
     }
-    const height = rows.length * rowHeight + 6;
-    wrap.style.height = `${height}px`;
-    edges.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    edges.style.height = `${height}px`;
+    graph.wrap.style.height = `${graph.height}px`;
+    graph.edges.setAttribute("viewBox", `0 0 ${graph.width} ${graph.height}`);
+    graph.edges.style.height = `${graph.height}px`;
+    drawEdges(graph);
+    if (spread) drawOutlines(graph);
+  }
 
+  function layoutBands(graph) {
+    const { nodes, bands, width } = graph;
+    const rowGap = 6;
+    const bandGap = 12;
+    const bandPad = 6;
+    let chipHeight = 0;
+    for (const node of nodes) chipHeight = Math.max(chipHeight, node.h);
+    const rowHeight = chipHeight + rowGap;
+    let y = 0;
+    for (const band of bands) {
+      const top = y;
+      if (band.label) {
+        band.label.style.left = "";
+        band.label.style.top = `${y}px`;
+        y += band.label.offsetHeight + 2;
+      }
+      // Chips arrive in theme order, which is not clock order across themes.
+      const ordered = [...band.nodes].sort(
+        (a, b) => a.concept.mentions[0].t - b.concept.mentions[0].t
+      );
+      let rowCount = 0;
+      if (band.label) {
+        // Flow: clock order, wrapping when the row is full.
+        let cx = 8;
+        let row = 0;
+        for (const node of ordered) {
+          if (cx > 8 && cx + node.w > width - 8) {
+            cx = 8;
+            row += 1;
+          }
+          node.x = cx;
+          node.row = row;
+          cx += node.w + 8;
+        }
+        rowCount = ordered.length ? row + 1 : 0;
+      } else {
+        // Time axis: first mention sets x, and a chip takes the first row with room.
+        const { start, length } = timeSpan();
+        const x = (t) => 8 + ((t - start) / length) * (width - 24);
+        const rows = [];
+        for (const node of ordered) {
+          node.x = Math.max(8, Math.min(x(node.concept.mentions[0].t), width - node.w - 8));
+          let row = rows.findIndex((endX) => node.x > endX + 10);
+          if (row === -1) {
+            row = rows.length;
+            rows.push(-Infinity);
+          }
+          rows[row] = node.x + node.w;
+          node.row = row;
+        }
+        rowCount = rows.length;
+      }
+      for (const node of ordered) node.y = y + bandPad + node.row * rowHeight;
+      y += bandPad + rowCount * rowHeight - rowGap + bandPad;
+      if (band.ground) {
+        band.ground.style.top = `${top}px`;
+        band.ground.style.height = `${y - top}px`;
+      }
+      y += bandGap;
+    }
+    graph.height = Math.max(0, y - bandGap) + 6;
+  }
+
+  /* The spread layout: a deterministic force-style placement. Edges pull related
+     chips together, each chip is pulled a little toward its theme's center — enough
+     to keep a theme in one place, not enough to pack it — and chips push apart
+     until no two overlap. Each theme's label is a node of the same simulation that
+     hugs the top left of its chips, so labels and chips keep apart the same way.
+     Fixed start positions and a fixed number of steps, so the same page lays out
+     the same way every time; no animation loop. */
+  function layoutSpread(graph) {
+    const { nodes, bands, width } = graph;
+    const themes = bands.filter((band) => band.nodes.length);
+    const labels = themes
+      .filter((band) => band.label)
+      .map((band) => ({
+        band,
+        w: band.label.offsetWidth,
+        h: band.label.offsetHeight,
+        label: true,
+      }));
+    const all = [...nodes, ...labels];
+    const area = all.reduce((sum, n) => sum + (n.w + 24) * (n.h + 18), 0);
+    let height = Math.max(320, Math.ceil((area * 1.4) / width));
+    // Start each theme around its own point on a loose grid, in theme order.
+    const cols = Math.max(1, Math.round(Math.sqrt((themes.length * width) / height)));
+    const rowsOfThemes = Math.ceil(themes.length / cols);
+    themes.forEach((band, i) => {
+      const cx = ((i % cols) + 0.5) * (width / cols);
+      const cy = (Math.floor(i / cols) + 0.5) * (height / rowsOfThemes);
+      band.nodes.forEach((node, j) => {
+        const angle = (j / band.nodes.length) * Math.PI * 2;
+        const r = 20 + 10 * j;
+        node.cx = cx + Math.cos(angle) * r;
+        node.cy = cy + Math.sin(angle) * r;
+        node.band = band;
+      });
+    });
+    for (const l of labels) {
+      l.cx = l.band.nodes[0].cx;
+      l.cy = l.band.nodes[0].cy - 40;
+    }
+    const byId = new Map(nodes.map((n) => [n.concept.id, n]));
+    const links = [];
+    for (const node of nodes) {
+      for (const relation of node.concept.relations) {
+        const target = byId.get(relation.to);
+        if (target && target !== node) links.push([node, target]);
+      }
+    }
+    const clampOne = (n) => {
+      n.cx = Math.max(8 + n.w / 2, Math.min(width - 8 - n.w / 2, n.cx));
+      n.cy = Math.max(8 + n.h / 2, Math.min(height - 8 - n.h / 2, n.cy));
+    };
+    const clampAll = () => {
+      for (const n of all) clampOne(n);
+    };
+    // Move a box along one axis, clamped; returns how far it actually went.
+    const shift = (n, axis, amount) => {
+      const before = n[axis];
+      n[axis] += amount;
+      clampOne(n);
+      return Math.abs(n[axis] - before);
+    };
+    // Part two boxes by `need` along an axis, half each; whatever the edge stops
+    // one from taking, the other takes.
+    const part = (a, b, axis, sign, need) => {
+      let done = shift(a, axis, -sign * (need / 2)) + shift(b, axis, sign * (need / 2));
+      if (done < need - 0.5) done += shift(b, axis, sign * (need - done));
+      if (done < need - 0.5) shift(a, axis, -sign * (need - done));
+    };
+    // Where a label wants to be: just above the top-left chip of its theme.
+    const labelTarget = (l) => {
+      const left = Math.min(...l.band.nodes.map((n) => n.cx - n.w / 2));
+      const top = Math.min(...l.band.nodes.map((n) => n.cy - n.h / 2));
+      return [left + l.w / 2, top - l.h / 2 - 6];
+    };
+    const STEPS = 240;
+    for (let step = 0; step < STEPS; step += 1) {
+      const heat = 1 - step / STEPS;
+      for (const band of themes) {
+        let sx = 0;
+        let sy = 0;
+        for (const n of band.nodes) {
+          sx += n.cx;
+          sy += n.cy;
+        }
+        band.cx = sx / band.nodes.length;
+        band.cy = sy / band.nodes.length;
+      }
+      for (const n of all) {
+        n.fx = 0;
+        n.fy = 0;
+      }
+      for (let i = 0; i < all.length; i += 1) {
+        const a = all[i];
+        for (let j = i + 1; j < all.length; j += 1) {
+          const b = all[j];
+          const dx = b.cx - a.cx;
+          const dy = b.cy - a.cy;
+          const minX = (a.w + b.w) / 2 + 16;
+          const minY = (a.h + b.h) / 2 + 12;
+          const ox = minX - Math.abs(dx);
+          const oy = minY - Math.abs(dy);
+          if (ox > 0 && oy > 0) {
+            // Overlapping: separate along the axis that needs the smaller move.
+            if (ox / minX < oy / minY) {
+              const push = (dx >= 0 ? 1 : -1) * ox * 0.5;
+              a.fx -= push;
+              b.fx += push;
+            } else {
+              const push = (dy >= 0 ? 1 : -1) * oy * 0.5;
+              a.fy -= push;
+              b.fy += push;
+            }
+          } else if (!a.label && !b.label) {
+            const d = Math.sqrt(dx * dx + dy * dy) || 1;
+            if (d < 200) {
+              const f = ((200 - d) / 200) * 3;
+              a.fx -= (dx / d) * f;
+              a.fy -= (dy / d) * f;
+              b.fx += (dx / d) * f;
+              b.fy += (dy / d) * f;
+            }
+          }
+        }
+      }
+      for (const [a, b] of links) {
+        const dx = b.cx - a.cx;
+        const dy = b.cy - a.cy;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        const f = (d - 150) * 0.03;
+        a.fx += (dx / d) * f;
+        a.fy += (dy / d) * f;
+        b.fx -= (dx / d) * f;
+        b.fy -= (dy / d) * f;
+      }
+      for (const n of nodes) {
+        n.fx += (n.band.cx - n.cx) * 0.02;
+        n.fy += (n.band.cy - n.cy) * 0.02;
+      }
+      for (const l of labels) {
+        const [tx, ty] = labelTarget(l);
+        l.fx += (tx - l.cx) * 0.12;
+        l.fy += (ty - l.cy) * 0.12;
+      }
+      const scale = 0.25 + 0.75 * heat;
+      for (const n of all) {
+        n.cx += Math.max(-30, Math.min(30, n.fx)) * scale;
+        n.cy += Math.max(-30, Math.min(30, n.fy)) * scale;
+      }
+      clampAll();
+    }
+    // Settle: any overlap left is resolved outright, with a small gap so the
+    // pushes stay small and do not cascade through a dense cluster. The preferred
+    // axis alternates by pass, so a pair pinned against an edge on one axis is
+    // parted on the other; if something is still pinned after that, the canvas
+    // grows and it runs again.
+    const settle = () => {
+      for (let pass = 0; pass < 240; pass += 1) {
+        let worst = 0;
+        for (let i = 0; i < all.length; i += 1) {
+          const a = all[i];
+          for (let j = i + 1; j < all.length; j += 1) {
+            const b = all[j];
+            const dx = b.cx - a.cx;
+            const dy = b.cy - a.cy;
+            const ox = (a.w + b.w) / 2 + 3 - Math.abs(dx);
+            const oy = (a.h + b.h) / 2 + 3 - Math.abs(dy);
+            if (ox <= 0 || oy <= 0) continue;
+            worst = Math.max(worst, Math.min(ox, oy) - 3);
+            if (pass % 2 === 0 ? ox < oy : ox < oy * 3) part(a, b, "cx", dx >= 0 ? 1 : -1, ox + 0.5);
+            else part(a, b, "cy", dy >= 0 ? 1 : -1, oy + 0.5);
+          }
+        }
+        if (worst <= 1) return true;
+      }
+      return false;
+    };
+    for (let attempt = 0; attempt < 4 && !settle(); attempt += 1) height = Math.ceil(height * 1.1);
+    for (const n of nodes) {
+      n.x = Math.round(n.cx - n.w / 2);
+      n.y = Math.round(n.cy - n.h / 2);
+    }
+    for (const l of labels) {
+      l.band.lx = Math.round(l.cx - l.w / 2);
+      l.band.ly = Math.round(l.cy - l.h / 2);
+      l.band.lw = l.w;
+      l.band.lh = l.h;
+      l.band.label.style.left = `${l.band.lx}px`;
+      l.band.label.style.top = `${l.band.ly}px`;
+    }
+    graph.height = height;
+  }
+
+  function drawEdges(graph) {
+    const { edges, nodes } = graph;
     const byId = new Map(nodes.map((n) => [n.concept.id, n]));
     edges.textContent = "";
     for (const node of nodes) {
@@ -157,9 +451,9 @@
         const target = byId.get(relation.to);
         if (!target) continue;
         const x0 = node.x + node.w / 2;
-        const y0 = node.y + chipHeight / 2;
+        const y0 = node.y + node.h / 2;
         const x1 = target.x + target.w / 2;
-        const y1 = target.y + chipHeight / 2;
+        const y1 = target.y + target.h / 2;
         const bend = (y1 - y0) * 0.3 + (y1 === y0 ? 24 : 0);
         const path = svgEl("path", {
           class: "dt-graph-edge",
@@ -173,10 +467,113 @@
     }
   }
 
+  /* In the spread layout each theme is outlined: a dotted convex hull around its
+     chips and its label. */
+  function drawOutlines(graph) {
+    const { edges, bands } = graph;
+    const corners = (x0, y0, x1, y1) => [
+      [x0, y0],
+      [x1, y0],
+      [x1, y1],
+      [x0, y1],
+    ];
+    for (const band of bands) {
+      if (!band.label || !band.nodes.length) continue;
+      const points = [];
+      for (const n of band.nodes) points.push(...corners(n.x - 10, n.y - 8, n.x + n.w + 10, n.y + n.h + 8));
+      points.push(...corners(band.lx - 6, band.ly - 4, band.lx + band.lw + 6, band.ly + band.lh + 4));
+      const hull = convexHull(points);
+      const d = `${hull.map((p, i) => `${i ? "L" : "M"} ${p[0]} ${p[1]}`).join(" ")} Z`;
+      edges.prepend(svgEl("path", { class: "dt-graph-hull", d }));
+    }
+  }
+
+  function convexHull(points) {
+    const pts = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    if (pts.length < 3) return pts;
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lower = [];
+    for (const p of pts) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+        lower.pop();
+      }
+      lower.push(p);
+    }
+    const upper = [];
+    for (let i = pts.length - 1; i >= 0; i -= 1) {
+      const p = pts[i];
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+        upper.pop();
+      }
+      upper.push(p);
+    }
+    lower.pop();
+    upper.pop();
+    return lower.concat(upper);
+  }
+
+  /* Long recordings arrive already grouped: the reduce pass names a theme for each
+     concept and orders them by theme, so consecutive runs of one theme are the groups.
+     Whether the page uses them is model.grouped, decided once in the core module by
+     length and the --grouping setting. Grouped lists start collapsed — a dozen theme
+     lines you can open beats twenty screens you have to scroll — and the graph never
+     does. Ungrouped, everything renders flat. */
+  function groupByTheme(concepts) {
+    const groups = [];
+    for (const concept of concepts) {
+      const theme = concept.theme || null;
+      const last = groups[groups.length - 1];
+      if (last && last.theme === theme) last.concepts.push(concept);
+      else groups.push({ theme, concepts: [concept] });
+    }
+    return groups;
+  }
+
+  function countLabel(count) {
+    return `(${count} item${count === 1 ? "" : "s"})`;
+  }
+
+  function buildThemeGroup(theme, count, collapsed, when) {
+    const group = el("div", `dt-theme-group${collapsed ? " dt-collapsed" : ""}`);
+    const head = el("button", "dt-theme-head");
+    head.type = "button";
+    head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    head.appendChild(el("span", "dt-theme-name", theme));
+    head.appendChild(el("span", "dt-theme-count", countLabel(count)));
+    // A conversation returns to its subjects, so the same theme heads more than one
+    // stretch of the outline. Without the time they read as duplicates rather than as
+    // the second and third time the subject came up.
+    if (when) head.appendChild(el("span", "dt-theme-when dt-timestamp", when));
+    head.addEventListener("click", () => {
+      const nowCollapsed = !group.classList.contains("dt-collapsed");
+      group.classList.toggle("dt-collapsed", nowCollapsed);
+      head.setAttribute("aria-expanded", nowCollapsed ? "false" : "true");
+    });
+    group.appendChild(head);
+    const body = el("div", "dt-theme-body");
+    group.appendChild(body);
+    return { group, body };
+  }
+
   function buildDefinitions(concepts) {
     const byId = new Map(concepts.map((c) => [c.id, c]));
     const list = el("div", "dt-concept-defs");
+    const groups = model.grouped ? groupByTheme(concepts) : null;
+    let target = list;
+    let groupIndex = -1;
     for (const concept of concepts) {
+      // Open a new theme container whenever this concept starts the next group.
+      const nextGroup = groups && groups[groupIndex + 1];
+      if (nextGroup && nextGroup.concepts[0] === concept) {
+        groupIndex += 1;
+        if (nextGroup.theme) {
+          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, true);
+          list.appendChild(built.group);
+          target = built.body;
+        } else {
+          target = list;
+        }
+      }
       const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
       entry.dataset.concept = concept.id;
       const term = el("div", "dt-concept-term");
@@ -211,7 +608,7 @@
       // Reading order: centered chip, its timeline right below, then the gloss.
       // The track's dots carry the mention positions, in print as on screen.
       entry.append(term, buildConceptTrack(concept), detail);
-      list.appendChild(entry);
+      target.appendChild(entry);
     }
     return list;
   }
@@ -223,7 +620,23 @@
     if (!claims.length) return null;
     const panel = model.makePanel("Claims");
     const list = el("div", "dt-concept-defs");
+    // Claims are already in theme order because the concept list is, so the same
+    // walk that groups the definitions groups them.
+    const groups = model.grouped ? groupByTheme(claims) : null;
+    let target = list;
+    let groupIndex = -1;
     for (const concept of claims) {
+      const nextGroup = groups && groups[groupIndex + 1];
+      if (nextGroup && nextGroup.concepts[0] === concept) {
+        groupIndex += 1;
+        if (nextGroup.theme) {
+          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, true);
+          list.appendChild(built.group);
+          target = built.body;
+        } else {
+          target = list;
+        }
+      }
       const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
       const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
@@ -246,16 +659,122 @@
         );
       });
       entry.append(term, madeBy, el("div", "dt-concept-gloss", concept.gloss));
-      list.appendChild(entry);
+      target.appendChild(entry);
     }
     panel.appendChild(list);
     return panel;
+  }
+
+  /* The outline names every section — 172 of them on a five-hour recording, which is a
+     wall rather than a map. Group it under the themes the reduce pass already found, so
+     the outline and the concept map agree on the shape of the conversation instead of
+     describing it two different ways. Ungrouped (short media, or --grouping off), it is
+     left alone. */
+
+  /* Themes overlap in time — a conversation returns to a subject — so "the theme whose
+     span covers this moment" is ambiguous, and taken first-match-first it hands almost
+     everything to whichever theme starts earliest and ends latest. On the measured
+     recording that put 162 of 199 outline entries under one theme and left three holding
+     a single entry each.
+
+     Assign by proximity instead: an outline entry belongs to the theme of the concept
+     nearest it in time. Local, unambiguous, and needs no spans at all. */
+  function themeByTime(concepts) {
+    const points = [];
+    for (const concept of concepts) {
+      if (concept.theme) points.push({ t: concept.span[0], theme: concept.theme });
+    }
+    points.sort((a, b) => a.t - b.t);
+    return points;
+  }
+
+  function nearestTheme(points, t) {
+    if (!points.length) return null;
+    let lo = 0;
+    let hi = points.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (points[mid].t < t) lo = mid + 1;
+      else hi = mid;
+    }
+    const after = points[lo];
+    const before = points[Math.max(0, lo - 1)];
+    return Math.abs(after.t - t) < Math.abs(t - before.t) ? after.theme : before.theme;
+  }
+
+  /* A run of one or two entries is a concept sitting between two stretches of another
+     theme, not a change of subject, so it joins what precedes it instead of becoming its
+     own heading. */
+  const MIN_OUTLINE_RUN = 3;
+
+  function smoothRuns(assigned) {
+    const runs = [];
+    for (const theme of assigned) {
+      const last = runs[runs.length - 1];
+      if (last && last.theme === theme) last.count += 1;
+      else runs.push({ theme, count: 1 });
+    }
+    const kept = [];
+    for (const run of runs) {
+      const last = kept[kept.length - 1];
+      if (last && (last.theme === run.theme || run.count < MIN_OUTLINE_RUN)) {
+        last.count += run.count;
+      } else {
+        kept.push({ theme: run.theme, count: run.count });
+      }
+    }
+    const out = [];
+    for (const run of kept) for (let i = 0; i < run.count; i += 1) out.push(run.theme);
+    return out;
+  }
+
+  function groupOutlineByTheme(concepts) {
+    const outline = document.querySelector(".transcript-outline");
+    if (!outline) return;
+    const list = outline.querySelector("ul, ol");
+    if (!list) return;
+    if (!model.grouped) return;
+    const items = [...list.children].filter((el) => el.tagName === "LI");
+    const points = themeByTime(concepts);
+    if (new Set(points.map((p) => p.theme)).size < 2) return;
+
+    // An item's time comes from the chip the timeline cross-reference stamped on it.
+    // An item with no chip belongs with whatever came before it.
+    let clock = 0;
+    const times = items.map((li) => {
+      const chip = li.querySelector(".dt-time-chip[data-t]");
+      if (chip) clock = parseFloat(chip.dataset.t);
+      return clock;
+    });
+    const assigned = smoothRuns(times.map((t) => nearestTheme(points, t)));
+    const placed = items.map((li, i) => ({ li, theme: assigned[i] }));
+
+    const groups = el("div", "dt-outline-groups");
+    let current = null;
+    let currentTheme = null;
+    for (let i = 0; i < placed.length; i += 1) {
+      const { li, theme } = placed[i];
+      if (theme !== currentTheme) {
+        currentTheme = theme;
+        const built = buildThemeGroup(theme, 0, true, model.formatTime(times[i]));
+        groups.appendChild(built.group);
+        current = built;
+      }
+      const inner = el("ul", null);
+      inner.appendChild(li);
+      current.body.appendChild(inner);
+      const count = current.group.querySelector(".dt-theme-count");
+      count.textContent = countLabel(current.body.querySelectorAll(":scope > ul > li").length);
+    }
+    list.replaceWith(groups);
   }
 
   function init(event) {
     model = event.detail.model;
     const concepts = model.index.concepts;
     if (!concepts || !concepts.length) return;
+
+    groupOutlineByTheme(concepts);
 
     if (model.elements.has("concepts")) {
       root = model.makePanel("Concepts");
@@ -276,23 +795,63 @@
       const printHost = el("div", "dt-print-host");
       printHost.style.width = `${printWidth}px`;
       root.insertBefore(printHost, charts.nextSibling);
-      const printGraph = buildGraph(concepts, printWidth);
+
+      // Grouped, the one graph is in theme bands; see buildGraph. The screen graph is
+      // laid out again at each panel width, reusing its chips.
+      const bands = model.grouped ? groupByTheme(concepts) : null;
+      const printGraph = buildGraph(concepts, printWidth, bands);
       printGraph.wrap.classList.add("dt-graph-print");
       printHost.appendChild(printGraph.wrap);
 
+      // Grouped, a toggle above the graph chooses between the bands and the spread.
+      let mode = "bands";
+      let screenGraph = null;
+      if (bands) {
+        const toggle = el("div", "dt-graph-toggle");
+        toggle.appendChild(el("span", "dt-graph-toggle-label", "Layout"));
+        const buttons = [
+          ["bands", "Grouped"],
+          ["spread", "Spread"],
+        ].map(([value, text]) => {
+          const button = el("button", "dt-graph-toggle-choice", text);
+          button.type = "button";
+          button.dataset.mode = value;
+          button.setAttribute("aria-pressed", value === mode ? "true" : "false");
+          button.addEventListener("click", () => {
+            if (mode === value) return;
+            mode = value;
+            for (const other of buttons) {
+              other.setAttribute("aria-pressed", other.dataset.mode === mode ? "true" : "false");
+            }
+            if (screenGraph) {
+              screenGraph.mode = mode;
+              layoutGraph(screenGraph);
+            }
+          });
+          toggle.appendChild(button);
+          return button;
+        });
+        charts.appendChild(toggle);
+      }
       let chartWidth = 0;
       const renderCharts = () => {
         const width = Math.floor(charts.getBoundingClientRect().width);
         if (!width || width === chartWidth) return;
         chartWidth = width;
-        charts.textContent = "";
-        const graph = buildGraph(concepts, width);
-        graph.wrap.classList.add("dt-graph-screen");
-        charts.appendChild(graph.wrap);
-        layoutGraph(graph);
+        if (screenGraph) {
+          screenGraph.width = width;
+        } else {
+          screenGraph = buildGraph(concepts, width, bands);
+          screenGraph.mode = mode;
+          screenGraph.wrap.classList.add("dt-graph-screen");
+          charts.appendChild(screenGraph.wrap);
+        }
+        layoutGraph(screenGraph);
         layoutGraph(printGraph);
         applySelection();
       };
+      // A container observer catches the width changes a window resize listener
+      // would miss.
       new ResizeObserver(renderCharts).observe(charts);
       renderCharts();
     }

@@ -24,6 +24,18 @@ strong.dt-speaker-label {
   margin-bottom: 0.05rem;
 }
 
+/* People's names as faux small caps wherever they appear as a label, on the page
+   and in tooltips (see --dt-name-transform). A tooltip head carries .dt-name only
+   when it names a speaker; a section or concept in the same slot stays as written. */
+.dt-name,
+.dt-stats .dt-speaker-name,
+.dt-claim-speaker,
+.dt-name-ref {
+  text-transform: var(--dt-name-transform);
+  font-size: var(--dt-name-size);
+  letter-spacing: var(--dt-name-spacing);
+}
+
 strong.dt-speaker-label .dt-colon {
   display: none;
 }
@@ -150,6 +162,13 @@ body.dt-no-frames .dt-ov-frame {
 
 /* ---- Timeline overview panel ---- */
 
+/* Rows of a wrapped timeline stack with a gap; a single-row timeline is one
+   child and renders exactly as an unwrapped track did. */
+.dt-overview-rows {
+  display: grid;
+  gap: var(--dt-tl-gap);
+}
+
 .dt-overview {
   display: block;
   width: 100%;
@@ -220,6 +239,15 @@ body.dt-no-frames .dt-ov-frame {
   stroke: var(--color-primary);
   stroke-width: 1.6;
   pointer-events: none;
+}
+
+/* ---- Table of contents: just the title and its underline ---- */
+/* kash 0.4.11 boxes the contents in a hairline border; the owner wants only the
+   title with the thin rule beneath it. The minimal scrollbar it sets stays. */
+.content-with-toc .toc-container,
+.content-with-toc.has-toc .toc-container {
+  border: none;
+  background: transparent;
 }
 
 /* ---- Vertical rail (hidden until the transcript is being read) ---- */
@@ -384,6 +412,20 @@ body.yt-open #dt-rail {
   opacity: 1;
 }
 
+/* A section's tooltip lists its outline; a list needs more width than a name. */
+.dt-tip:has(.dt-tip-list) {
+  max-width: 24rem;
+}
+
+.dt-tip .dt-tip-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+}
+
+.dt-tip .dt-tip-list li + li {
+  margin-top: 0.2rem;
+}
+
 /* Transcript text inside a tooltip mirrors the prose: colored sans label,
    serif words. */
 .dt-tip .dt-tip-text {
@@ -524,9 +566,116 @@ body.yt-open #dt-rail {
   width: 100%;
 }
 
+/* In the graph a chip is one of a hundred, so it takes the tiny size and its
+   label is clipped to a width that still fits three to a row; the tooltip and the
+   list carry the full label. */
 .dt-graph-chip {
   position: absolute;
   white-space: nowrap;
+  font-size: var(--font-size-tiny);
+}
+
+.dt-graph-chip .dt-chip-label {
+  font-size: var(--font-size-tiny);
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Grouped, the graph is in theme bands: a faint ground behind each band, its
+   label above the chips, and space rather than a rule between bands. The
+   ground sits under the edges, the label between edges and chips. */
+.dt-graph-band {
+  position: absolute;
+  left: -0.4rem;
+  right: -0.4rem;
+  background: var(--color-bg-alt);
+  border-radius: var(--dt-radius);
+}
+
+.dt-graph-band-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--dt-text);
+  pointer-events: none;
+}
+
+.dt-graph-band-when {
+  font-weight: 400;
+}
+
+/* Spread layout: the bands give way to a dotted outline around each theme's chips,
+   with the label at the outline's top left. */
+.dt-graph.dt-graph-spread .dt-graph-band {
+  display: none;
+}
+
+.dt-graph.dt-graph-spread .dt-graph-band-label {
+  right: auto;
+  padding: 0;
+}
+
+/* Spread out, a label is one of eleven on a crowded canvas; the time range is
+   for the bands. */
+.dt-graph.dt-graph-spread .dt-graph-band-when {
+  display: none;
+}
+
+.dt-graph.dt-graph-spread .dt-graph-band-name {
+  display: inline-block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-graph-hull {
+  fill: none;
+  stroke: var(--dt-text-faint);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  stroke-linejoin: round;
+}
+
+/* The layout toggle sits above the graph, right-aligned, in the tiny UI size. */
+.dt-graph-toggle {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.3rem;
+  margin: 0.25rem 0 0;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-tiny);
+  color: var(--dt-text-faint);
+}
+
+.dt-graph-toggle-label {
+  margin-right: 0.2rem;
+}
+
+.dt-graph-toggle-choice {
+  border: 1px solid var(--color-border-hint);
+  border-radius: var(--dt-radius);
+  background: none;
+  padding: 0.1rem 0.5rem;
+  font: inherit;
+  color: var(--dt-text-support);
+  cursor: pointer;
+}
+
+.dt-graph-toggle-choice[aria-pressed="true"] {
+  color: var(--dt-text);
+  border-color: var(--dt-text-support);
 }
 
 /* Two prebuilt layouts, one per medium: the screen graph tracks the panel
@@ -547,7 +696,8 @@ body.yt-open #dt-rail {
     visibility: visible;
   }
 
-  .dt-graph-screen {
+  .dt-graph-screen,
+  .dt-graph-toggle {
     display: none !important;
   }
 }
@@ -564,12 +714,123 @@ body.yt-open #dt-rail {
   box-shadow: var(--dt-ring-selected);
 }
 
-.dt-dimmed {
-  opacity: 0.35;
-}
-
 .dt-concept-defs {
   margin: 0.75rem 0 0;
+}
+
+/* ---- Theme groups (long recordings only) ---- */
+
+.dt-theme-group {
+  margin-top: 1rem;
+}
+
+/* The theme line reads as a row, not a control: the whole width is the target,
+   and the only chrome is the marker and the count that follows the name; no rule
+   between groups. */
+.dt-theme-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--dt-text);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.dt-theme-head::before {
+  content: "";
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentcolor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform: rotate(90deg);
+  transition: transform var(--dt-t-fast) ease-in-out;
+}
+
+.dt-theme-group.dt-collapsed .dt-theme-head::before {
+  transform: rotate(0deg);
+}
+
+.dt-theme-name {
+  flex: 0 1 auto;
+}
+
+/* The time a theme's stretch begins, so a subject the conversation returns to reads as
+   a second visit rather than a repeated heading. */
+.dt-theme-when {
+  flex: none;
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.dt-theme-count {
+  flex: none;
+  color: var(--dt-text-faint);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-theme-group.dt-collapsed .dt-theme-body {
+  display: none;
+}
+
+/* ---- Suppressed segments in the transcript ---- */
+
+/* Set aside, not deleted: a marked run collapses behind one line naming what it is,
+   and opens on click. Grayed rather than hidden so the reader can see the shape of
+   what the analysis skipped. */
+.dt-segment {
+  border-left: 2px solid var(--color-hint);
+  margin: 1.4rem 0;
+  padding-left: var(--dt-pad);
+}
+
+.dt-segment-head {
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--dt-text-faint);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-tiny);
+}
+
+.dt-segment.dt-collapsed .dt-segment-body {
+  display: none;
+}
+
+/* Expanded, the words themselves stay quiet: they are context, not the transcript. */
+.dt-segment-body {
+  color: var(--dt-text-support);
+}
+
+/* The grouped outline reuses the theme container, so its lists lose the default
+   list indent and spacing the flat outline had. */
+.dt-outline-groups .dt-theme-body ul {
+  margin: 0.2rem 0;
+  padding-left: 1.1rem;
+}
+
+/* A group's first entry already has the head above it. */
+.dt-theme-body > .dt-concept-entry:first-child {
+  margin-top: 0.5rem;
+}
+
+.dt-theme-body {
+  padding-bottom: 0.6rem;
 }
 
 /* One list entry: mini timeline, chip row, gloss. The track spans the full
@@ -711,6 +972,12 @@ body.yt-open #dt-rail {
 }
 
 /* Claims state their makers plainly on a line below the chip. */
+/* Claim chips sit flush with the outline's left edge; the centered term row
+   reads as a caption elsewhere but not in a list of claims. */
+.dt-concept-entry.dt-kind-claim .dt-concept-term {
+  justify-content: flex-start;
+}
+
 .dt-claim-made-by {
   margin: 0.2rem 0 0.1rem;
   font-size: var(--font-size-smaller);
@@ -752,6 +1019,36 @@ body.yt-open #dt-rail {
     margin-left: var(--dt-col-ml) !important;
     margin-right: auto !important;
   }
+  /* The column's left edge measured from the page, which the frame gutter width
+     needs; inside kash's grid the margin is column-relative, so it is added to
+     the grid's first column there. */
+  body.dt-on {
+    --dt-col-left: var(--dt-col-ml);
+  }
+}
+/* kash 0.4.11 lays the page out as a grid whose first column is the TOC
+   (calc(var(--toc-width) + 4rem)) and puts .long-text in the second. The margin
+   above was written for the earlier layout, where the column was placed from the
+   page's left edge, so inside the grid it double-counted the TOC: at 1280px the
+   column began at 333 + 304px and ran past the viewport, the frames landed at
+   1423px, and the rail sat over the text. Measured before this rule. Inside the
+   grid the margin is taken from the column's own left edge instead, mirroring
+   kash's centering formula and keeping the gutter shift. */
+@media screen and (min-width: 1200px) {
+  /* kash sizes the contents column at 21vw, 15rem to 26rem; on a wide screen that is
+     a third of the text width for a list of headings. 13 to 16rem is enough for a
+     heading to wrap to two lines, and the room goes to the rail and frames. */
+  body {
+    --toc-width: clamp(13rem, 16vw, 16rem);
+  }
+
+  body.dt-on .content-with-toc.has-toc {
+    --dt-col-ml: max(
+      1rem,
+      calc((100vw - 48rem) / 2 - var(--dt-col-shift) - var(--toc-width) - 4rem)
+    );
+    --dt-col-left: calc(var(--toc-width) + 4rem + var(--dt-col-ml));
+  }
 }
 
 /* ---- Frame captures: gutter layout and connectors ---- */
@@ -765,7 +1062,7 @@ body.yt-open #dt-rail {
   body.dt-frames-gutter .long-text img.frame-capture {
     position: absolute;
     left: calc(100% + 1.2rem);
-    width: min(11rem, calc(100vw - var(--dt-col-ml, 2rem) - 48rem - var(--dt-rail-width) - 3.6rem));
+    width: min(11rem, calc(100vw - var(--dt-col-left, 2rem) - 48rem - var(--dt-rail-width) - 3.6rem));
     max-width: 11rem;
     margin: 0;
     border-radius: var(--dt-radius);
@@ -830,9 +1127,6 @@ body.yt-open #dt-rail {
   }
 
   /* Transient selection state never prints. */
-  .dt-dimmed {
-    opacity: 1 !important;
-  }
 
   .dt-concept-chip.dt-selected {
     box-shadow: none !important;
@@ -846,6 +1140,21 @@ body.yt-open #dt-rail {
   /* Hover-only data gets its print form. */
   .dt-print-only {
     display: block;
+  }
+
+  /* Collapsing is a screen affordance; paper shows every theme's concepts. */
+  .dt-theme-group.dt-collapsed .dt-theme-body {
+    display: block;
+  }
+
+  /* A suppressed segment prints, labelled, because a printed transcript that silently
+     omits ten minutes is worse than one that shows them set aside. */
+  .dt-segment.dt-collapsed .dt-segment-body {
+    display: block;
+  }
+
+  .dt-theme-head::before {
+    display: none;
   }
 
   /* Keep each visual whole across page breaks. */

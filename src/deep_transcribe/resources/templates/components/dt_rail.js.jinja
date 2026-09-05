@@ -154,7 +154,12 @@
   /* The overview panels stay the focus at the top of the page; the rail fades
      in once the transcript itself is being read. */
   function updateVisibility() {
-    const first = model.index.units.find((u) => u.el);
+    // The first unit may sit inside a collapsed segment (the teaser at the top of
+    // most podcasts), whose display:none box measures 0,0 and so read as "above the
+    // fold" — the rail showed at load. The first unit in a rendered subtree is the
+    // reference: offsetParent is null under display:none and nowhere else in the
+    // flow, whereas a zero-size marker has no client rects even when rendered.
+    const first = model.index.units.find((u) => u.el && u.el.offsetParent !== null);
     if (!first) return;
     const visible = first.el.getBoundingClientRect().top < window.innerHeight * 0.75;
     rail.classList.toggle("dt-rail-visible", visible);

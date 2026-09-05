@@ -49,8 +49,7 @@ uvx "deep-transcribe[youtube]" --annotated "https://www.youtube.com/watch?v=kq9Q
 
 Deep Transcribe fetches the source metadata through the media extractor and gives the
 models a bounded version of the title, description, canonical URL, channel, categories,
-and tags.
-For this sketch that already names four of the five performers.
+and tags. For this sketch that already names four of the five performers.
 What the metadata cannot say is which performer plays which role, so the two guests who
 speak once each are absorbed into other speakers.
 
@@ -64,9 +63,9 @@ uvx "deep-transcribe[youtube]" --annotated --web-search \
 That recovers all five speakers, including both Room 904 guests and the agent the
 metadata never mentions, with no context of your own.
 Search is off by default because it can mislead.
-With or without it, the models may state only what your context, the fetched metadata, or
-a corroborated search result supports; they are told where each piece of evidence came
-from and are not permitted to add anything else.
+With or without it, the models may state only what your context, the fetched metadata,
+or a corroborated search result supports; they are told where each piece of evidence
+came from and are not permitted to add anything else.
 
 You can also just say what you know, which is faster and free:
 
@@ -82,8 +81,8 @@ the Stargazer Lounge, and the Indulge spa without being told about them.
 ### Steering the Output
 
 Add flags when you want a specific shape rather than a good default.
-This is the command behind the PDF above: it fixes the labels for the two unnamed guests,
-pins spellings that matter, and asks for a particular synopsis and outline.
+This is the command behind the PDF above: it fixes the labels for the two unnamed
+guests, pins spellings that matter, and asks for a particular synopsis and outline.
 
 ```shell
 uvx "deep-transcribe[youtube]" \
@@ -111,9 +110,9 @@ uvx deep-transcribe --annotated \
     ./board-meeting.m4a
 ```
 
-Local files need no JavaScript runtime, so the plain `deep-transcribe` install is enough.
-Without context the transcript still comes out correct; the speakers are just labeled
-generically.
+Local files need no JavaScript runtime, so the plain `deep-transcribe` install is
+enough. Without context the transcript still comes out correct; the speakers are just
+labeled generically.
 
 The command produces cached media and intermediate results, a processed Markdown
 transcript, and browser-ready HTML. Review the result, revise the prose, and run the
@@ -171,8 +170,7 @@ Add one LLM provider key for the formatting and analysis stages:
 - `OPENAI_API_KEY` for OpenAI models
 
 Set them in the process environment, a `.env` or `.env.local` file in the current
-directory or one of its parents, or `~/.env.local`.
-Do not commit API keys.
+directory or one of its parents, or `~/.env.local`. Do not commit API keys.
 
 Then run it without installing anything:
 
@@ -246,6 +244,39 @@ The selection is saved in the chosen workspace.
 Pass `--workspace` when using a location other than `./transcriptions`. Add an input to
 the selection command to save the profile and transcribe in one run:
 `deep-transcribe --models openai INPUT`.
+
+## Long Recordings
+
+Hours-long sources work end to end, and the design holds well past that: 12 hours or
+more is supported.
+
+Speech-to-text sends the audio as a single request rather than chunking it, so
+timestamps arrive on one continuous timeline instead of being reconciled across segment
+boundaries.
+Audio conversion streams through ffmpeg, so preparing a twelve-hour recording
+costs about what preparing a five-minute one does.
+Video, needed only for frame captures, is fetched at up to 1080p in H.264 so it remuxes
+without re-encoding.
+
+A five-hour podcast transcribes in about a minute; the wall-clock time of a long run
+goes to downloading and to the LLM stages.
+
+Analysis scales with the recording rather than against a fixed budget.
+The concept map, outline and synopsis run over half-hour chunks cut at section
+boundaries and are then stitched together, so no stage sends the whole document and a
+five-hour conversation yields a map of a hundred or so concepts grouped into themes,
+not the two dozen that suit a short talk.
+
+A long recording is often not all conversation.
+Parts that are not — an opening highlight reel, a read advertisement, an outro — can be
+marked in a hints file and passed with `--segments`.
+Marked stretches are left out of the analysis and collapsed rather than deleted in the
+transcript, and rerunning after an edit reuses the transcript and everything through
+section headings, so the loop of looking at the output and revising the hints costs
+minutes.
+A run that finds an opening repeated later drafts the file for you.
+Hints and `--instructions` stick to the source once given, so a later run without the flag
+still honors them; `--segments none` and `--instructions none` remove what was stored.
 
 ## Output
 
