@@ -154,7 +154,7 @@ None new. `--segments none` / `--instructions none` (review R6) is landing separ
   message. A run died last night when the boot volume filled. (dt-bier)
 - [x] Report a stage failure as one line naming the stage and the cause, not a
   traceback. A two-hour run that ends in a stack dump is not clean. (dt-ljkg)
-- [ ] Confirm and close the two segment beads the work already covers: views respect
+- [x] Confirm and close the two segment beads the work already covers: views respect
   exclusions (dt-hesk, the collapse) and the detection pass (dt-88st,
   `_suggest_segments`), or record what is still missing.
 

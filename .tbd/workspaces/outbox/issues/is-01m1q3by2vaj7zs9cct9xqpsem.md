@@ -4,14 +4,14 @@ id: is-01m1q3by2vaj7zs9cct9xqpsem
 title: Store analysis-only inputs outside the hashed metadata
 kind: feature
 status: open
-priority: 1
-version: 4
+priority: 2
+version: 6
 spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-04T20:57:05.882Z
-updated_at: 2026-09-05T00:07:22.329Z
+updated_at: 2026-09-05T00:27:12.304Z
 ---
 Segment hints and processing instructions stick to the item on purpose, so a later run without the flag still honors them — pinned by test_processing_instructions_bypass_raw_and_formatting_cache_identity, and the reason a clear affordance is needed at all. But they are stored in item.extra, which is part of the file kash hashes, so CHANGING one re-runs paragraph formatting and section headings.
 
@@ -37,4 +37,4 @@ What does not hold is the claim that editing a hint is cheap.
 
 ## Notes
 
-Scope narrowed by measurement: an EDIT to existing hints already resumes at the outline (short source 36 s, at scale reached the outline 3 min in). What re-runs formatting is the FIRST application of hints to a workspace that had none — the stored resource's cleaned shape changes once. So this bead is about a one-time cost per workspace, not per edit. Mechanism still to be pinned: pass 3 of the fresh test split into a new lineage even though remove_segment_hints prunes the emptied mapping.
+Final scope after measurement: only the FIRST application of hints to a workspace pays the ~45 min formatting rerun; every later edit resumes at the outline (20 min at scale). This is a one-time cost per source, not per iteration. Reprioritize accordingly; P2 is defensible.
