@@ -25,6 +25,12 @@ from deep_transcribe.model_profiles import (
 )
 from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER, TranscribeOptions
 
+# `transcribe` is the one stage --rerun-from must not name: the prefix rule cannot tell
+# lineages apart at their shared first stage, so it would set aside every transcript in the
+# workspace and the next run would pay for speech-to-text again. --rerun is the flag for
+# a fresh transcript, and it says so.
+RERUN_FROM_STAGES = tuple(stage for stage in PIPELINE_STAGE_ORDER if stage != "transcribe")
+
 if TYPE_CHECKING:
     from deep_transcribe.transcript_report import TranscriptReport
     from deep_transcribe.transcription_metadata import TranscriptionMetadata
@@ -396,7 +402,7 @@ def _add_transcription_arguments(
     execution.add_argument(
         "--rerun-from",
         metavar="STAGE",
-        choices=PIPELINE_STAGE_ORDER,
+        choices=RERUN_FROM_STAGES,
         help=(
             "Set aside this stage's cached results, and every cached result below them, then "
             "rerun — what a change to the stage's own code needs, since a cached result is "
@@ -483,7 +489,7 @@ def _rerun_from_stage_help() -> str:
     """The stage names `--rerun-from` accepts, wrapped to the help page's width."""
     from textwrap import fill
 
-    return fill(", ".join(f"`{stage}`" for stage in PIPELINE_STAGE_ORDER), width=80)
+    return fill(", ".join(f"`{stage}`" for stage in RERUN_FROM_STAGES), width=80)
 
 
 def _profile_help() -> str:

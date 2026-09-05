@@ -1515,7 +1515,7 @@ def test_rerun_from_refuses_the_rerun_flags_that_already_cover_it(tmp_path: Path
 
 def test_parser_carries_rerun_from_and_the_help_lists_every_stage() -> None:
     """The flag reaches the run, and `--help` is where the stage names come from."""
-    from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER
+    from deep_transcribe.cli_main import RERUN_FROM_STAGES
 
     args = build_parser().parse_args(["--rerun-from", "demote_model_headings", "URL"])
     assert args.rerun_from == "demote_model_headings"
@@ -1523,5 +1523,22 @@ def test_parser_carries_rerun_from_and_the_help_lists_every_stage() -> None:
 
     help_text = " ".join(build_parser().format_help().split())
     assert "--rerun-from STAGE" in help_text
-    for stage in PIPELINE_STAGE_ORDER:
+    for stage in RERUN_FROM_STAGES:
         assert f"`{stage}`" in help_text, f"--help does not list the stage {stage}"
+
+
+def test_rerun_from_refuses_transcribe_and_points_at_rerun(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """
+    `transcribe` is the shared first stage of every lineage, so setting it aside would move
+    every transcript in the workspace and buy speech-to-text again on the next run. --rerun
+    is the flag for that, and the help says so; --rerun-from must not accept it.
+    """
+    from deep_transcribe.cli_main import RERUN_FROM_STAGES, build_parser
+
+    assert "transcribe" not in RERUN_FROM_STAGES
+    with pytest.raises(SystemExit) as caught:
+        build_parser().parse_args(["--rerun-from", "transcribe", "https://x.test/v"])
+    assert caught.value.code == 2
+    assert "invalid choice: 'transcribe'" in capsys.readouterr().err
