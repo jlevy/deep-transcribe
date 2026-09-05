@@ -5,13 +5,13 @@ title: Keep hint reruns cheap and prove it
 kind: task
 status: closed
 priority: 1
-version: 7
+version: 8
 spec_path: docs/project/specs/active/plan-2026-09-04-transcript-segments.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-04T08:07:01.788Z
-updated_at: 2026-09-05T00:27:11.731Z
+updated_at: 2026-09-05T02:02:37.122Z
 closed_at: 2026-09-05T00:27:11.730Z
 close_reason: "Measured at full scale (5h15m) and controlled on the short source. Same hints, rerun: 13 s. Existing hint edited: 20 min at scale (0 Deepgram, 41 LLM calls, resumed at the outline), 36 s short. First hints on a workspace that had none: repeats paragraphs and section headings once, ~45 min at scale by stage arithmetic (measured on the short source). docs.md now states both cases (0304d9b)."
 resolution: null
@@ -45,4 +45,4 @@ Depends on the hints file format (dt-g4qm) existing first.
 
 ## Notes
 
-CONTROLLED, short source (dt-freshcheck, 4 passes): p1 first run 96 s; p2 unchanged 5 s; p3 hints added for the FIRST time 62 s, re-ran break_into_paragraphs and insert_section_headings; p4 existing hint EDITED (0:20 -> 0:25) 36 s, 0 Deepgram, 3 LLM calls, formatting stages 0, resumed at add_transcript_outline. So the expensive rerun is the first application of hints to a workspace that had none; later edits resume at the outline, which is the loop a user actually iterates in. At-scale hint-edit run in flight to supply the minutes.
+Final: the 'first hints file' cost was kash bookkeeping fields (dt-xjlp). With the fix a hint change resumes at the outline first time or not; docs row merged back.
