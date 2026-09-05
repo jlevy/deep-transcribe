@@ -182,7 +182,11 @@
         strong.classList.add("dt-speaker-label", model.speakerClass(unit.speaker));
         // Isolate the colon so screen styles can drop it while print keeps
         // the original inline "Name:" form byte for byte.
-        strong.textContent = name;
+        strong.textContent = "";
+        const nameEl = document.createElement("span");
+        nameEl.className = "dt-name";
+        nameEl.textContent = name;
+        strong.appendChild(nameEl);
         const colon = document.createElement("span");
         colon.className = "dt-colon";
         colon.textContent = ":";
@@ -191,6 +195,28 @@
         // end of the spoken text. Continuations without a label keep theirs.
         if (unit.citationEl) strong.appendChild(unit.citationEl);
       }
+    }
+    // A paragraph the section-heading stage split off a long turn keeps a bare
+    // **Name:** and has no citation of its own, so it is not a unit and the loop above
+    // never reaches it: "DHH:" rendered as plain bold under such headings on the
+    // five-hour recording, 147 times. Decorate every remaining roster label the same
+    // way, without a chip.
+    const byName = new Map(model.index.speakers.map((sp) => [sp.name, sp.id]));
+    for (const strong of document.querySelectorAll(".long-text p > strong:first-child")) {
+      if (strong.classList.contains("dt-speaker-label")) continue;
+      const name = strong.textContent.replace(/:\s*$/, "").trim();
+      const id = byName.get(name);
+      if (id == null) continue;
+      strong.classList.add("dt-speaker-label", model.speakerClass(id));
+      strong.textContent = "";
+      const nameEl = document.createElement("span");
+      nameEl.className = "dt-name";
+      nameEl.textContent = name;
+      strong.appendChild(nameEl);
+      const colon = document.createElement("span");
+      colon.className = "dt-colon";
+      colon.textContent = ":";
+      strong.appendChild(colon);
     }
   }
 

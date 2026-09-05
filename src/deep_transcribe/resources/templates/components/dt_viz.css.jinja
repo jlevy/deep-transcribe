@@ -24,6 +24,19 @@ strong.dt-speaker-label {
   margin-bottom: 0.05rem;
 }
 
+/* Names as faux small caps wherever they appear as a label: an uppercase transform
+   at reduced size with a little tracking. Never font-variant small-caps, which
+   depends on the face and is synthesized badly where it is missing. */
+.dt-name,
+.dt-tip-name,
+.dt-stats .dt-speaker-name,
+.dt-claim-speaker,
+.dt-name-ref {
+  text-transform: uppercase;
+  font-size: 0.82em;
+  letter-spacing: 0.05em;
+}
+
 strong.dt-speaker-label .dt-colon {
   display: none;
 }
@@ -227,6 +240,15 @@ body.dt-no-frames .dt-ov-frame {
   stroke: var(--color-primary);
   stroke-width: 1.6;
   pointer-events: none;
+}
+
+/* ---- Table of contents: just the title and its underline ---- */
+/* kash 0.4.11 boxes the contents in a hairline border; the owner wants only the
+   title with the thin rule beneath it. The minimal scrollbar it sets stays. */
+.content-with-toc .toc-container,
+.content-with-toc.has-toc .toc-container {
+  border: none;
+  background: transparent;
 }
 
 /* ---- Vertical rail (hidden until the transcript is being read) ---- */
@@ -838,6 +860,12 @@ body.yt-open #dt-rail {
 }
 
 /* Claims state their makers plainly on a line below the chip. */
+/* Claim chips sit flush with the outline's left edge; the centered term row
+   reads as a caption elsewhere but not in a list of claims. */
+.dt-concept-entry.dt-kind-claim .dt-concept-term {
+  justify-content: flex-start;
+}
+
 .dt-claim-made-by {
   margin: 0.2rem 0 0.1rem;
   font-size: var(--font-size-smaller);
