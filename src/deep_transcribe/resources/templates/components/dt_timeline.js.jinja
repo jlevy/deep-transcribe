@@ -16,13 +16,18 @@
   "use strict";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const ROW_H = 128;
+  const ROW_H = 114;
   const AXIS_Y = 16;
   const SECTION_Y = 24;
-  const SECTION_H = 46;
-  const BAND_Y = 78;
-  const BAND_H = 24;
-  const FRAME_Y = 116;
+  const SECTION_H = 42;
+  const BAND_Y = 72;
+  const BAND_H = 20;
+  const FRAME_Y = 102;
+  /* A section block wide enough to carry a measured two-line label. When the
+     median section clears this at a longer row step, the longer step wins:
+     chapters fourteen minutes long do not need half-hour rows, which were
+     sized for sections a minute and a half long. */
+  const LABEL_MIN_PX = 96;
 
   /* Round row durations, tried shortest first. A row that reads as "1:30 to
      2:00" is worth more than one that exactly divides the recording. */
@@ -54,16 +59,26 @@
       rowCount = 1;
       return;
     }
-    for (const step of ROW_STEPS) {
-      const count = Math.ceil(model.duration / step);
-      if (count <= MAX_ROWS) {
-        rowSecs = step;
-        rowCount = count;
-        return;
-      }
+    const feasible = ROW_STEPS.filter((step) => Math.ceil(model.duration / step) <= MAX_ROWS);
+    if (!feasible.length) {
+      rowSecs = Math.ceil(model.duration / MAX_ROWS);
+      rowCount = Math.ceil(model.duration / rowSecs);
+      return;
     }
-    rowSecs = Math.ceil(model.duration / MAX_ROWS);
-    rowCount = Math.ceil(model.duration / rowSecs);
+    const steps = feasible;
+    const pixelsPerRow = width || 600;
+    const durations = (model.index.sections || [])
+      .map((s) => s.end - s.start)
+      .filter((d) => d > 0)
+      .sort((a, b) => a - b);
+    const median = durations.length ? durations[Math.floor(durations.length / 2)] : 0;
+    let chosen = steps[0];
+    for (const step of steps.slice(1)) {
+      if ((pixelsPerRow * median) / step >= LABEL_MIN_PX) chosen = step;
+      else break;
+    }
+    rowSecs = chosen;
+    rowCount = Math.ceil(model.duration / chosen);
   }
 
   function rowOf(t) {
