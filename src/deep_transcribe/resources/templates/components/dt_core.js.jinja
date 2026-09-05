@@ -58,6 +58,18 @@
   };
 
   function collapseSegments(index) {
+    // How much of a section a run covers decides where that section's heading goes, so
+    // count the units each section holds before any of them move.
+    const sectionSize = new Map();
+    for (const unit of index.units) {
+      if (unit.section == null) continue;
+      sectionSize.set(unit.section, (sectionSize.get(unit.section) || 0) + 1);
+    }
+    // One run per contiguous suppressed span: consecutive suppressed units with no
+    // unsuppressed unit between them. Section boundaries do not break a run. A hint marks
+    // one stretch and the reader should get one block for it, however many headings the
+    // section pass happened to drop inside — splitting on unit.section turned a single
+    // 1:44 teaser into four boxes of two, two, one and one paragraphs.
     const runs = [];
     let current = null;
     for (const unit of index.units) {
@@ -65,18 +77,16 @@
         current = null;
         continue;
       }
-      // Break at section boundaries as well as at segment ones. A run that swallowed a
-      // section heading's paragraphs from both sides would leave the heading stranded
-      // after the collapsed block, with nothing under it.
-      if (current && current.segment === unit.segment && current.section === unit.section) {
+      if (current && current.segment === unit.segment) {
         current.units.push(unit);
       } else {
-        current = { segment: unit.segment, section: unit.section, units: [unit] };
+        current = { segment: unit.segment, units: [unit] };
         runs.push(current);
       }
     }
     for (const run of runs) {
       const first = run.units[0].el;
+      const last = run.units[run.units.length - 1].el;
       if (!first || !first.parentElement) continue;
       const wrap = document.createElement("div");
       wrap.className = "dt-segment dt-collapsed";
@@ -85,36 +95,64 @@
       head.type = "button";
       head.className = "dt-segment-head";
       const name = SEGMENT_NAMES[run.segment] || SEGMENT_NAMES.other;
-      const seconds = run.units[run.units.length - 1].end - run.units[0].start;
-      head.textContent = `${name} — ${Math.round(seconds / 60)} min, left out of the analysis`;
+      const elapsed = run.units[run.units.length - 1].end - run.units[0].start;
+      const seconds = Math.max(0, Math.round(elapsed) || 0);
+      // Under a minute in minutes reads "0 min", which sounds like nothing was set aside,
+      // so short spans say their length in seconds.
+      const length = seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`;
+      head.textContent = `${name} — ${length}, left out of the analysis`;
       head.setAttribute("aria-expanded", "false");
       head.addEventListener("click", () => {
         const collapsed = !wrap.classList.contains("dt-collapsed");
         wrap.classList.toggle("dt-collapsed", collapsed);
         head.setAttribute("aria-expanded", collapsed ? "false" : "true");
       });
-      // The section's heading belongs with the material it heads — but only when the run
-      // IS that material. A suppressed span usually covers just the opening paragraphs of
-      // a section, and taking the heading along strands everything after it with no
-      // heading at all, which is the inverse of the problem this was meant to solve. So
-      // the heading comes only when the run runs from directly below it to the section's
-      // end. Runs are already split on unit.section, so a run never spans two sections.
+      // A section the run covers whole heads only suppressed material, so its heading
+      // goes inside the block with it. A section that continues past the run keeps its
+      // heading outside, or the material the reader still gets would be left with no
+      // heading at all — the usual shape, where a span covers a section's opening
+      // paragraphs and stops.
+      const covered = new Map();
+      for (const unit of run.units) {
+        if (unit.section == null) continue;
+        covered.set(unit.section, (covered.get(unit.section) || 0) + 1);
+      }
+      const coversWholeSection = (section) =>
+        section != null && covered.get(section) === sectionSize.get(section);
+      // The elements the run spans, listed before anything moves, since appending to the
+      // body detaches the siblings a live walk would step through. The heading directly
+      // above the run counts as part of the span and gets the same test.
       const above =
         first.previousElementSibling && first.previousElementSibling.tagName === "H2"
           ? first.previousElementSibling
           : null;
-      const last = run.units[run.units.length - 1].el;
-      const after = last ? last.nextElementSibling : null;
-      const runEndsTheSection = !after || after.tagName === "H2";
-      const heading = above && runEndsTheSection ? above : null;
-      const anchor = heading || first;
-      anchor.parentElement.insertBefore(wrap, anchor);
+      const spanned = [];
+      for (let el = above || first; el; el = el.nextElementSibling) {
+        spanned.push(el);
+        if (el === last) break;
+      }
+      first.parentElement.insertBefore(wrap, first);
       wrap.appendChild(head);
       const body = document.createElement("div");
       body.className = "dt-segment-body";
       wrap.appendChild(body);
-      if (heading) body.appendChild(heading);
-      for (const unit of run.units) if (unit.el) body.appendChild(unit.el);
+      const unitOf = new Map();
+      for (const unit of run.units) if (unit.el) unitOf.set(unit.el, unit);
+      // A heading is claimed by the paragraph under it: that paragraph opens the section,
+      // so its unit says which section the heading names.
+      let pending = [];
+      for (const el of spanned) {
+        const unit = unitOf.get(el);
+        if (!unit) {
+          if (el.tagName === "H2") pending.push(el);
+          continue;
+        }
+        if (coversWholeSection(unit.section)) {
+          for (const heading of pending) body.appendChild(heading);
+        }
+        pending = [];
+        body.appendChild(el);
+      }
     }
   }
 
