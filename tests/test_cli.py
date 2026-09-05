@@ -1022,3 +1022,117 @@ def test_report_is_folded_into_the_json_a_run_prints(
     assert [(s["label"], s["turns"]) for s in report["speakers"]] == [("Ada", 1), ("Grace", 1)]
     spelled = {row["token"] for row in report["spellings"]}
     assert {"Omarchy", "Omachi"} <= spelled
+
+
+def _store_a_finished_run(ws_root: Path) -> Path:
+    """
+    Leave in the workspace what a finished run leaves: one exported doc item for the source.
+
+    Written through kash rather than as a file so the frontmatter is whatever a real save
+    produces, which is what the re-export's lookup reads.
+    """
+    from kash.exec import kash_runtime
+    from kash.workspaces import current_ws
+
+    with kash_runtime(ws_root / "workspace"):
+        item = _exported_item()
+        current_ws().save(item)
+        assert item.store_path
+        return ws_root / "workspace" / str(item.store_path)
+
+
+def test_export_only_rebuilds_the_page_from_the_cached_item_and_runs_no_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The flag exists for a template or `--elements` change: the analysis is done and only
+    the rendering moved. So the whole pipeline must stay untouched — every stage entry the
+    CLI can reach is booby-trapped here — while a real page still comes out the other end,
+    written by the same `format_results` a normal run ends with.
+
+    Nothing is mocked on the way out. The HTML is rendered for real from the stored item,
+    which is also the only way to catch a re-export that finds an item it cannot render.
+    """
+    from deep_transcribe import transcribe_commands
+
+    stored = _store_a_finished_run(tmp_path)
+    stored_before = stored.read_bytes()
+
+    def no_stage_may_run(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("--export-only ran a pipeline stage")
+
+    monkeypatch.setattr(transcribe_commands, "run_transcription", no_stage_may_run)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", no_stage_may_run)
+    monkeypatch.setattr(transcribe_commands, "_process_transcript", no_stage_may_run)
+    # A re-export calls no service, so it must not even ask for a key.
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    output = StringIO()
+    with redirect_stdout(output):
+        main(
+            [
+                "--workspace",
+                str(tmp_path),
+                "--export-only",
+                "--report",
+                "--json",
+                EXPORTED_SOURCE,
+            ]
+        )
+
+    payload = json.loads(output.getvalue())
+    html_path = Path(payload["html"])
+    assert html_path.exists(), f"--export-only reported HTML that is not there: {html_path}"
+    assert html_path.suffix == ".html"
+    html = html_path.read_text(encoding="utf-8")
+    assert "A finished recording" in html
+    assert "Omarchy" in html
+    # `--report --export-only` reports over the item it re-exported.
+    assert payload["report"]["headings"]["count"] == 2
+    assert payload["transcript"] == str(stored.resolve())
+    assert stored.read_bytes() == stored_before, "the re-export rewrote the item it read"
+
+    # The text form prints the report first, so the paths stay the last thing on screen.
+    text_output = StringIO()
+    with redirect_stdout(text_output):
+        main(["--workspace", str(tmp_path), "--export-only", "--report", EXPORTED_SOURCE])
+
+    printed = text_output.getvalue()
+    assert "headings 2 (4.0/h)" in printed
+    assert printed.index("headings 2") < printed.index("All done!")
+
+
+def test_export_only_without_a_prior_run_is_a_usage_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The mistyped workspace or source, which is the likely way to reach this flag wrongly.
+    The answer is argparse's one line and exit 2 — not a traceback, and not an empty page
+    that looks like a successful re-export.
+    """
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+
+    errors = StringIO()
+    with redirect_stderr(errors), pytest.raises(SystemExit) as raised:
+        main(["--workspace", str(tmp_path), "--export-only", EXPORTED_SOURCE])
+
+    assert raised.value.code == 2
+    reported = errors.getvalue()
+    error_lines = [line for line in reported.splitlines() if "error:" in line]
+    assert len(error_lines) == 1, f"expected one error line, got:\n{reported}"
+    assert EXPORTED_SOURCE in error_lines[0]
+    assert "--export-only" in error_lines[0]
+    assert "Traceback" not in reported
+
+
+def test_export_only_refuses_to_be_combined_with_a_rerun(tmp_path: Path) -> None:
+    """`--rerun` asks for stages to run and `--export-only` asks for none to; say so."""
+    for rerun_flag in ("--rerun", "--rerun-processing"):
+        errors = StringIO()
+        with redirect_stderr(errors), pytest.raises(SystemExit) as raised:
+            main(["--workspace", str(tmp_path), "--export-only", rerun_flag, EXPORTED_SOURCE])
+
+        assert raised.value.code == 2
+        assert "cannot be combined with a rerun flag" in errors.getvalue()

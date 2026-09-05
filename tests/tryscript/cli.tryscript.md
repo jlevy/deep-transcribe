@@ -29,9 +29,9 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
-                       [--rerun-processing] [--report] [--json] [--docs |
-                       --skill | --install-skill] [--surfaces LIST]
-                       [--agent-base DIR]
+                       [--rerun-processing] [--report] [--export-only]
+                       [--json] [--docs | --skill | --install-skill]
+                       [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 
 High-quality transcription, formatting, and analysis of videos and podcasts
@@ -140,6 +140,8 @@ Models, Execution, and Output:
                         their density, outline entries, themes, segments in
                         effect, speaker turns, frames, and repeated
                         capitalized spellings to choose --key-term values from
+  --export-only         Rebuild the HTML from the cached final item without
+                        running any stage, for a template or --elements change
   --json                Print final workspace and artifact paths as JSON
 
 Built-in Documentation and Agent Skill:
@@ -235,9 +237,9 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
-                       [--rerun-processing] [--report] [--json] [--docs |
-                       --skill | --install-skill] [--surfaces LIST]
-                       [--agent-base DIR]
+                       [--rerun-processing] [--report] [--export-only]
+                       [--json] [--docs | --skill | --install-skill]
+                       [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 deep-transcribe: error: argument --models: invalid ModelProvider value: 'invalid'
 ? 2

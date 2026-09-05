@@ -5,7 +5,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 # Keep kash imports minimal initially.
 from kash.exec import kash_action
@@ -39,6 +39,9 @@ from deep_transcribe.transcription_metadata import (
 )
 
 if TYPE_CHECKING:
+    from kash.file_storage.file_store import FileStore
+    from kash.model.paths_model import StorePath
+
     from deep_transcribe.segment_hints import SegmentHints
     from deep_transcribe.transcript_report import TranscriptReport
 
@@ -57,6 +60,16 @@ class TranscriptionOutputs:
     transcript_path: Path
     html_path: Path
     report: TranscriptReport | None = None
+
+
+class NoCachedResult(Exception):
+    """
+    No finished run for this source is stored in this workspace.
+
+    A distinct type because the caller turns it into a usage error rather than a failure:
+    asking to re-export what was never exported is a mistake about which workspace or
+    which source, and the answer is one line, not a traceback.
+    """
 
 
 def _media_source_locator(source: str) -> str:
@@ -610,6 +623,159 @@ def _build_report(result_item: Item) -> TranscriptReport:
     from deep_transcribe.transcript_report import build_transcript_report
 
     return build_transcript_report(result_item)
+
+
+def _source_aliases(source: str) -> set[str]:
+    """Every spelling of a source that could be stored as an item's `url`."""
+    locator = _media_source_locator(source)
+    return {source, source.rstrip("/"), locator, locator.rstrip("/")}
+
+
+PIPELINE_STAGE_ORDER = (
+    "transcribe",
+    "infer_speaker_roster_from_context",
+    "correct_speaker_turns",
+    "normalize_transcript_fragments",
+    "strip_html",
+    "break_into_paragraphs",
+    "backfill_timestamps",
+    "normalize_timestamp_citations",
+    "insert_section_headings",
+    "research_paras",
+    "_attach_late_inputs",
+    "add_transcript_outline",
+    "add_transcript_description",
+    "insert_frame_captures",
+    "extract_transcript_concepts",
+    "attach_transcript_index",
+)
+"""
+The stages `_process_transcript` applies, in the order it applies them.
+
+Only used to rank stored items by how far down the pipeline each one got, so a re-export
+picks the result that reached furthest rather than whichever file was written last. It
+mirrors `_process_transcript` and is pinned to it by
+`test_pipeline_stage_order_covers_the_stages_the_pipeline_runs`; a stage this tuple does
+not know simply ranks below the ones it does, so a new stage degrades the ranking rather
+than breaking the flag.
+"""
+
+
+def _stage_rank(history: object) -> int:
+    """
+    How far down the pipeline the run that produced an item got, from its last operation.
+
+    Preset-agnostic on purpose: `--basic` ends at `transcribe` and `--deep` at
+    `attach_transcript_index`, so the rule is "whichever item reached furthest" rather
+    than a fixed terminal stage. -1 for an item whose last stage is unrecognized.
+    """
+    if not isinstance(history, list) or not history:
+        return -1
+    last = cast("list[object]", history)[-1]
+    name = cast("dict[str, object]", last).get("action_name") if isinstance(last, dict) else None
+    if not isinstance(name, str) or name not in PIPELINE_STAGE_ORDER:
+        return -1
+    return PIPELINE_STAGE_ORDER.index(name)
+
+
+def find_exported_item(workspace: FileStore, source: str) -> StorePath | None:
+    """
+    The item a finished run for this source last exported, or None if there is not one.
+
+    Found by reading what the workspace already records rather than by a pointer written
+    at the end of a run. A pointer would have to live somewhere, and every field of an
+    item's metadata is inside the bytes kash hashes for cache identity — which is why
+    `strip_volatile_source_fields` exists. Writing the export path onto the source
+    resource would therefore change the source's hash after every run and make the next
+    run repeat the whole pipeline, paid speech-to-text included. Reading instead costs
+    one frontmatter parse per item, needs nothing new on disk, and works on workspaces
+    filled in before this flag existed.
+
+    Ranked by how far down the pipeline the item's own last operation reached, then by
+    recency. Stage first because an interrupted run leaves half-finished items carrying the
+    newest timestamps, and the page should be rebuilt from the result that got furthest
+    rather than from whatever was written last. Ranking on the number of history entries
+    instead is not enough: a run stopped after concepts and a finished older run both have
+    the same count, and recency would then hand the export the item that never got an
+    index. The measured workspace holds exactly that pair.
+    """
+    from frontmatter_format import fmf_read_frontmatter
+    from kash.file_storage.store_filenames import folder_for_type, parse_item_filename
+    from kash.model import ItemType
+    from kash.model.paths_model import StorePath
+    from kash.utils.errors import InvalidFilename
+
+    wanted = _source_aliases(source)
+    docs_dir = workspace.base_dir / folder_for_type(ItemType.doc)
+    best: tuple[int, str, StorePath] | None = None
+    for path in sorted(docs_dir.glob("*")):
+        if not path.is_file():
+            continue
+        try:
+            _name, item_type, _format, _ext = parse_item_filename(path)
+        except InvalidFilename:
+            continue
+        if item_type is not ItemType.doc:
+            continue
+        try:
+            metadata = fmf_read_frontmatter(path)
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            # One unreadable file must not hide the result sitting beside it.
+            log.info("Skipping unreadable item while looking for a cached export: %s", error)
+            continue
+        if not metadata or metadata.get("url") not in wanted:
+            continue
+        stage = _stage_rank(metadata.get("history"))
+        created_at = str(metadata.get("created_at") or "")
+        candidate = (stage, created_at, StorePath(path.relative_to(workspace.base_dir)))
+        if best is None or candidate[:2] > best[:2]:
+            best = candidate
+    return best[2] if best else None
+
+
+def export_only(
+    ws_root: Path,
+    url: str,
+    *,
+    no_minify: bool = False,
+    elements: list[str] | None = None,
+    report: bool = False,
+) -> TranscriptionOutputs:
+    """
+    Rebuild the page from the cached final item, running no stage of the pipeline.
+
+    What a template edit or a different `--elements` selection needs: the analysis is
+    already done and correct, and only the rendering changed. Nothing here fetches, asks
+    a model, or calls Deepgram — the item is loaded from the workspace and handed to the
+    same `format_results` a normal run ends with.
+
+    Raises:
+        NoCachedResult: when the workspace holds no finished run for this source.
+    """
+    from kash.config.setup import kash_setup
+    from kash.exec import kash_runtime
+
+    kash_setup(kash_ws_root=ws_root, rich_logging=True)
+    ws_path = ws_root / "workspace"
+
+    with kash_runtime(ws_path) as runtime:
+        workspace = runtime.workspace
+        store_path = find_exported_item(workspace, url)
+        if store_path is None:
+            raise NoCachedResult(
+                f"No cached result for {url} in {workspace.base_dir}. "
+                "Run the same command without --export-only first."
+            )
+        log.info("Re-exporting the cached result at %s", store_path)
+        result_item = workspace.load(store_path)
+        transcript_path, html_path = format_results(
+            result_item, workspace.base_dir, no_minify=no_minify, elements=elements
+        )
+        return TranscriptionOutputs(
+            transcript_path,
+            html_path,
+            report=_build_report(result_item) if report else None,
+        )
 
 
 PAGE_ELEMENTS = (

@@ -382,6 +382,14 @@ def _add_transcription_arguments(
         ),
     )
     execution.add_argument(
+        "--export-only",
+        action="store_true",
+        help=(
+            "Rebuild the HTML from the cached final item without running any stage, for a "
+            "template or --elements change"
+        ),
+    )
+    execution.add_argument(
         "--json",
         action="store_true",
         help="Print final workspace and artifact paths as JSON",
@@ -835,11 +843,16 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         console_log_level=LogLevel.warning,
     )
 
+    if args.export_only and (args.rerun or args.rerun_processing):
+        parser.error("--export-only runs no stage, so it cannot be combined with a rerun flag")
+
     # Fail fast, after kash setup has loaded .env files, if required keys are absent.
     from deep_transcribe.api_keys import format_missing_keys_message, missing_api_keys
 
     options = _build_transcribe_options(args)
-    missing_keys = missing_api_keys(options, workspace)
+    # Re-exporting calls no service, so a workspace can be re-rendered on a machine that
+    # has no keys at all.
+    missing_keys = [] if args.export_only else missing_api_keys(options, workspace)
     if missing_keys:
         if args.json:
             print(
@@ -860,7 +873,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(2)
 
     try:
-        from deep_transcribe.transcribe_commands import run_transcription
+        from deep_transcribe.transcribe_commands import NoCachedResult, run_transcription
 
         elements = None
         if args.elements:
@@ -879,20 +892,36 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         except ValueError as error:
             parser.error(str(error))
 
-        outputs = run_transcription(
-            workspace,
-            args.source,
-            options,
-            args.language,
-            transcription_model=args.transcription_model,
-            diarize_model=args.diarize_model,
-            metadata=metadata,
-            no_minify=args.no_minify,
-            rerun=args.rerun,
-            rerun_processing=args.rerun_processing,
-            elements=elements,
-            report=args.report,
-        )
+        if args.export_only:
+            from deep_transcribe.transcribe_commands import export_only
+
+            # Naming the wrong workspace or the wrong source is a mistake about the
+            # command, so it gets the one usage line rather than the failure report.
+            try:
+                outputs = export_only(
+                    workspace,
+                    args.source,
+                    no_minify=args.no_minify,
+                    elements=elements,
+                    report=args.report,
+                )
+            except NoCachedResult as error:
+                parser.error(str(error))
+        else:
+            outputs = run_transcription(
+                workspace,
+                args.source,
+                options,
+                args.language,
+                transcription_model=args.transcription_model,
+                diarize_model=args.diarize_model,
+                metadata=metadata,
+                no_minify=args.no_minify,
+                rerun=args.rerun,
+                rerun_processing=args.rerun_processing,
+                elements=elements,
+                report=args.report,
+            )
         display_results(
             workspace,
             outputs.transcript_path,

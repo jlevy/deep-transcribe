@@ -1,9 +1,10 @@
 # pyright: reportPrivateUsage=false
 
 import logging
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from kash.model import Item, ItemType
@@ -589,6 +590,7 @@ def test_keeping_back_channels_leaves_every_turn_standing(
     assert "[DHH: Mhmm.]" not in body
     assert "**DHH:** Mhmm." in body
 
+
 REPORT_SOURCE_URL = "https://example.com/report-recording"
 """The source the reported item claims, so the re-export lookup has something to match."""
 
@@ -813,3 +815,146 @@ def test_a_run_asked_for_a_report_describes_the_item_it_exported(
         "en",
     )
     assert plain.report is None
+
+
+def test_pipeline_stage_order_covers_the_stages_the_pipeline_runs() -> None:
+    """
+    Pin the ranking's stage list to the pipeline it describes.
+
+    `find_exported_item` ranks stored items by how far each got, which is only meaningful
+    while this tuple lists the stages in the order `_process_transcript` applies them. The
+    check is against the source of that function, so reordering or renaming a stage there
+    without touching the tuple fails here rather than silently degrading a re-export into
+    picking the wrong item.
+    """
+    import inspect
+
+    from deep_transcribe.transcribe_commands import PIPELINE_STAGE_ORDER, _process_transcript
+
+    source = inspect.getsource(_process_transcript)
+    # The stages that appear as `result = <stage>(...)` in the body, in body order.
+    called = re.findall(r"result = (\w+)\(", source)
+    known = [name for name in called if name in PIPELINE_STAGE_ORDER]
+
+    assert known, f"no stage in {PIPELINE_STAGE_ORDER} is called in _process_transcript"
+    ranks = [PIPELINE_STAGE_ORDER.index(name) for name in known]
+    assert ranks == sorted(ranks), (
+        f"_process_transcript runs {known}, which is not the order PIPELINE_STAGE_ORDER lists"
+    )
+
+
+def _write_doc(
+    docs_dir: Path, name: str, *, last_stage: str, created_at: str, url: str = REPORT_SOURCE_URL
+) -> None:
+    """A stored doc item with the history and timestamp the ranking reads, and nothing else."""
+    import yaml
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "type": "doc",
+        "format": "md_html",
+        "url": url,
+        "created_at": created_at,
+        "history": [{"action_name": "transcribe"}, {"action_name": last_stage}],
+    }
+    frontmatter = yaml.safe_dump(metadata, sort_keys=True)
+    (docs_dir / f"{name}.doc.md").write_text(
+        f"---\n{frontmatter}---\n\n## A section\n", encoding="utf-8"
+    )
+
+
+def test_the_re_export_prefers_a_finished_run_over_a_newer_unfinished_one(
+    tmp_path: Path,
+) -> None:
+    """
+    The case the measured workspace holds: a run that died after concepts sits beside an
+    older run that finished, and the newer one has the newer timestamp and just as many
+    history entries. Rebuilding the page from the item that never reached the index loses
+    the index, the timeline and the concept map, and the only sign is a thinner page.
+
+    Ranking on how far each run actually got is what separates them, so this is the check
+    that a count of history entries cannot pass.
+    """
+    from deep_transcribe.transcribe_commands import find_exported_item
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    _write_doc(
+        docs,
+        "finished_older",
+        last_stage="attach_transcript_index",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    _write_doc(
+        docs,
+        "unfinished_newer",
+        last_stage="extract_transcript_concepts",
+        created_at="2026-06-01T00:00:00Z",
+    )
+
+    found = find_exported_item(cast("Any", Stub), REPORT_SOURCE_URL)
+
+    assert found is not None
+    assert Path(found).name == "finished_older.doc.md", (
+        "the re-export took the newer half-finished item over the finished one"
+    )
+
+
+def test_the_re_export_takes_the_newest_of_two_finished_runs(tmp_path: Path) -> None:
+    """Two complete runs in one workspace: the page should come from the later result."""
+    from deep_transcribe.transcribe_commands import find_exported_item
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    _write_doc(
+        docs, "first_run", last_stage="attach_transcript_index", created_at="2026-01-01T00:00:00Z"
+    )
+    _write_doc(
+        docs, "second_run", last_stage="attach_transcript_index", created_at="2026-06-01T00:00:00Z"
+    )
+
+    found = find_exported_item(cast("Any", Stub), REPORT_SOURCE_URL)
+
+    assert found is not None
+    assert Path(found).name == "second_run.doc.md"
+
+
+def test_the_re_export_ignores_items_from_another_source(tmp_path: Path) -> None:
+    """One workspace can hold several recordings; a re-export must not cross between them."""
+    from deep_transcribe.transcribe_commands import find_exported_item
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    _write_doc(
+        docs,
+        "another_recording",
+        last_stage="attach_transcript_index",
+        created_at="2026-06-01T00:00:00Z",
+        url="https://example.com/something-else",
+    )
+
+    assert find_exported_item(cast("Any", Stub), REPORT_SOURCE_URL) is None
+
+
+def test_re_exporting_a_workspace_with_no_run_says_so(tmp_path: Path) -> None:
+    """
+    The mistyped workspace or source. The answer is one line the CLI turns into a usage
+    error, not a traceback and not an empty page.
+    """
+    from deep_transcribe.transcribe_commands import NoCachedResult, export_only
+
+    ws_root = _own_workspace(tmp_path)
+    ws_root.mkdir(parents=True)
+
+    with pytest.raises(NoCachedResult) as raised:
+        export_only(ws_root, REPORT_SOURCE_URL)
+
+    message = str(raised.value)
+    assert REPORT_SOURCE_URL in message
+    assert "--export-only" in message

@@ -173,7 +173,8 @@ iterations.
 
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
-| See what the last run produced before deciding what to change | Add `--report` | Reuses everything; the report is read from the final item |
+| See what the last run produced before deciding what to change | Add `--report`, or `--report --export-only` to read an existing workspace without running anything | Reuses everything; the report is read from the final item |
+| Rebuild the HTML after a template or `--elements` change | Add `--export-only` | Runs no stage at all and re-renders the cached final item |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
 | Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses everything through section headings and resumes at the outline; about 20 minutes on a five-hour recording |
 | Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
@@ -377,6 +378,8 @@ invisible in a five-hour transcript and obvious in that list, and each variant i
 `--key-term` worth passing on the next run.
 With `--json` the same report is folded into the output under a `report` key, so one parse
 gets both the paths and the counts.
+Add `--export-only` alongside it to report on a workspace that is already finished without
+running any stage.
 
 ### Save the HTML as a PDF
 
