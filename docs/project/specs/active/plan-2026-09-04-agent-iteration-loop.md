@@ -127,6 +127,8 @@ option. No change to existing flag semantics.
 - [x] Recipe replacements after speech-to-text; Omachi 19 → 0 on the real transcript.
   (dt-il5d)
 - [x] Rerun the Lex #501 recipe and record the result in its README.
+- [x] `--rerun-from STAGE`: set a stage's cached results aside and rerun, for the case
+  where a stage's code changed. Refuses `transcribe`. (dt-8cd9)
 
 ## Testing Strategy
 
