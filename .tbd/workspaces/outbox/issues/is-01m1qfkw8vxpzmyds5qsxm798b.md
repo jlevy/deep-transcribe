@@ -3,9 +3,9 @@ type: is
 id: is-01m1qfkw8vxpzmyds5qsxm798b
 title: "Lex #501: highest-quality end-to-end result for owner review"
 kind: task
-status: open
+status: closed
 priority: 0
-version: 13
+version: 14
 spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
@@ -18,7 +18,11 @@ child_order_hints:
   - is-01m1qg4dq34m5rynfm9m94739m
   - is-01m1rg10ga7gzk0hcsax2vv1e1
 created_at: 2026-09-05T00:31:09.082Z
-updated_at: 2026-09-05T09:57:33.833Z
+updated_at: 2026-09-05T10:18:27.761Z
+closed_at: 2026-09-05T10:18:27.760Z
+close_reason: "Final export posted on PR #19 (03:20): 23 chapter sections with 177 sub-headings, 753 turns with 294 asides folded, Omachi 0, three segments in effect, 11 themes, synopsis per instructions; browser-verified; --report and the recipe README record it."
+resolution: null
+duplicate_of: null
 ---
 The owner's bar: the Lex Fridman #501 page, as high quality as the tool can make it, handed over for review — not merely a run that completes. Read the current export critically (speaker labels, section heading density and wording, synopsis, outline, theme names, concept glosses, sponsor and intro segments, proper-noun spelling such as Omarchy), collect every correction, apply them through the tool's own flags in as few reruns as possible (key terms, context, instructions, segment hints), and verify the result in a browser. Every correction that had no flag becomes a bead under the agent-iteration plan.
 

@@ -126,7 +126,7 @@ option. No change to existing flag semantics.
   follow-on. (dt-21df)
 - [x] Recipe replacements after speech-to-text; Omachi 19 → 0 on the real transcript.
   (dt-il5d)
-- [ ] Rerun the Lex #501 recipe and record the result in its README.
+- [x] Rerun the Lex #501 recipe and record the result in its README.
 
 ## Testing Strategy
 
