@@ -80,11 +80,14 @@ Verified on a fresh workspace with a short source, on the current code: an uncha
 rerun is 5 s with zero API calls; a `--segments` rerun does not repeat Deepgram or
 speaker correction.
 
-**Not verified:** any of today's fixes on the full recording. Hint exclusion was inert
-until this afternoon—no analysis stage received the hints—so the concept map, outline
-and synopsis have never been produced with a teaser actually excluded at scale. The
-frame floor, the reduce carrying instructions, and outward span rounding are likewise
-unrun at scale. A run is in flight as this is written.
+**Verified on the full recording with the current code** (export of 16:58, commit
+7eeb87d): 11 timeline rows, 173 frames with none broken, 13 themes holding 124 concepts,
+13 per-theme graphs with no chip at x=0, 27 outline groups, 0 warnings in a 96-minute
+run. Hint exclusion holds at scale: 0 of 681 concept mentions and 1 of 185 outline chips
+fall inside the hinted teaser, the one leak being the paragraph the pre-R7 rounded span
+misses. A same-hints rerun took 13 s. Two defects came out of the evidence and are
+tracked: the collapse renders one span as four per-section fragments (dt-4hwa), and
+thinning keeps about 170 of a 237 target on real spacing (dt-k1cf).
 
 ### What the docs claim that is false
 
