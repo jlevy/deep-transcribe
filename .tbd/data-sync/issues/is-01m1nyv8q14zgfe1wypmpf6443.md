@@ -3,14 +3,18 @@ type: is
 id: is-01m1nyv8q14zgfe1wypmpf6443
 title: Pass product and proper names to speech-to-text as key terms
 kind: feature
-status: open
+status: closed
 priority: 2
-version: 1
+version: 2
 labels: []
 dependencies: []
 parent_id: is-01m1n3knrvxt38paq147xp42s3
 created_at: 2026-09-04T10:18:50.976Z
-updated_at: 2026-09-04T10:18:50.976Z
+updated_at: 2026-09-05T10:18:28.014Z
+closed_at: 2026-09-05T10:18:28.013Z
+close_reason: "Delivered through the recipe: 17 key terms in docs/examples/lex-501/metadata.yml took Omarchy from 4 to 47 in the raw transcript; the residue is handled by replacements (dt-il5d)."
+resolution: null
+duplicate_of: null
 ---
 The transcription renders the same proper noun several ways, and every stage downstream
 inherits the variants.
