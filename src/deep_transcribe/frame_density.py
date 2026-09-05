@@ -31,8 +31,9 @@ TARGET_FRAMES_PER_HOUR = 45.0
 Frames per hour to thin a long recording down to.
 
 Measured: the 5.3-hour interview produced 502 frames at 95 an hour, a continuous ribbon
-down a 188,000 px page. At 45 an hour the same recording lands near 240, which reads as a
-column of stills rather than a ribbon.
+down a 188,000 px page. At 45 an hour the target is 237 and the picker keeps about 170 on
+the real, clustered spacing (168 and 173 on two runs), which reads as a column of stills
+rather than a ribbon.
 
 This is a long-form figure and is not derived from the short example — an earlier version
 of this docstring claimed a "22-minute example at 41 an hour", which does not exist in
