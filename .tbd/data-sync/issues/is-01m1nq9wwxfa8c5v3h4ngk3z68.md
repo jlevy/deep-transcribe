@@ -5,13 +5,13 @@ title: Keep hint reruns cheap and prove it
 kind: task
 status: open
 priority: 1
-version: 4
+version: 5
 spec_path: docs/project/specs/active/plan-2026-09-04-transcript-segments.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-04T08:07:01.788Z
-updated_at: 2026-09-04T20:32:58.565Z
+updated_at: 2026-09-05T00:02:06.111Z
 closed_at: 2026-09-04T18:27:41.675Z
 close_reason: "Both properties measured: an unchanged rerun costs 4 s with zero API calls, and adding a hint costs 48 s and 3 LLM calls while leaving speech-to-text, speaker correction, paragraphs and section headings untouched."
 resolution: null
@@ -45,4 +45,4 @@ Depends on the hints file format (dt-g4qm) existing first.
 
 ## Notes
 
-REOPENED. The measurement that closed this bead proved nothing. The PR #19 review found the hint-boundary run passed only because that workspace had already converged: earlier --context runs had stripped view_count and created extra.transcription, so the two shapes being compared were already identical. The branch's own dt-hintrerun.log shows the real behaviour: 31 min of correct_speaker_turns on a --segments rerun. Closing this on a converged workspace was my error.
+AT FULL SCALE (5h15m, current code): a rerun with the same hints in effect — the stored hints equal the file passed — completed in 13 s against a 96-minute pipeline, 0 Deepgram, everything cached. That is the unchanged-rerun property at scale. The cost of a CHANGED hint at scale is being measured now with the R7-corrected span (0:00:04 instead of the stored 0:00:05).

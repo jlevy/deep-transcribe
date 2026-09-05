@@ -5,13 +5,13 @@ title: Store analysis-only inputs outside the hashed metadata
 kind: feature
 status: open
 priority: 1
-version: 2
+version: 3
 spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-04T20:57:05.882Z
-updated_at: 2026-09-04T22:29:14.685Z
+updated_at: 2026-09-05T00:02:06.418Z
 ---
 Segment hints and processing instructions stick to the item on purpose, so a later run without the flag still honors them — pinned by test_processing_instructions_bypass_raw_and_formatting_cache_identity, and the reason a clear affordance is needed at all. But they are stored in item.extra, which is part of the file kash hashes, so CHANGING one re-runs paragraph formatting and section headings.
 
@@ -34,3 +34,7 @@ the write-back — that is the stickiness feature, and removing it fails the tes
 
 Not a regression from PR #19: the unchanged-rerun property works and is the common case.
 What does not hold is the claim that editing a hint is cheap.
+
+## Notes
+
+Context from the full-scale run: stickiness is what made the 'plain' pass apply the morning's hints and the 'hinted' pass a 13-second no-op. Whatever this bead decides must keep that no-op cheap.
