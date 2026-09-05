@@ -3,15 +3,19 @@ type: is
 id: is-01m1q3by2vaj7zs9cct9xqpsem
 title: Store analysis-only inputs outside the hashed metadata
 kind: feature
-status: open
+status: closed
 priority: 2
-version: 6
+version: 7
 spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-04T20:57:05.882Z
-updated_at: 2026-09-05T00:27:12.304Z
+updated_at: 2026-09-05T02:02:36.824Z
+closed_at: 2026-09-05T02:02:36.822Z
+close_reason: "Mechanism found and fixed: kash serializes original_filename, history and modified_at only when set, and sets them on load, so the first re-persist after a load changed the resource's hashed bytes and re-ran every stage below. Proven by the recorded sha1s and a line-level diff; persist_item_metadata now writes all three from the start; the byte-equality test fails with any one removed. Late inputs can stay on the resource — the cost was never the hints."
+resolution: null
+duplicate_of: null
 ---
 Segment hints and processing instructions stick to the item on purpose, so a later run without the flag still honors them — pinned by test_processing_instructions_bypass_raw_and_formatting_cache_identity, and the reason a clear affordance is needed at all. But they are stored in item.extra, which is part of the file kash hashes, so CHANGING one re-runs paragraph formatting and section headings.
 
