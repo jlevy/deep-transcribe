@@ -1220,3 +1220,30 @@ def test_fetched_chapters_reach_the_stored_resource_on_disk(
     # The volatile counter still goes, which is the other half of the same persist.
     assert "view_count" in before[0]
     assert "view_count" not in after
+
+
+def test_the_replacement_action_accepts_the_raw_html_transcript(tmp_path: Path) -> None:
+    """
+    Drives the ACTION on the shape the pipeline actually hands it: the raw transcript is
+    an HTML item. Guarded with `has_simple_text_body`, the action refused the real run
+    within ten seconds ("Precondition for action apply_transcript_replacements not
+    satisfied") while every test passed on plain-text fixtures — the same wired-path miss
+    this branch has shipped before. This test exists so it cannot recur.
+    """
+    from kash.exec import kash_runtime
+    from kash.model import Format, Item, ItemType
+
+    from deep_transcribe.transcript_replacements import apply_transcript_replacements
+
+    item = Item(
+        type=ItemType.doc,
+        format=Format.html,
+        body='<p><span class="speaker" data-name="Omachi">DHH:</span> Omachi is the distro.</p>',
+        extra={"transcription": {"replacements": {"Omachi": "Omarchy"}}},
+    )
+    with kash_runtime(tmp_path / f"ws-{tmp_path.name}"):
+        result = apply_transcript_replacements(item)
+
+    assert result.body
+    assert "Omarchy is the distro." in result.body, "the action did not run on an HTML item"
+    assert 'data-name="Omachi"' in result.body, "an attribute was rewritten"

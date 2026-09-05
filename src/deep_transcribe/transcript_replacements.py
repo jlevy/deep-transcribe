@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 from kash.config.logger import get_logger
 from kash.exec import kash_action
-from kash.exec.preconditions import has_simple_text_body
+from kash.exec.preconditions import has_body
 from kash.model import Item
 from kash.utils.errors import InvalidInput
 
@@ -85,7 +85,10 @@ def apply_replacements(text: str, replacements: Mapping[str, str]) -> tuple[str,
     return "".join(parts), counts
 
 
-@kash_action(precondition=has_simple_text_body)
+# `has_body`, not `has_simple_text_body`: the raw transcript this runs on first is an HTML
+# item, and the stricter precondition refused it on the real pipeline while every test
+# passed on plain-text fixtures. Tags and attributes are cut out below before replacing.
+@kash_action(precondition=has_body)
 def apply_transcript_replacements(item: Item) -> Item:
     """
     Correct recurring misrecognized words in the transcript body.
