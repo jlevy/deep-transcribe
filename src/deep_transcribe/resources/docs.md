@@ -169,8 +169,7 @@ iterations.
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
-| Edit a segment in a hints file the source already carries | Run the same command with `--segments PATH` | Reuses everything through section headings and resumes at the outline; about 20 minutes on a five-hour recording |
-| Give a source its first hints file | Run the same command with `--segments PATH` | Reuses the cached transcript and speaker correction; repeats paragraph formatting and section headings once, about 45 minutes on a five-hour recording |
+| Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses everything through section headings and resumes at the outline; about 20 minutes on a five-hour recording |
 | Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |

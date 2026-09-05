@@ -519,6 +519,24 @@ def persist_item_metadata(item: Item, workspace: FileStore) -> None:
     """
     if not item.store_path:
         raise ValueError("Cannot persist metadata for an unsaved item")
+    # kash sets original_filename when it loads an item and leaves it unset on one built in
+    # memory, and serializes it either way. So the first persist after a load changes the
+    # stored bytes by exactly that line, and every action that hashes the file re-runs once
+    # — which on a five-hour recording is speaker correction, paragraphs and section
+    # headings. Measured on a fresh workspace: resource sha1 ac09fe6b on the first run,
+    # 12d98647 on the resume, with original_filename None -> set the only source-side
+    # difference. Writing it from the start makes the first save and every later one agree.
+    if not item.original_filename:
+        item.original_filename = Path(str(item.store_path)).name
+    # Two more fields kash fills on load and leaves unset on a fresh item, both serialized
+    # only when set: history becomes [], and modified_at is read back from the file (the
+    # upload date on a fetched URL resource, the file's mtime otherwise). Pinning them here
+    # makes the first save byte-identical to every later one. "Unmodified since creation"
+    # is the truthful value for a never-modified item, and it is stable across loads.
+    if item.history is None:
+        item.history = []
+    if item.modified_at is None:
+        item.modified_at = item.created_at
     if item.format and item.format.supports_frontmatter:
         workspace.save(item, overwrite=True)
     else:
@@ -790,3 +808,31 @@ def test_an_emptied_mapping_survives_when_something_else_remains() -> None:
     remove_segment_hints(item)
 
     assert (item.extra or {})["transcription"] == {"speaker_roster": ["A", "B"]}
+
+
+def test_the_first_persist_writes_the_same_bytes_as_a_persist_after_load(tmp_path: Path) -> None:
+    """
+    Every action hashes the stored file. On a fresh workspace the first persist of a
+    resource wrote different bytes from the next one, because kash fills original_filename
+    only when it loads an item. That single line re-ran speaker correction, paragraphs and
+    section headings once per workspace, and looked for a whole day like "the first hints
+    file is expensive".
+    """
+    from kash.exec import kash_runtime
+    from kash.model import Format, StorePath
+    from kash.utils.common.url import Url
+
+    with kash_runtime(tmp_path / f"ws-{tmp_path.name}") as rt:
+        item = Item(
+            type=ItemType.resource, format=Format.url, url=Url("https://example.test/v"), title="T"
+        )
+        rt.workspace.save(item)
+        assert item.store_path
+        persist_item_metadata(item, rt.workspace)
+        stored = rt.workspace.base_dir / str(item.store_path)
+        first = stored.read_bytes()
+
+        loaded = rt.workspace.load(StorePath(str(item.store_path)))
+        persist_item_metadata(loaded, rt.workspace)
+
+        assert stored.read_bytes() == first, "a persist after load changed the stored bytes"
