@@ -19,14 +19,14 @@ subcommands, stale examples, and wrapping changes are visible in review.
 $ deep-transcribe --help
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--elements PARTS] [--no-minify] [--context TEXT]
-                       [--context-file PATH] [--segments PATH]
-                       [--instructions TEXT] [--instructions-file PATH]
-                       [--title TEXT] [--description TEXT]
-                       [--metadata YAML_OR_JSON] [--key-term TERM]
-                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
-                       [--workspace WORKSPACE] [--models [PROFILE]]
-                       [--language LANGUAGE]
+                       [--keep-backchannel] [--elements PARTS] [--no-minify]
+                       [--context TEXT] [--context-file PATH]
+                       [--segments PATH] [--instructions TEXT]
+                       [--instructions-file PATH] [--title TEXT]
+                       [--description TEXT] [--metadata YAML_OR_JSON]
+                       [--key-term TERM] [--speaker ID=NAME]
+                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
+                       [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |
@@ -64,7 +64,7 @@ Custom Processing:
                         insert_section_headings, research_paras,
                         add_summary_bullets, add_description,
                         insert_frame_captures, build_index, extract_concepts,
-                        web_search
+                        web_search, keep_back_channel
   --concepts            Extract a concept map: key concepts with glosses,
                         timeline spans, and relations, shown in the
                         transcript's analytics views (included in --deep)
@@ -72,6 +72,11 @@ Custom Processing:
                         Let the speaker roster step corroborate facts with web
                         search (off by default; source metadata and your own
                         context are used either way)
+  --keep-backchannel, --keep_backchannel
+                        Keep one-word acknowledgement turns (Mhmm, Yeah,
+                        Right) as their own paragraphs; by default they are
+                        folded into the previous paragraph as a bracketed
+                        aside
   --elements PARTS      Comma-separated page parts to include in the HTML
                         export (default: everything). Choices: title,
                         thumbnail, summary, timeline, speakers, outline,
@@ -215,14 +220,14 @@ $ deep-transcribe --models anthropic --workspace ./output --json && \
 $ deep-transcribe --models invalid --workspace ./output 2>&1
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--elements PARTS] [--no-minify] [--context TEXT]
-                       [--context-file PATH] [--segments PATH]
-                       [--instructions TEXT] [--instructions-file PATH]
-                       [--title TEXT] [--description TEXT]
-                       [--metadata YAML_OR_JSON] [--key-term TERM]
-                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
-                       [--workspace WORKSPACE] [--models [PROFILE]]
-                       [--language LANGUAGE]
+                       [--keep-backchannel] [--elements PARTS] [--no-minify]
+                       [--context TEXT] [--context-file PATH]
+                       [--segments PATH] [--instructions TEXT]
+                       [--instructions-file PATH] [--title TEXT]
+                       [--description TEXT] [--metadata YAML_OR_JSON]
+                       [--key-term TERM] [--speaker ID=NAME]
+                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
+                       [--models [PROFILE]] [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--json] [--docs | --skill |

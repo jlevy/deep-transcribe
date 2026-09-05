@@ -209,6 +209,17 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--keep-backchannel",
+        "--keep_backchannel",
+        dest="keep_backchannel",
+        action="store_true",
+        help=(
+            "Keep one-word acknowledgement turns (Mhmm, Yeah, Right) as their own "
+            "paragraphs; by default they are folded into the previous paragraph as a "
+            "bracketed aside"
+        ),
+    )
+    processing.add_argument(
         "--elements",
         type=str,
         metavar="PARTS",
@@ -668,11 +679,13 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
     if args.concepts:
         options = options.merge_with(TranscribeOptions(extract_concepts=True))
 
-    # Presets do not carry this: it is an explicit opt-in that must outlive them.
-    if args.web_search:
-        from dataclasses import replace
+    # Presets do not carry these: they are explicit choices that must outlive them.
+    from dataclasses import replace
 
+    if args.web_search:
         options = replace(options, web_search=True)
+    if args.keep_backchannel:
+        options = replace(options, keep_back_channel=True)
 
     return options
 

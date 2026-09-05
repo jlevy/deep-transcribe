@@ -12,7 +12,8 @@ class TranscribeOptions:
     1. Basic transcription (always performed)
     2. Formatting pipeline (if format=True):
        - Speaker identification (if identify_speakers=True)
-       - HTML stripping, paragraph breaking, timestamp backfilling
+       - HTML stripping, paragraph breaking, back-channel folding (unless
+         keep_back_channel=True), timestamp backfilling
     3. Annotation steps (applied individually if enabled):
        - Section headings
        - Paragraph research
@@ -50,6 +51,9 @@ class TranscribeOptions:
 
     web_search: bool = False
     """Let the speaker roster step corroborate facts with web search."""
+
+    keep_back_channel: bool = False
+    """Leave one-word acknowledgement turns as their own paragraphs instead of folding them."""
 
     @classmethod
     def basic(cls) -> TranscribeOptions:

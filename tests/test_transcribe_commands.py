@@ -473,3 +473,118 @@ def test_a_run_with_no_hints_at_all_gets_a_suggestion(
 
     assert path.exists()
     assert "0:00:04 - 0:01:49" in path.read_text()
+
+
+def _speaker_label(speaker_id: int, name: str) -> str:
+    return f'<span class="speaker-label" data-speaker-id="{speaker_id}">**{name}:**</span>'
+
+
+def _exchange_with_back_channels() -> Item:
+    """
+    A five-turn exchange in the shape the transcribe stage hands downstream, two of whose
+    turns are nothing but an acknowledgement.
+
+    Taken from the measured recording, where turns like these run to several hundred.
+    """
+    from kash.model import Format
+
+    body = "\n\n".join(
+        f'{_speaker_label(speaker_id, name)} <span data-timestamp="{timestamp}">{text}</span>'
+        for speaker_id, name, timestamp, text in [
+            (0, "DHH", "313.84", "Everything turned from, like, this glamour, the pop."),
+            (1, "Lex Fridman", "314.76", "Great regression."),
+            (0, "DHH", "314.77", "So"),
+            (1, "Lex Fridman", "314.83", "They niche in, you know, eternal recurrence."),
+            (0, "DHH", "320.10", "Mhmm."),
+        ]
+    )
+    return Item(
+        type=ItemType.doc,
+        format=Format.html,
+        title="A recording",
+        body=body + "\n",
+    )
+
+
+def _body_reaching_backfill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options: TranscribeOptions
+) -> str:
+    """
+    Run the real formatting pipeline and return the body `backfill_timestamps` is handed.
+
+    Only that one stage is replaced, and only because it reads timestamps back off the
+    media resource the doc was derived from, which a synthetic item has not got. Every
+    other stage runs for real: `break_into_paragraphs` skips itself on a doc this small,
+    so nothing here calls a model.
+
+    Reading the body at that point is what pins the fold's position in the pipeline — a
+    fold that happened after backfill would leave the timestamps it is supposed to remove.
+    """
+    import kash.kits.media.actions.transcribe.backfill_timestamps as backfill_module
+    from kash.exec import kash_runtime
+    from kash.model import Format
+
+    seen: list[str] = []
+
+    def fake_backfill(item: Item, **_kwargs: object) -> Item:
+        seen.append(item.body or "")
+        return item.derived_copy(type=ItemType.doc, format=Format.md_html)
+
+    monkeypatch.setattr(backfill_module, "backfill_timestamps", fake_backfill)
+
+    with kash_runtime(_own_workspace(tmp_path)):
+        transcribe_commands._process_transcript(
+            _exchange_with_back_channels(),
+            options,
+            processing_instructions=None,
+            segment_hints=None,
+        )
+
+    assert len(seen) == 1, f"expected one backfill call, got {len(seen)}"
+    return seen[0]
+
+
+def _turn_count(body: str) -> int:
+    """Speaker turns, counted the way the rendered page shows them: one per labelled paragraph."""
+    import re
+
+    return len(re.findall(r"(?:\A|\n\s*\n)\s*\*\*[^*\n]+:\*\*", body))
+
+
+def _paragraph_holding(body: str, text: str) -> str:
+    """
+    The paragraph containing `text`, which is the unit that matters here.
+
+    The aside is appended to the paragraph, not to its last line: saving the item runs the
+    Markdown formatter, which puts a sentence on a line of its own. Same paragraph either
+    way, and one timestamp chip either way, so the check is paragraph membership.
+    """
+    import re
+
+    holders = [p for p in re.split(r"\n[ \t]*\n", body) if text in p]
+    assert len(holders) == 1, f"expected one paragraph holding {text!r}, got {len(holders)}"
+    return holders[0]
+
+
+def test_the_formatting_pipeline_folds_back_channel_turns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two of the five turns carry no content, and by default they stop being turns."""
+    body = _body_reaching_backfill(tmp_path, monkeypatch, TranscribeOptions(format=True))
+
+    assert _turn_count(body) == 3
+    assert "[DHH: So]" in _paragraph_holding(body, "Great regression.")
+    assert "[DHH: Mhmm.]" in _paragraph_holding(body, "eternal recurrence.")
+
+
+def test_keeping_back_channels_leaves_every_turn_standing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--keep-backchannel` reaches the pipeline, and nothing is folded."""
+    body = _body_reaching_backfill(
+        tmp_path, monkeypatch, TranscribeOptions(format=True, keep_back_channel=True)
+    )
+
+    assert _turn_count(body) == 5
+    assert "[DHH: Mhmm.]" not in body
+    assert "**DHH:** Mhmm." in body

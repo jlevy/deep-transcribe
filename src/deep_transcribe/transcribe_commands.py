@@ -255,7 +255,10 @@ def _process_transcript(
         add_transcript_description,
         add_transcript_outline,
     )
-    from deep_transcribe.transcript_spacing import normalize_transcript_fragments
+    from deep_transcribe.transcript_spacing import (
+        fold_back_channel_turns,
+        normalize_transcript_fragments,
+    )
 
     # Sanitize legacy raw-cache entries that may still carry output-only inputs.
     remove_processing_instructions(result)
@@ -270,6 +273,10 @@ def _process_transcript(
         result = normalize_transcript_fragments(result)
         result = strip_html(result)
         result = break_into_paragraphs(result)
+        if not options.keep_back_channel:
+            # Paragraphs exist here but citations do not, so a folded turn simply stops
+            # being a paragraph and stops earning a timestamp of its own.
+            result = fold_back_channel_turns(result)
         result = backfill_timestamps(result)
         result = normalize_timestamp_citations(result)
 

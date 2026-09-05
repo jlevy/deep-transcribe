@@ -52,6 +52,11 @@ Choose the least expensive preset that produces the requested result:
 | `--annotated` | Formatting, sections, a synopsis, a structural outline, frames, and HTML |
 | `--deep` | Annotated output plus researched paragraph notes |
 
+From `--formatted` up, a turn that is nothing but an acknowledgement (`Mhmm.`, `Yeah.`,
+`So`) is folded into the end of the previous paragraph as an attributed aside like
+`[DHH: Mhmm.]` instead of getting a paragraph and a timestamp of its own, and
+`--keep-backchannel` leaves those turns standing.
+
 Use `--with STAGE[,STAGE]` to add individual stages to a preset.
 Run `deep-transcribe --help` for the current stage list and Deepgram model options.
 
