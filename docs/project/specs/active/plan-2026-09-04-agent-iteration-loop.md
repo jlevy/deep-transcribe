@@ -120,8 +120,10 @@ option. No change to existing flag semantics.
 
 - [ ] Back-channel folding, default on. Measure turn count before and after on Lex #501.
   (dt-aueh)
-- [ ] Heading density target with chapter skeleton. Measure heading count before and
-  after; verify outline, timeline rows and index with two heading levels. (dt-21df)
+- [ ] Publisher chapters as the H2 skeleton, model headings demoted to H3. The index,
+  outline and timeline already read only H2, so no downstream change is needed; Lex #501
+  goes from 206 sections to 23. A density cap for sources without chapters is a
+  follow-on. (dt-21df)
 - [ ] Rerun the Lex #501 recipe and record the result in its README.
 
 ## Testing Strategy
