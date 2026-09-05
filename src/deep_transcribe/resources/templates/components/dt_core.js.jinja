@@ -535,8 +535,23 @@
     );
   }
 
+  /* kash previews the target of every internal link on hover ("Section: …") and
+     holds the preview open after a click, so on the contents column every jump
+     raises a tooltip. The links are kash's own, made at load, and its scan runs
+     on the same DOMContentLoaded turn as this module, so the previews are taken
+     off once that turn is over. */
+  function muteContentsPreviews() {
+    setTimeout(() => {
+      if (typeof TooltipManager === "undefined") return;
+      document.querySelectorAll(".toc-container a[data-tooltip-trigger]").forEach((a) => {
+        TooltipManager.removeTooltip(a);
+      });
+    }, 0);
+  }
+
   function init() {
     if (window.location.protocol === "file:") enableFileProtocolFallback();
+    muteContentsPreviews();
     const index = parseIndex();
     if (!index) {
       window.DeepTranscript = Object.freeze({ ready: false });
