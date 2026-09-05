@@ -164,10 +164,38 @@ None new. `--segments none` / `--instructions none` (review R6) is landing separ
   option so a `--segments` rerun resumes at the outline. Then restore row 162 to its
   original wording, now true. (dt-xjlp)
 
-### Phase 3: Twelve hours
+### Phase 3: Twelve hours, by envelope
 
-- [ ] One real run on a 12-hour source, cost stated up front, per-stage times recorded,
-  the page verified. Only then does the 12-hour claim return to the docs. (dt-qc7j)
+The owner ruled out a real twelve-hour run: five hours proven end to end plus arithmetic
+showing every duration-scaling constraint clears at twelve is the bar. Ratio used: 12 h
+over the measured 5.26 h, or 2.28.
+
+| constraint | measured at 5.26 h | at 12 h | limit | clears |
+| --- | --- | --- | --- | --- |
+| media download on the workspace volume | 4.0 GB | ~9 GB | preflight checks free space (dt-bier) | yes |
+| 16 kHz mp3 sent to Deepgram | 54 MB | ~120 MB | 2 GB request cap | yes |
+| Deepgram processing time | 52 s | ~120 s | 600 s cap | yes |
+| client request budget | scales with duration | ~120 s needed | 7,200 s ceiling | yes |
+| speaker correction | 32 min, windowed | ~73 min | no single call grows | yes |
+| paragraph formatting | 11 min, `WINDOW_2K_WORDTOKS` | ~25 min | windowed | yes |
+| section headings | 32 min, `WINDOW_128_PARA` | ~73 min | windowed | yes |
+| outline and synopsis | 7 min, chunked | ~16 min | reduce reads summaries only | yes |
+| frame capture | 1,442 captured, 173 kept, 3 min | ~3,300 captured, ~390 kept, ~7 min | thinning target 45/h | yes |
+| concept extraction and reduce | 9 min, chunked; 125 concepts | ~21 min; ~285 concepts | batches of 25, ~12 batches | yes |
+| page | 181,000 px, 11 timeline rows | ~410,000 px, ~25 rows | panels collapse by theme | yes |
+| wall time, transcript cached | 96 min | ~3.7 h | none | — |
+
+No stage sends the whole transcript in one model call: the three expensive stages are
+windowed and the analysis stages are chunked, so every cost above is linear in duration.
+The speaker-roster step reads metadata abbreviated to 4,000 characters; the synopsis
+reduce reads chunk summaries; theme names are consolidated across batches in one bounded
+call.
+
+Residual risk, accepted: a windowed stage of ~73 minutes is one action, so a content
+failure inside it loses that stage rather than a window. kash retries HTTP 429 and 5xx;
+the cache resumes at the failed stage on rerun.
+
+- [x] Envelope recorded; dt-qc7j closed on it.
 
 ## Testing Strategy
 

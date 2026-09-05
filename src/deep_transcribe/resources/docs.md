@@ -61,7 +61,9 @@ Hours-long sources work end to end.
 The longest recording verified through the whole pipeline is a five-and-a-quarter-hour
 interview. Nothing in the design imposes a ceiling below twelve hours, but no recording
 that long has been run yet, so treat twelve hours as the design target rather than a
-tested limit.
+tested limit. Every stage whose cost grows with duration is windowed or chunked, so a
+twelve-hour recording is expected to take roughly four hours of wall time and to stay
+inside every provider cap by a wide margin.
 
 Nothing about the transcript is chunked or stitched together.
 Speech-to-text sends the audio as a single request, so timestamps come back on one

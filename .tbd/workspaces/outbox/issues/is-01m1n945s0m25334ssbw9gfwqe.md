@@ -3,9 +3,9 @@ type: is
 id: is-01m1n945s0m25334ssbw9gfwqe
 title: Support audio up to 12 hours end to end
 kind: feature
-status: open
+status: closed
 priority: 0
-version: 6
+version: 7
 spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
@@ -13,7 +13,11 @@ parent_id: is-01m1n3knrvxt38paq147xp42s3
 child_order_hints:
   - is-01m1q8mqkh4jy8q0cbg19dz2r6
 created_at: 2026-09-04T03:59:14.207Z
-updated_at: 2026-09-04T22:29:17.040Z
+updated_at: 2026-09-05T00:31:08.947Z
+closed_at: 2026-09-05T00:31:08.946Z
+close_reason: "Closed by envelope math, per the owner: five hours proven end to end; at twelve, every duration-scaling constraint clears — Deepgram 120 MB / 120 s against 2 GB / 600 s caps, ~9 GB download behind a preflight, and no stage sends the whole transcript in one call (speaker correction, paragraphs and headings are windowed; analysis is chunked). Expected wall ~3.7 h with the transcript cached. Table in the stabilization plan."
+resolution: null
+duplicate_of: null
 ---
 Target: 12 hours of audio works end to end.
 
