@@ -75,6 +75,12 @@ Do not guess unsupported names.
 
 ## Iterate on a Reviewed Result
 
+After each run, read `--report` (add `--json` to get it as data) before opening the page;
+it names the headings, themes, segments, speakers, frames, and spelling variants an
+agent needs to choose the next correction. Keep a source's recipe in one directory
+(`--metadata` file, `--segments` file, README with the command), as
+`docs/examples/lex-501/` does, and rebuild the page alone with `--export-only`.
+
 Preserve the exact source and workspace.
 Inspect the current transcript and HTML, update the private metadata or add requested
 processing instructions or stages, then run the same command normally.
