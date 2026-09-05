@@ -157,6 +157,7 @@
           model.tipContent({
             name: section.heading,
             time: `${model.formatTime(section.start)}–${model.formatTime(section.end)}`,
+            items: outlineBySection.get(section.id),
           })
         );
         block.addEventListener("click", () => model.playAt(section.start));
@@ -303,7 +304,10 @@
   }
 
   /* Top-level outline bullets that name a section get a click-to-seek time
-     chip, and hovering one highlights its block on the overview. */
+     chip, and hovering one highlights its block on the overview. The bullets
+     under each are kept by section, so the block's tooltip can show them. */
+  const outlineBySection = new Map();
+
   function crossReferenceOutline() {
     const outline = document.querySelector(".transcript-outline");
     if (!outline) return;
@@ -313,6 +317,10 @@
     outline.querySelectorAll("li > strong, li > p > strong").forEach((strong) => {
       const section = sectionsByHeading.get(strong.textContent.trim().toLowerCase());
       if (!section) return;
+      const bullets = [...strong.closest("li").querySelectorAll(":scope > ul > li")]
+        .map((li) => li.textContent.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      if (bullets.length) outlineBySection.set(section.id, bullets.slice(0, 6));
       const chip = document.createElement("span");
       chip.className = "dt-timestamp dt-time-chip dt-ui";
       chip.textContent = model.formatTime(section.start);

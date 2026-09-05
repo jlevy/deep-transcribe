@@ -248,17 +248,21 @@
     return groups;
   }
 
+  function countLabel(count) {
+    return `(${count} item${count === 1 ? "" : "s"})`;
+  }
+
   function buildThemeGroup(theme, count, collapsed, when) {
     const group = el("div", `dt-theme-group${collapsed ? " dt-collapsed" : ""}`);
     const head = el("button", "dt-theme-head");
     head.type = "button";
     head.setAttribute("aria-expanded", collapsed ? "false" : "true");
     head.appendChild(el("span", "dt-theme-name", theme));
+    head.appendChild(el("span", "dt-theme-count", countLabel(count)));
     // A conversation returns to its subjects, so the same theme heads more than one
     // stretch of the outline. Without the time they read as duplicates rather than as
     // the second and third time the subject came up.
     if (when) head.appendChild(el("span", "dt-theme-when dt-timestamp", when));
-    head.appendChild(el("span", "dt-theme-count", String(count)));
     head.addEventListener("click", () => {
       const nowCollapsed = !group.classList.contains("dt-collapsed");
       group.classList.toggle("dt-collapsed", nowCollapsed);
@@ -471,7 +475,7 @@
       inner.appendChild(li);
       current.body.appendChild(inner);
       const count = current.group.querySelector(".dt-theme-count");
-      count.textContent = String(current.body.querySelectorAll(":scope > ul > li").length);
+      count.textContent = countLabel(current.body.querySelectorAll(":scope > ul > li").length);
     }
     list.replaceWith(groups);
   }

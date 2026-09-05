@@ -117,6 +117,14 @@
      text inside visuals (timeline section names). --- */
   --dt-label-size: 0.78rem;
 
+  /* --- Label caps. The one place uppercase is decided: people's names (in their
+     speaker color) and entity kind tags take it; topics — concepts, themes, section
+     headings — never do, in the text, the panels, or a tooltip. Faux small caps,
+     not font-variant, which depends on the face. --- */
+  --dt-name-transform: uppercase;
+  --dt-name-size: 0.82em;
+  --dt-name-spacing: 0.05em;
+
   /* --- Heading scale. --- */
   --dt-h1-size: 1rem;        /* all-caps section headings */
   --dt-h1-spacing: 0.07em;

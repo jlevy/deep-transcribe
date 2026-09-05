@@ -307,7 +307,9 @@
       // The name appears once, colored like the transcript labels — name on
       // its own line means no colon, and the color makes a dot redundant.
       const name = document.createElement("span");
-      name.className = `dt-tip-name${opts.speakerClass ? ` ${opts.speakerClass}` : ""}`;
+      name.className = opts.speakerClass
+        ? `dt-tip-name dt-name ${opts.speakerClass}`
+        : "dt-tip-name";
       name.textContent = opts.name;
       head.appendChild(name);
     }
@@ -329,6 +331,16 @@
       text.className = "dt-tip-text";
       text.textContent = opts.text;
       content.appendChild(text);
+    }
+    if (opts.items && opts.items.length) {
+      const list = document.createElement("ul");
+      list.className = "dt-tip-list";
+      for (const item of opts.items) {
+        const li = document.createElement("li");
+        li.textContent = item;
+        list.appendChild(li);
+      }
+      content.appendChild(list);
     }
     if (opts.image) {
       const img = document.createElement("img");

@@ -24,17 +24,16 @@ strong.dt-speaker-label {
   margin-bottom: 0.05rem;
 }
 
-/* Names as faux small caps wherever they appear as a label: an uppercase transform
-   at reduced size with a little tracking. Never font-variant small-caps, which
-   depends on the face and is synthesized badly where it is missing. */
+/* People's names as faux small caps wherever they appear as a label, on the page
+   and in tooltips (see --dt-name-transform). A tooltip head carries .dt-name only
+   when it names a speaker; a section or concept in the same slot stays as written. */
 .dt-name,
-.dt-tip-name,
 .dt-stats .dt-speaker-name,
 .dt-claim-speaker,
 .dt-name-ref {
-  text-transform: uppercase;
-  font-size: 0.82em;
-  letter-spacing: 0.05em;
+  text-transform: var(--dt-name-transform);
+  font-size: var(--dt-name-size);
+  letter-spacing: var(--dt-name-spacing);
 }
 
 strong.dt-speaker-label .dt-colon {
@@ -413,6 +412,20 @@ body.yt-open #dt-rail {
   opacity: 1;
 }
 
+/* A section's tooltip lists its outline; a list needs more width than a name. */
+.dt-tip:has(.dt-tip-list) {
+  max-width: 24rem;
+}
+
+.dt-tip .dt-tip-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+}
+
+.dt-tip .dt-tip-list li + li {
+  margin-top: 0.2rem;
+}
+
 /* Transcript text inside a tooltip mirrors the prose: colored sans label,
    serif words. */
 .dt-tip .dt-tip-text {
@@ -604,12 +617,12 @@ body.yt-open #dt-rail {
 /* ---- Theme groups (long recordings only) ---- */
 
 .dt-theme-group {
-  border-top: 1px solid var(--color-hint);
-  margin-top: 1.4rem;
+  margin-top: 1rem;
 }
 
 /* The theme line reads as a row, not a control: the whole width is the target,
-   and the only chrome is the count and the marker. */
+   and the only chrome is the marker and the count that follows the name; no rule
+   between groups. */
 .dt-theme-head {
   display: flex;
   align-items: baseline;
@@ -644,13 +657,14 @@ body.yt-open #dt-rail {
 }
 
 .dt-theme-name {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
 }
 
 /* The time a theme's stretch begins, so a subject the conversation returns to reads as
    a second visit rather than a repeated heading. */
 .dt-theme-when {
   flex: none;
+  margin-left: auto;
   font-weight: 400;
 }
 
@@ -923,6 +937,13 @@ body.yt-open #dt-rail {
    grid the margin is taken from the column's own left edge instead, mirroring
    kash's centering formula and keeping the gutter shift. */
 @media screen and (min-width: 1200px) {
+  /* kash sizes the contents column at 21vw, 15rem to 26rem; on a wide screen that is
+     a third of the text width for a list of headings. 13 to 16rem is enough for a
+     heading to wrap to two lines, and the room goes to the rail and frames. */
+  body {
+    --toc-width: clamp(13rem, 16vw, 16rem);
+  }
+
   body.dt-on .content-with-toc.has-toc {
     --dt-col-ml: max(
       1rem,
