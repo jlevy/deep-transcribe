@@ -91,6 +91,20 @@ Two practical notes for long sources:
 Expect the wall-clock time of a long run to be dominated by downloading and by the LLM
 stages, not by speech-to-text: a five-hour recording transcribes in about a minute.
 
+Sections come from the publisher’s chapters when the source has them.
+The heading stage judges a topic change from the paragraphs in the window in front of it,
+which on a long recording means a heading every minute or two: 206 of them on a five-hour
+interview whose publisher had already written 23 chapters with the boundaries a human
+chose. Those chapters become the sections, and the model’s headings are kept underneath
+them as sub-headings, so the outline, the timeline, and the analytics views all follow the
+published structure while nothing the model found is lost.
+A boundary that falls in the middle of a paragraph opens the next one, so a section may
+start a few seconds later than the published time.
+Pass `--no-chapters` to ignore them and let the model’s headings be the sections.
+Chapters are read from the source once and stored with it, which puts them in the
+source’s cache identity, so a publisher who later edits the chapter list changes the
+source, and a rerun then repeats the whole pipeline, speech-to-text included.
+
 ## Supply Recording Context
 
 Raw media often lacks the names, roles, vocabulary, and chronology needed for accurate
@@ -206,6 +220,7 @@ iterations.
 | Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
 | Add or change a `--replace WRONG=RIGHT` correction | Run the same command with the new correction | Reuses the cached transcript and resumes at the correction stage, so every stage below it is redone |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
+| Turn the publisher’s chapters off or on | Run the same command with or without `--no-chapters` | Reuses the cached transcript and resumes at section headings |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |
 | Deliberately repeat every action | Add `--rerun` | Makes a new paid speech-to-text request |

@@ -18,6 +18,7 @@ from kash.exec.preconditions import (
 from kash.model import Item, Param
 from kash.model.params_model import common_params
 
+from deep_transcribe.chapter_headings import attach_publisher_chapters
 from deep_transcribe.disk_space import (
     check_download_space,
     check_frame_capture_space,
@@ -288,6 +289,12 @@ def _process_transcript(
     from kash.kits.media.actions.transcribe.backfill_timestamps import backfill_timestamps
     from kash.kits.media.actions.transcribe.insert_frame_captures import insert_frame_captures
 
+    from deep_transcribe.chapter_headings import (
+        demote_model_headings,
+        get_chapters,
+        has_timestamp_citations,
+        insert_chapter_headings,
+    )
     from deep_transcribe.timestamp_citations import normalize_timestamp_citations
     from deep_transcribe.transcript_overview import (
         add_transcript_description,
@@ -323,9 +330,26 @@ def _process_transcript(
         result = backfill_timestamps(result)
         result = normalize_timestamp_citations(result)
 
+    # The publisher's chapters are the section skeleton whenever the source has them, and
+    # the model's own headings become sub-headings underneath. `transcript_index` reads only
+    # `##`, so demoting to `###` is all it takes for the index, the outline chunking and the
+    # timeline to see 23 human sections on Lex #501 instead of 206 windowed guesses.
+    # A citation span is what a chapter boundary resolves against, so a body that has not
+    # been through timestamp backfilling has nothing to anchor to. Without chapters, or
+    # without anchors, both stages are skipped and the output is what it was.
+    use_chapters = (
+        not options.no_chapters
+        and bool(get_chapters(result))
+        and has_timestamp_citations(result.body or "")
+    )
+    if use_chapters:
+        result = insert_chapter_headings(result)
+
     # Apply annotation pipeline if requested
     if options.insert_section_headings:
         result = insert_section_headings(result)
+        if use_chapters:
+            result = demote_model_headings(result)
 
     if options.research_paras:
         result = research_paras(result)
@@ -582,6 +606,9 @@ def run_transcription(
             # stripping in memory is not enough — the stored metadata is what every action
             # hashes. Persist below when anything was removed.
             counters_stripped = strip_volatile_source_fields(item)
+            # Chapters are stable source data, so unlike the counters above they belong in
+            # cache identity. The fetch is metadata-only and costs a few seconds once.
+            chapters_added = attach_publisher_chapters(item)
             source_item = item
             source_metadata_changed = False
 
@@ -608,7 +635,12 @@ def run_transcription(
             old_metadata = item.metadata()
             if metadata:
                 apply_transcription_metadata(item, metadata)
-            if counters_stripped or source_metadata_changed or item.metadata() != old_metadata:
+            if (
+                counters_stripped
+                or chapters_added
+                or source_metadata_changed
+                or item.metadata() != old_metadata
+            ):
                 persist_item_metadata(item, runtime.workspace)
 
             result_item = transcribe_with_options(

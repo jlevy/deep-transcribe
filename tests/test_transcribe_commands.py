@@ -1055,3 +1055,168 @@ def test_re_exporting_a_workspace_with_no_run_says_so(tmp_path: Path) -> None:
     message = str(raised.value)
     assert REPORT_SOURCE_URL in message
     assert "--export-only" in message
+
+
+def _cited_paragraph(text: str, timestamp: float) -> str:
+    return (
+        f"{text}\n"
+        f'<span class="citation timestamp-link" data-src="resources/x.resource.yml" '
+        f'data-timestamp="{timestamp:.2f}">'
+        f'<a href="https://www.youtube.com/watch?v=x&amp;t={timestamp}s">{timestamp:.0f}</a>'
+        "</span>"
+    )
+
+
+def _fake_section_headings(item: Item) -> Item:
+    """
+    Stand in for the windowed LLM stage: one `##` heading above every paragraph.
+
+    Nothing here calls a model, but the real chapter stages run on either side of it, which
+    is the point — the demotion has to cope with whatever that stage actually emits.
+    """
+    blocks = (item.body or "").split("\n\n")
+    out: list[str] = []
+    for number, block in enumerate(blocks, start=1):
+        if "citation" in block:
+            out.append(f"## Model heading {number}")
+        out.append(block)
+    return item.derived_copy(body="\n\n".join(out))
+
+
+def test_publisher_chapters_become_the_sections_and_model_headings_go_under_them(
+    tmp_path: Path,
+) -> None:
+    """
+    Driven through `_process_transcript` rather than the two helpers, because the wiring is
+    the part that can break: the stages have to run in the right order, on either side of
+    the heading stage, and only when the resource actually carries chapters.
+    """
+    from unittest.mock import patch
+
+    from kash.exec import kash_runtime
+    from kash.model import Format
+    from kash.workspaces import current_ws
+
+    chapters = [
+        {"start_time": 0.0, "end_time": 60.0, "title": "Cold open"},
+        {"start_time": 60.0, "end_time": 300.0, "title": "The interview"},
+    ]
+    body = (
+        "\n\n".join(
+            _cited_paragraph(f"Paragraph at {ts:.0f} seconds.", ts)
+            for ts in (4.5, 30.0, 90.0, 150.0)
+        )
+        + "\n"
+    )
+
+    def run(extra: dict[str, Any], options: TranscribeOptions) -> str:
+        with kash_runtime(_own_workspace(tmp_path)):
+            item = Item(
+                type=ItemType.doc,
+                format=Format.md_html,
+                title="A chaptered recording",
+                extra=extra,
+                body=body,
+            )
+            current_ws().save(item)
+            with patch(
+                "kash.kits.docs.actions.text.insert_section_headings.insert_section_headings",
+                _fake_section_headings,
+            ):
+                result = transcribe_commands._process_transcript(
+                    item,
+                    options,
+                    processing_instructions=None,
+                )
+        assert result.body
+        return result.body
+
+    with_chapters = run({"chapters": chapters}, TranscribeOptions(insert_section_headings=True))
+    h2 = [line for line in with_chapters.splitlines() if line.startswith("## ")]
+    h3 = [line for line in with_chapters.splitlines() if line.startswith("### ")]
+
+    assert h2 == ["## Cold open", "## The interview"]
+    assert len(h3) == 4
+    assert len(h2) == len(chapters)
+
+    # And with the flag, or with no chapters at all, the model's headings stay the sections.
+    disabled = run(
+        {"chapters": chapters},
+        TranscribeOptions(insert_section_headings=True, no_chapters=True),
+    )
+    unchaptered = run({}, TranscribeOptions(insert_section_headings=True))
+
+    assert len([line for line in disabled.splitlines() if line.startswith("## ")]) == 4
+    assert "### " not in disabled
+    assert unchaptered == disabled
+
+
+def test_fetched_chapters_reach_the_stored_resource_on_disk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Drive the real CLI path: the chapters have to be in the resource file, not just in
+    memory.
+
+    kash's fetch has already written the resource by the time the chapters are read, and
+    every later action hashes what is on disk. An in-memory attachment alone would leave
+    the stored source without them, so the very next rerun would fetch and attach again and
+    the resource would never settle.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    from deep_transcribe import chapter_headings
+
+    stored_path: list[Path] = []
+    before: list[str] = []
+
+    def fake_prepare(_source: str) -> Item:
+        workspace = current_ws()
+        item = Item(
+            type=ItemType.resource,
+            format=Format.url,
+            url=Url("https://www.youtube.com/watch?v=abcdefghijk"),
+            title="Fixture",
+            extra={"media_service": "youtube", "view_count": 1_227_118},
+        )
+        workspace.save(item)
+        path = workspace.base_dir / str(item.store_path)
+        stored_path.append(path)
+        before.append(path.read_text())
+        return item
+
+    def fake_fetch(_url: str) -> list[dict[str, Any]]:
+        return [
+            {"start_time": 0.0, "end_time": 87.0, "title": "Episode highlight"},
+            {"start_time": 87.0, "end_time": 176.0, "title": "Introduction"},
+        ]
+
+    def fake_transcribe(item: Item, *_args: object, **_kwargs: object) -> Item:
+        return item
+
+    def fake_format(_result: Item, _base_dir: Path, **_kwargs: object) -> tuple[Path, Path]:
+        return Path("transcript.md"), Path("transcript.html")
+
+    monkeypatch.setattr(transcribe_commands, "_prepare_source_item", fake_prepare)
+    monkeypatch.setattr(chapter_headings, "_fetch_publisher_chapters", fake_fetch)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "format_results", fake_format)
+
+    with TemporaryDirectory() as temp_dir:
+        transcribe_commands.run_transcription(
+            Path(temp_dir),
+            "https://www.youtube.com/watch?v=abcdefghijk",
+            TranscribeOptions.basic(),
+            "en",
+        )
+        after = stored_path[0].read_text()
+
+    assert "Episode highlight" not in before[0]
+    assert "chapters" in after
+    assert "Episode highlight" in after
+    assert "Introduction" in after
+    # The volatile counter still goes, which is the other half of the same persist.
+    assert "view_count" in before[0]
+    assert "view_count" not in after

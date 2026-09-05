@@ -1175,3 +1175,37 @@ def test_export_only_refuses_to_be_combined_with_a_rerun(tmp_path: Path) -> None
 
         assert raised.value.code == 2
         assert "cannot be combined with a rerun flag" in errors.getvalue()
+
+
+def test_no_chapters_reaches_the_options_and_survives_every_preset() -> None:
+    """
+    The flag is an explicit choice, so it has to outlive the preset merge the way
+    `--web-search` does. Both are applied after the merges for exactly that reason.
+    """
+    from deep_transcribe.cli_main import (
+        _build_transcribe_options,  # pyright: ignore[reportPrivateUsage]
+    )
+
+    parser = build_parser()
+
+    default = _build_transcribe_options(parser.parse_args(["URL"]))
+    assert default.no_chapters is False
+    assert default.web_search is False
+
+    for arguments in (
+        ["--no-chapters", "URL"],
+        ["--deep", "--no-chapters", "URL"],
+        ["--basic", "--with", "format", "--no-chapters", "URL"],
+        ["--no_chapters", "URL"],
+    ):
+        options = _build_transcribe_options(parser.parse_args(arguments))
+        assert options.no_chapters is True, arguments
+
+    # And the two explicit choices do not cancel each other out.
+    both = _build_transcribe_options(parser.parse_args(["--web-search", "--no-chapters", "URL"]))
+    assert both.web_search is True
+    assert both.no_chapters is True
+
+    only_search = _build_transcribe_options(parser.parse_args(["--web-search", "URL"]))
+    assert only_search.web_search is True
+    assert only_search.no_chapters is False

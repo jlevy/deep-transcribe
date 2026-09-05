@@ -54,6 +54,16 @@ class TranscribeOptions:
 
     keep_back_channel: bool = False
     """Leave one-word acknowledgement turns as their own paragraphs instead of folding them."""
+    no_chapters: bool = False
+    """
+    Ignore the publisher's chapters instead of using them as the section skeleton.
+
+    Spelled as an opt-out rather than a default-on `use_chapters` because of how these
+    flags compose: `merge_with` ORs every field, so one that starts True can never be
+    turned off by a merge, and `get_enabled_options` reports whatever is truthy, which
+    would list a default-on stage in every preset's help — `--basic` included, which does
+    no formatting at all.
+    """
 
     @classmethod
     def basic(cls) -> TranscribeOptions:

@@ -231,6 +231,16 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--no-chapters",
+        "--no_chapters",
+        dest="no_chapters",
+        action="store_true",
+        help=(
+            "Ignore the chapters the publisher wrote and let the model's own section "
+            "headings be the sections (chapters are used whenever a source has them)"
+        ),
+    )
+    processing.add_argument(
         "--no-minify",
         "--no_minify",
         dest="no_minify",
@@ -739,6 +749,8 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
         options = replace(options, web_search=True)
     if args.keep_backchannel:
         options = replace(options, keep_back_channel=True)
+    if args.no_chapters:
+        options = replace(options, no_chapters=True)
 
     return options
 

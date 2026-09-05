@@ -19,8 +19,8 @@ subcommands, stale examples, and wrapping changes are visible in review.
 $ deep-transcribe --help
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--keep-backchannel] [--elements PARTS] [--no-minify]
-                       [--context TEXT] [--context-file PATH]
+                       [--keep-backchannel] [--elements PARTS] [--no-chapters]
+                       [--no-minify] [--context TEXT] [--context-file PATH]
                        [--segments PATH] [--instructions TEXT]
                        [--instructions-file PATH] [--title TEXT]
                        [--description TEXT] [--metadata YAML_OR_JSON]
@@ -66,7 +66,7 @@ Custom Processing:
                         insert_section_headings, research_paras,
                         add_summary_bullets, add_description,
                         insert_frame_captures, build_index, extract_concepts,
-                        web_search, keep_back_channel
+                        web_search, keep_back_channel, no_chapters
   --concepts            Extract a concept map: key concepts with glosses,
                         timeline spans, and relations, shown in the
                         transcript's analytics views (included in --deep)
@@ -83,6 +83,10 @@ Custom Processing:
                         export (default: everything). Choices: title,
                         thumbnail, summary, timeline, speakers, outline,
                         concepts, claims, frames, transcript
+  --no-chapters, --no_chapters
+                        Ignore the chapters the publisher wrote and let the
+                        model's own section headings be the sections (chapters
+                        are used whenever a source has them)
   --no-minify, --no_minify
                         Skip HTML, CSS, JavaScript, and Tailwind minification
 
@@ -232,8 +236,8 @@ $ deep-transcribe --models anthropic --workspace ./output --json && \
 $ deep-transcribe --models invalid --workspace ./output 2>&1
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--keep-backchannel] [--elements PARTS] [--no-minify]
-                       [--context TEXT] [--context-file PATH]
+                       [--keep-backchannel] [--elements PARTS] [--no-chapters]
+                       [--no-minify] [--context TEXT] [--context-file PATH]
                        [--segments PATH] [--instructions TEXT]
                        [--instructions-file PATH] [--title TEXT]
                        [--description TEXT] [--metadata YAML_OR_JSON]
