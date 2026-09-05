@@ -242,13 +242,12 @@ Feature changes, planned in `plan-2026-09-05-theme-grouping-across-the-page.md`:
 - [x] One unified concept graph with the themes as visible bands. (dt-td4s)
 - [x] Claims grouped by theme. (dt-r25q)
 
-Still open, waiting on the owner:
+Withdrawn and still open:
 
-- [ ] Print layout: text column too wide, margins too small. Measured identical to the
-  SNL reference PDF, so the owner is looking at a different document; which one is
-  the open question. (dt-8akr)
+- [x] Print layout: text column too wide, margins too small. Measured identical to the
+  SNL reference PDF; the owner withdrew the finding as a mistake. (dt-8akr)
 - [ ] The `>=` glyph in a title, to be set in a sans at the right weight. Not present
-  on the Lex page; same question. (dt-8qti)
+  on the Lex page; which document is the open question. (dt-8qti)
 
 ## Testing Strategy
 
