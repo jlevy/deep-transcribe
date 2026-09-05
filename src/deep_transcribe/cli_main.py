@@ -23,7 +23,7 @@ from deep_transcribe.model_profiles import (
     get_model_profile,
     set_model_profile,
 )
-from deep_transcribe.transcribe_options import TranscribeOptions
+from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER, TranscribeOptions
 
 if TYPE_CHECKING:
     from deep_transcribe.transcript_report import TranscriptReport
@@ -394,6 +394,16 @@ def _add_transcription_arguments(
         ),
     )
     execution.add_argument(
+        "--rerun-from",
+        metavar="STAGE",
+        choices=PIPELINE_STAGE_ORDER,
+        help=(
+            "Set aside this stage's cached results, and every cached result below them, then "
+            "rerun — what a change to the stage's own code needs, since a cached result is "
+            "keyed on its inputs and not on the code that made it (stages listed below)"
+        ),
+    )
+    execution.add_argument(
         "--report",
         action="store_true",
         help=(
@@ -444,6 +454,13 @@ def _help_epilog() -> str:
         stage while preserving the raw transcript. `--rerun` forces every stage,
         including speech-to-text.
 
+        **Stages accepted by `--rerun-from`,** in pipeline order:
+
+        """).strip()
+        + "\n\n"
+        + _rerun_from_stage_help()
+        + "\n\n"
+        + dedent("""
         Examples:
 
         ```shell
@@ -460,6 +477,13 @@ def _help_epilog() -> str:
         ```
         """).strip()
     )
+
+
+def _rerun_from_stage_help() -> str:
+    """The stage names `--rerun-from` accepts, wrapped to the help page's width."""
+    from textwrap import fill
+
+    return fill(", ".join(f"`{stage}`" for stage in PIPELINE_STAGE_ORDER), width=80)
 
 
 def _profile_help() -> str:
@@ -877,8 +901,14 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         console_log_level=LogLevel.warning,
     )
 
-    if args.export_only and (args.rerun or args.rerun_processing):
+    if args.export_only and (args.rerun or args.rerun_processing or args.rerun_from):
         parser.error("--export-only runs no stage, so it cannot be combined with a rerun flag")
+
+    if args.rerun_from and (args.rerun or args.rerun_processing):
+        parser.error(
+            "--rerun and --rerun-processing already rerun the stage --rerun-from names, "
+            "so combining them only moves cached results out of the way for nothing"
+        )
 
     # Fail fast, after kash setup has loaded .env files, if required keys are absent.
     from deep_transcribe.api_keys import format_missing_keys_message, missing_api_keys
@@ -953,6 +983,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
                 no_minify=args.no_minify,
                 rerun=args.rerun,
                 rerun_processing=args.rerun_processing,
+                rerun_from=args.rerun_from,
                 elements=elements,
                 report=args.report,
             )

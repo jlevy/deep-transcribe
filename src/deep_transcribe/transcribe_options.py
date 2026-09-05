@@ -131,3 +131,41 @@ class TranscribeOptions:
     def get_enabled_options(self) -> list[str]:
         """Get enabled option names."""
         return [field.name for field in fields(self) if getattr(self, field.name)]
+
+
+PIPELINE_STAGE_ORDER = (
+    "transcribe",
+    "apply_transcript_replacements",
+    "infer_speaker_roster_from_context",
+    "correct_speaker_turns",
+    "normalize_transcript_fragments",
+    "strip_html",
+    "break_into_paragraphs",
+    "fold_back_channel_turns",
+    "backfill_timestamps",
+    "normalize_timestamp_citations",
+    "insert_chapter_headings",
+    "insert_section_headings",
+    "demote_model_headings",
+    "research_paras",
+    "_attach_late_inputs",
+    "add_transcript_outline",
+    "add_transcript_description",
+    "insert_frame_captures",
+    "extract_transcript_concepts",
+    "attach_transcript_index",
+)
+"""
+The stages `_process_transcript` applies, in the order it applies them.
+
+Two things read it. A re-export ranks stored items by how far down the pipeline each one
+got, so it picks the result that reached furthest rather than whichever file was written
+last. And `--rerun-from` validates its argument against it and lists the names in
+`--help`, which is why the tuple lives in this kash-free module: building the parser must
+not pay for importing kash.
+
+It mirrors `_process_transcript` and is pinned to it by
+`test_pipeline_stage_order_covers_the_stages_the_pipeline_runs`; a stage this tuple does
+not know simply ranks below the ones it does, so a new stage degrades the ranking rather
+than breaking either flag.
+"""

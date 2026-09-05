@@ -221,6 +221,7 @@ iterations.
 | Add or change a `--replace WRONG=RIGHT` correction | Run the same command with the new correction | Reuses the cached transcript and resumes at the correction stage, so every stage below it is redone |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Turn the publisher’s chapters off or on | Run the same command with or without `--no-chapters` | Reuses the cached transcript and resumes at section headings |
+| A stage’s code changed | Add `--rerun-from STAGE` | Sets that stage’s cached results aside and reuses everything above it |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |
 | Deliberately repeat every action | Add `--rerun` | Makes a new paid speech-to-text request |
@@ -235,6 +236,19 @@ synopsis and outline stages.
 Use `--rerun-processing` when inputs outside the item metadata changed, such as a saved
 model profile, or when a complete semantic regeneration is the actual goal.
 Use `--rerun` only when a fresh Deepgram result is wanted.
+
+A cached result is keyed on the item that went into the stage and the stage’s name, never
+on the code that produced it, so fixing a stage and rerunning reuses the old, wrong output
+and finishes in seconds.
+`--rerun-from STAGE` is the narrow answer: it moves that stage’s cached results, and every
+cached result below them, into `set-aside/TIMESTAMP/` inside the workspace and then runs
+normally, so the run misses the cache exactly there and recomputes downward.
+Nothing is deleted — if the wrong stage was named, the items are still in that directory.
+`deep-transcribe --help` lists the stage names.
+Measured on the five-hour recording after `demote_model_headings` was fixed: a plain rerun
+took 45 seconds and changed nothing, `--rerun-processing` recomputes every
+post-transcription stage at about 96 minutes, and setting that stage and the six below it
+aside recomputed in about 20.
 
 ### Set Aside Parts That Are Not the Conversation
 

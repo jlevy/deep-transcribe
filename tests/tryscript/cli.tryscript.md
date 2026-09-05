@@ -30,9 +30,9 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
-                       [--rerun-processing] [--report] [--export-only]
-                       [--json] [--docs | --skill | --install-skill]
-                       [--surfaces LIST] [--agent-base DIR]
+                       [--rerun-processing] [--rerun-from STAGE] [--report]
+                       [--export-only] [--json] [--docs | --skill |
+                       --install-skill] [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 
 High-quality transcription, formatting, and analysis of videos and podcasts
@@ -145,6 +145,11 @@ Models, Execution, and Output:
                         text transcription
   --rerun-processing    Force every post-transcription stage to rerun while
                         reusing the raw transcript cache
+  --rerun-from STAGE    Set aside this stage's cached results, and every
+                        cached result below them, then rerun — what a change
+                        to the stage's own code needs, since a cached result
+                        is keyed on its inputs and not on the code that made
+                        it (stages listed below)
   --report              Describe what the run produced — section headings and
                         their density, outline entries, themes, segments in
                         effect, speaker turns, frames, and repeated
@@ -199,6 +204,18 @@ new transcription cache entry. `--rerun-processing` forces every post-transcript
 stage while preserving the raw transcript. `--rerun` forces every stage,
 including speech-to-text.
 
+**Stages accepted by `--rerun-from`,** in pipeline order:
+
+`transcribe`, `apply_transcript_replacements`,
+`infer_speaker_roster_from_context`, `correct_speaker_turns`,
+`normalize_transcript_fragments`, `strip_html`, `break_into_paragraphs`,
+`fold_back_channel_turns`, `backfill_timestamps`,
+`normalize_timestamp_citations`, `insert_chapter_headings`,
+`insert_section_headings`, `demote_model_headings`, `research_paras`,
+`_attach_late_inputs`, `add_transcript_outline`, `add_transcript_description`,
+`insert_frame_captures`, `extract_transcript_concepts`,
+`attach_transcript_index`
+
 Examples:
 
 ```shell
@@ -247,9 +264,9 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
-                       [--rerun-processing] [--report] [--export-only]
-                       [--json] [--docs | --skill | --install-skill]
-                       [--surfaces LIST] [--agent-base DIR]
+                       [--rerun-processing] [--rerun-from STAGE] [--report]
+                       [--export-only] [--json] [--docs | --skill |
+                       --install-skill] [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 deep-transcribe: error: argument --models: invalid ModelProvider value: 'invalid'
 ? 2

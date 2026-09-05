@@ -2,6 +2,7 @@
 
 import logging
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, cast
@@ -926,7 +927,8 @@ def test_pipeline_stage_order_covers_the_stages_the_pipeline_runs() -> None:
     """
     import inspect
 
-    from deep_transcribe.transcribe_commands import PIPELINE_STAGE_ORDER, _process_transcript
+    from deep_transcribe.transcribe_commands import _process_transcript
+    from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER
 
     source = inspect.getsource(_process_transcript)
     # The stages that appear as `result = <stage>(...)` in the body, in body order.
@@ -1247,3 +1249,163 @@ def test_the_replacement_action_accepts_the_raw_html_transcript(tmp_path: Path) 
     assert result.body
     assert "Omarchy is the distro." in result.body, "the action did not run on an HTML item"
     assert 'data-name="Omachi"' in result.body, "an attribute was rewritten"
+
+
+def _write_lineage(
+    docs_dir: Path, prefix: str, stages: Sequence[str], *, created_at: str
+) -> dict[str, Path]:
+    """
+    One stored doc item per stage of a chain, each carrying the history that produced it.
+
+    Written as files rather than through a run because the selection reads frontmatter and
+    nothing else, and because two divergent lineages over one source is the shape that
+    matters here — expensive to produce for real and cheap to state.
+    """
+    import yaml
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    written: dict[str, Path] = {}
+    for depth, stage in enumerate(stages, start=1):
+        metadata = {
+            "type": "doc",
+            "format": "md_html",
+            "url": REPORT_SOURCE_URL,
+            "created_at": created_at,
+            "history": [{"action_name": name} for name in stages[:depth]],
+        }
+        path = docs_dir / f"{prefix}_{depth}.doc.md"
+        path.write_text(
+            f"---\n{yaml.safe_dump(metadata, sort_keys=True)}---\n\n## {stage}\n",
+            encoding="utf-8",
+        )
+        written[stage] = path
+    return written
+
+
+CORRECTED_LINEAGE = (
+    "transcribe",
+    "apply_transcript_replacements",
+    "correct_speaker_turns",
+    "insert_section_headings",
+    "demote_model_headings",
+    "add_transcript_outline",
+    "attach_transcript_index",
+)
+"""The chain the current run produced: a `--replace` correction sits second."""
+
+UNCORRECTED_LINEAGE = (
+    "transcribe",
+    "correct_speaker_turns",
+    "insert_section_headings",
+    "demote_model_headings",
+    "add_transcript_outline",
+    "attach_transcript_index",
+)
+"""The chain an earlier run of the same source produced, before the correction existed."""
+
+
+def test_setting_a_stage_aside_takes_the_current_lineage_and_leaves_the_older_one(
+    tmp_path: Path,
+) -> None:
+    """
+    One workspace holds every run of a source, and the earlier runs' items are cached model
+    hours that have nothing to do with the stage being fixed.
+
+    The two chains here diverge one stage in, which is what happened on the measured
+    workspace: a run before `--replace` and a run after it both reached the index. Selecting
+    by stage name alone would take both chains' section headings, outlines and indexes and
+    make the next run pay for the abandoned one as well.
+    """
+    from deep_transcribe.transcribe_commands import items_from_stage_onward
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    older = _write_lineage(docs, "older", UNCORRECTED_LINEAGE, created_at="2026-01-01T00:00:00Z")
+    current = _write_lineage(docs, "current", CORRECTED_LINEAGE, created_at="2026-06-01T00:00:00Z")
+
+    picked = items_from_stage_onward(cast("Any", Stub), REPORT_SOURCE_URL, "demote_model_headings")
+
+    assert sorted(Path(str(path)).name for path in picked) == sorted(
+        current[stage].name
+        for stage in ("demote_model_headings", "add_transcript_outline", "attach_transcript_index")
+    )
+    for path in older.values():
+        assert path.exists()
+        assert Path(path).name not in {Path(str(picked_path)).name for picked_path in picked}
+
+
+def test_setting_a_stage_aside_moves_the_items_and_their_assets_and_deletes_nothing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    Moved, not deleted, and said out loud.
+
+    The flag exists to be used when a stage looks wrong, which is exactly when the guess
+    about which stage may itself be wrong; deleting an hour of model output on that guess is
+    not a trade a flag gets to make. The log line is the other half — a set-aside that says
+    nothing is indistinguishable from one that found nothing, and those two runs behave
+    completely differently.
+    """
+    from deep_transcribe.transcribe_commands import set_aside_stage_results
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    current = _write_lineage(docs, "current", CORRECTED_LINEAGE, created_at="2026-06-01T00:00:00Z")
+    frames = current["add_transcript_outline"]
+    assets = frames.with_suffix("").with_suffix(".doc.assets")
+    assets.mkdir()
+    (assets / "frame_0000.jpg").write_bytes(b"a frame")
+    bodies = {path.name: path.read_bytes() for path in current.values()}
+
+    with caplog.at_level(logging.WARNING, logger=transcribe_commands.__name__):
+        destination, count = set_aside_stage_results(
+            cast("Any", Stub), REPORT_SOURCE_URL, "demote_model_headings"
+        )
+
+    assert count == 3
+    for stage in ("transcribe", "apply_transcript_replacements", "correct_speaker_turns"):
+        assert current[stage].exists(), f"{stage} was set aside from above the named stage"
+    for stage in ("demote_model_headings", "add_transcript_outline", "attach_transcript_index"):
+        name = current[stage].name
+        assert not current[stage].exists()
+        assert (destination / "docs" / name).read_bytes() == bodies[name]
+    assert (destination / "docs" / assets.name / "frame_0000.jpg").read_bytes() == b"a frame"
+    assert not assets.exists()
+
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "Set aside 3 items from `demote_model_headings` onward" in said
+    assert str(destination) in said
+
+
+def test_setting_aside_a_stage_this_run_never_reached_says_so(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    Naming a stage below where the run stopped moves nothing, and the run that follows
+    reuses everything. Silence there reads exactly like a successful set-aside, so the one
+    case where the flag does nothing has to say it did nothing.
+    """
+    from deep_transcribe.transcribe_commands import set_aside_stage_results
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    _write_lineage(
+        Stub.base_dir / "docs",
+        "current",
+        CORRECTED_LINEAGE[:4],
+        created_at="2026-06-01T00:00:00Z",
+    )
+
+    with caplog.at_level(logging.WARNING, logger=transcribe_commands.__name__):
+        _destination, count = set_aside_stage_results(
+            cast("Any", Stub), REPORT_SOURCE_URL, "insert_frame_captures"
+        )
+
+    assert count == 0
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "Nothing cached from `insert_frame_captures` onward" in said

@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -24,7 +25,7 @@ from deep_transcribe.disk_space import (
     check_frame_capture_space,
     source_duration,
 )
-from deep_transcribe.transcribe_options import TranscribeOptions
+from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER, TranscribeOptions
 from deep_transcribe.transcription_metadata import (
     TranscriptionMetadata,
     apply_transcription_metadata,
@@ -555,6 +556,7 @@ def run_transcription(
     no_minify: bool = False,
     rerun: bool = False,
     rerun_processing: bool = False,
+    rerun_from: str | None = None,
     elements: list[str] | None = None,
     report: bool = False,
 ) -> TranscriptionOutputs:
@@ -572,6 +574,8 @@ def run_transcription(
         no_minify: If True, skip HTML minification
         rerun: If True, rerun every action, including raw transcription
         rerun_processing: If True, rerun post-transcription processing only
+        rerun_from: Name of a stage whose cached results, and every cached result below
+            them, are set aside before the run so the cache misses there
         report: If True, also describe what the run produced, from the final item
 
     Returns:
@@ -590,6 +594,11 @@ def run_transcription(
     with kash_runtime(ws_path, rerun=rerun) as runtime:
         # Show the user the workspace info.
         runtime.workspace.log_workspace_info()
+
+        # Before anything runs, so the first stage that looks for a cached result does not
+        # find the one the user asked to bypass.
+        if rerun_from:
+            set_aside_stage_results(runtime.workspace, url, rerun_from)
 
         with get_unified_live().status("Processing…"):
             item = _prepare_source_item(url)
@@ -677,83 +686,70 @@ def _source_aliases(source: str) -> set[str]:
     return {source, source.rstrip("/"), locator, locator.rstrip("/")}
 
 
-PIPELINE_STAGE_ORDER = (
-    "transcribe",
-    "infer_speaker_roster_from_context",
-    "correct_speaker_turns",
-    "normalize_transcript_fragments",
-    "strip_html",
-    "break_into_paragraphs",
-    "backfill_timestamps",
-    "normalize_timestamp_citations",
-    "insert_section_headings",
-    "research_paras",
-    "_attach_late_inputs",
-    "add_transcript_outline",
-    "add_transcript_description",
-    "insert_frame_captures",
-    "extract_transcript_concepts",
-    "attach_transcript_index",
-)
-"""
-The stages `_process_transcript` applies, in the order it applies them.
+@dataclass(frozen=True)
+class _StoredDoc:
+    """One stored doc item for a source: where it is, what produced it, and when."""
 
-Only used to rank stored items by how far down the pipeline each one got, so a re-export
-picks the result that reached furthest rather than whichever file was written last. It
-mirrors `_process_transcript` and is pinned to it by
-`test_pipeline_stage_order_covers_the_stages_the_pipeline_runs`; a stage this tuple does
-not know simply ranks below the ones it does, so a new stage degrades the ranking rather
-than breaking the flag.
-"""
+    store_path: Path
+    """Where the item is, relative to the workspace root — a `StorePath` in kash's terms."""
+    stages: tuple[str, ...]
+    """The action names its history records, oldest first."""
+    created_at: str
+
+    @property
+    def rank(self) -> int:
+        """
+        How far down the pipeline the run that produced this item got, from its last stage.
+
+        Preset-agnostic on purpose: `--basic` ends at `transcribe` and `--deep` at
+        `attach_transcript_index`, so the rule is "whichever item reached furthest" rather
+        than a fixed terminal stage. -1 for an item whose last stage is unrecognized.
+        """
+        if not self.stages:
+            return -1
+        last = self.stages[-1]
+        return PIPELINE_STAGE_ORDER.index(last) if last in PIPELINE_STAGE_ORDER else -1
+
+    @property
+    def sort_key(self) -> tuple[int, str]:
+        return self.rank, self.created_at
 
 
-def _stage_rank(history: object) -> int:
+def _history_stages(history: object) -> tuple[str, ...]:
+    """The action names an item's stored history records, in the order they ran."""
+    if not isinstance(history, list):
+        return ()
+    names: list[str] = []
+    for entry in cast("list[object]", history):
+        name = (
+            cast("dict[str, object]", entry).get("action_name") if isinstance(entry, dict) else None
+        )
+        if isinstance(name, str):
+            names.append(name)
+    return tuple(names)
+
+
+def _stored_docs(workspace: FileStore, source: str) -> list[_StoredDoc]:
     """
-    How far down the pipeline the run that produced an item got, from its last operation.
+    Every stored doc item this workspace holds for the given source.
 
-    Preset-agnostic on purpose: `--basic` ends at `transcribe` and `--deep` at
-    `attach_transcript_index`, so the rule is "whichever item reached furthest" rather
-    than a fixed terminal stage. -1 for an item whose last stage is unrecognized.
-    """
-    if not isinstance(history, list) or not history:
-        return -1
-    last = cast("list[object]", history)[-1]
-    name = cast("dict[str, object]", last).get("action_name") if isinstance(last, dict) else None
-    if not isinstance(name, str) or name not in PIPELINE_STAGE_ORDER:
-        return -1
-    return PIPELINE_STAGE_ORDER.index(name)
-
-
-def find_exported_item(workspace: FileStore, source: str) -> StorePath | None:
-    """
-    The item a finished run for this source last exported, or None if there is not one.
-
-    Found by reading what the workspace already records rather than by a pointer written
-    at the end of a run. A pointer would have to live somewhere, and every field of an
-    item's metadata is inside the bytes kash hashes for cache identity — which is why
+    Read from what the workspace already records rather than from a pointer written at the
+    end of a run. A pointer would have to live somewhere, and every field of an item's
+    metadata is inside the bytes kash hashes for cache identity — which is why
     `strip_volatile_source_fields` exists. Writing the export path onto the source
     resource would therefore change the source's hash after every run and make the next
-    run repeat the whole pipeline, paid speech-to-text included. Reading instead costs
-    one frontmatter parse per item, needs nothing new on disk, and works on workspaces
-    filled in before this flag existed.
-
-    Ranked by how far down the pipeline the item's own last operation reached, then by
-    recency. Stage first because an interrupted run leaves half-finished items carrying the
-    newest timestamps, and the page should be rebuilt from the result that got furthest
-    rather than from whatever was written last. Ranking on the number of history entries
-    instead is not enough: a run stopped after concepts and a finished older run both have
-    the same count, and recency would then hand the export the item that never got an
-    index. The measured workspace holds exactly that pair.
+    run repeat the whole pipeline, paid speech-to-text included. Reading instead costs one
+    frontmatter parse per item, needs nothing new on disk, and works on workspaces filled
+    in before these flags existed.
     """
     from frontmatter_format import fmf_read_frontmatter
     from kash.file_storage.store_filenames import folder_for_type, parse_item_filename
     from kash.model import ItemType
-    from kash.model.paths_model import StorePath
     from kash.utils.errors import InvalidFilename
 
     wanted = _source_aliases(source)
     docs_dir = workspace.base_dir / folder_for_type(ItemType.doc)
-    best: tuple[int, str, StorePath] | None = None
+    found: list[_StoredDoc] = []
     for path in sorted(docs_dir.glob("*")):
         if not path.is_file():
             continue
@@ -767,16 +763,153 @@ def find_exported_item(workspace: FileStore, source: str) -> StorePath | None:
             metadata = fmf_read_frontmatter(path)
         except (OSError, UnicodeDecodeError, ValueError) as error:
             # One unreadable file must not hide the result sitting beside it.
-            log.info("Skipping unreadable item while looking for a cached export: %s", error)
+            log.info("Skipping unreadable item while reading the workspace: %s", error)
             continue
         if not metadata or metadata.get("url") not in wanted:
             continue
-        stage = _stage_rank(metadata.get("history"))
-        created_at = str(metadata.get("created_at") or "")
-        candidate = (stage, created_at, StorePath(path.relative_to(workspace.base_dir)))
-        if best is None or candidate[:2] > best[:2]:
-            best = candidate
-    return best[2] if best else None
+        found.append(
+            _StoredDoc(
+                store_path=path.relative_to(workspace.base_dir),
+                stages=_history_stages(metadata.get("history")),
+                created_at=str(metadata.get("created_at") or ""),
+            )
+        )
+    return found
+
+
+def _lineage_tip(docs: list[_StoredDoc]) -> _StoredDoc | None:
+    """
+    The furthest-along item among these, which is the current lineage's last link.
+
+    Ranked by how far down the pipeline the item's own last operation reached, then by
+    recency. Stage first because an interrupted run leaves half-finished items carrying the
+    newest timestamps, and the page should be rebuilt from the result that got furthest
+    rather than from whatever was written last. Ranking on the number of history entries
+    instead is not enough: a run stopped after concepts and a finished older run both have
+    the same count, and recency would then hand the export the item that never got an
+    index. The measured workspace holds exactly that pair.
+    """
+    return max(docs, key=lambda doc: doc.sort_key) if docs else None
+
+
+def find_exported_item(workspace: FileStore, source: str) -> StorePath | None:
+    """The item a finished run for this source last exported, or None if there is not one."""
+    from kash.model.paths_model import StorePath
+
+    tip = _lineage_tip(_stored_docs(workspace, source))
+    return StorePath(tip.store_path) if tip else None
+
+
+SET_ASIDE_DIR = "set-aside"
+"""Where `--rerun-from` moves the cached results it takes out of the way."""
+
+
+def items_from_stage_onward(workspace: FileStore, source: str, stage: str) -> list[StorePath]:
+    """
+    The current lineage's stored items that `stage`, or a stage below it, produced.
+
+    kash caches a stage's output against its input item and the action's name, never
+    against the stage's code, so fixing a stage changes nothing a rerun can see. Removing
+    the stage's cached output from the workspace is what makes the next run miss the cache
+    exactly there and recompute downward from it; this picks out what to remove.
+
+    "Current lineage" means the chain that produced the furthest-along item — the same item
+    `--export-only` re-renders. An item belongs to that chain when its history is a prefix
+    of the tip's, which also keeps an older lineage's items (a run before a `--replace`
+    correction, say) out of the selection: their histories diverge and cost model hours
+    that have nothing to do with the fixed stage.
+
+    Every matching item is returned, not just the newest per stage. Two runs can each leave
+    a cached output for the same stage of the same chain, and only one of them is the entry
+    kash will match; leaving the other behind is how a cache hit survives the whole point
+    of the flag.
+
+    Empty when this lineage never reached `stage` — nothing cached below it either.
+    """
+    from kash.model.paths_model import StorePath
+
+    docs = _stored_docs(workspace, source)
+    tip = _lineage_tip(docs)
+    if tip is None:
+        return []
+    spine = tip.stages
+    if stage in spine:
+        cut = spine.index(stage)
+    else:
+        # A preset can skip stages, so cut at the first stage this run did reach that sits
+        # at or below the named one. Positions come from the pipeline order for that, and
+        # from the lineage's own history otherwise, which stays right for a stage the order
+        # does not list.
+        rank = PIPELINE_STAGE_ORDER.index(stage)
+        cut = next(
+            (
+                index
+                for index, name in enumerate(spine)
+                if name in PIPELINE_STAGE_ORDER and PIPELINE_STAGE_ORDER.index(name) >= rank
+            ),
+            len(spine),
+        )
+    return [
+        StorePath(doc.store_path)
+        for doc in docs
+        if doc.stages and spine[: len(doc.stages)] == doc.stages and len(doc.stages) - 1 >= cut
+    ]
+
+
+def set_aside_stage_results(workspace: FileStore, source: str, stage: str) -> tuple[Path, int]:
+    """
+    Move this lineage's cached results for `stage` and below out of the workspace.
+
+    Moved, never deleted: the run that follows may reveal that the wrong stage was named,
+    and an hour of model output is not something a flag should be able to destroy. Each
+    item keeps its path under the destination, sidematter included, so putting one back is
+    a `mv` and reading what happened needs no log.
+
+    Returns the destination and how many items went into it.
+    """
+    from sidematter_format import Sidematter
+
+    destination = _set_aside_destination(workspace.base_dir)
+    moved = items_from_stage_onward(workspace, source, stage)
+    for store_path in moved:
+        source_file = workspace.base_dir / str(store_path)
+        target_file = destination / str(store_path)
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        sidematter = Sidematter(source_file)
+        for extra in (sidematter.assets_dir, sidematter.meta_yaml_path, sidematter.meta_json_path):
+            if extra.exists():
+                extra.rename(target_file.parent / extra.name)
+        source_file.rename(target_file)
+    if moved:
+        log.warning("Set aside %s items from `%s` onward into %s", len(moved), stage, destination)
+    else:
+        # Silence here looks exactly like a successful set-aside, and the run that follows
+        # then reuses the cache the user asked to bypass.
+        log.warning(
+            "Nothing cached from `%s` onward for %s, so this run reuses everything it finds",
+            stage,
+            source,
+        )
+    return destination, len(moved)
+
+
+def _set_aside_destination(base_dir: Path) -> Path:
+    """
+    A fresh, sortable directory for one set-aside.
+
+    Never a directory that already exists: renaming into one that happens to hold an item of
+    the same name would overwrite it, and not overwriting anything is this whole function's
+    promise. Stamped to the second, which is legible, with a counter for the pathological
+    case of two set-asides inside one second.
+    """
+    parent = base_dir / SET_ASIDE_DIR
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    destination = parent / stamp
+    attempt = 2
+    while destination.exists():
+        destination = parent / f"{stamp}-{attempt}"
+        attempt += 1
+    return destination
 
 
 def export_only(

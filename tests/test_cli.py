@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from contextlib import redirect_stderr, redirect_stdout
+from importlib import import_module
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -1209,3 +1210,318 @@ def test_no_chapters_reaches_the_options_and_survives_every_preset() -> None:
     only_search = _build_transcribe_options(parser.parse_args(["--web-search", "URL"]))
     assert only_search.web_search is True
     assert only_search.no_chapters is False
+
+
+RERUN_FROM_SOURCE = "https://www.youtube.com/watch?v=RerunFrom01"
+"""
+The source a `--rerun-from` run names, matched against what the workspace stored.
+
+A media URL kash recognizes, because `backfill_timestamps` builds a hotlink per timestamp
+and refuses a URL it cannot seek into. Nothing fetches it.
+"""
+
+RERUN_FROM_STAGES = (
+    "normalize_transcript_fragments",
+    "strip_html",
+    "fold_back_channel_turns",
+    "backfill_timestamps",
+    "normalize_timestamp_citations",
+)
+"""
+The stages a `--basic --with format` run leaves cached results for, in order.
+
+Every one of them is deterministic and free, which is what makes a two-run test possible
+at all: the run is the real pipeline over a real workspace, with only the fetch, the paid
+transcription, and the rendering replaced. `break_into_paragraphs` runs between the second
+and the third but returns the item it was given on a document this small, so it caches
+nothing and is not a stage this test can cut at.
+"""
+
+UNCACHED_STAGE = "break_into_paragraphs"
+"""
+The stage that runs on every pass because it stores no result to hit.
+
+Named here rather than hidden inside an assertion because it is the one thing that makes
+the execution counts below read oddly: it sits above the stage this test cuts at and still
+runs twice, which is correct — a stage with nothing cached has nothing to reuse.
+"""
+
+
+def _transcribed_body() -> str:
+    """
+    What the transcription stage hands the formatting pipeline.
+
+    Timestamped spans because `backfill_timestamps` maps them onto the formatted text, and
+    one content-free turn because `fold_back_channel_turns` is one of the stages under test.
+    """
+    turns = [
+        ("Ada", "12.50", "We are talking about Omarchy today, and the tooling is the point."),
+        ("Grace", "30.00", "Mhmm."),
+        ("Ada", "60.25", "The second thing worth saying is that the defaults carry the weight."),
+    ]
+    return (
+        "".join(
+            f"<p><b>{label}:</b> {text}<span data-timestamp='{ts}' /></p>\n"
+            for label, ts, text in turns
+        )
+        + "\n"
+    )
+
+
+def _fake_a_free_pipeline(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """
+    Make a real run of the formatting stages possible without a fetch, Deepgram, or a render.
+
+    Returns a per-action count of *executions*, taken at kash's own cache boundary: the
+    function it calls only when it did not find a stored result. Counting invocations
+    instead would count cache hits too, and a cache hit is exactly what this test is about.
+    """
+    from kash.exec import action_exec
+    from kash.model import ActionInput, ActionResult, Format, Item, ItemType
+    from kash.model.exec_model import ActionContext
+    from kash.model.operations_model import Operation
+    from kash.model.paths_model import StorePath
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    from deep_transcribe import transcribe_commands
+
+    executed: dict[str, int] = {}
+    original = action_exec.run_action_operation
+
+    def counting_run_action_operation(
+        context: ActionContext, action_input: ActionInput, operation: Operation
+    ) -> ActionResult:
+        name = context.action.name
+        executed[name] = executed.get(name, 0) + 1
+        return original(context, action_input, operation)
+
+    monkeypatch.setattr(action_exec, "run_action_operation", counting_run_action_operation)
+
+    def fake_prepare(_source: str) -> Item:
+        # The real one registers kash's media services on the way past, and
+        # `backfill_timestamps` needs them to turn a timestamp into a hotlink.
+        import_module("kash.kits.media.media_services")
+
+        item = Item(
+            type=ItemType.resource,
+            format=Format.url,
+            url=Url(RERUN_FROM_SOURCE),
+            title="A recording",
+        )
+        current_ws().save(item)
+        return item
+
+    def fake_transcribe_raw(item: Item, **_kwargs: object) -> Item:
+        # The real stage is a cached action, so the second run finds the same transcript at
+        # the same path with the same bytes. Writing a second copy instead would hand every
+        # stage below it a new input and make the whole pipeline miss, which is the opposite
+        # of what this test measures — so the path is fixed and reused.
+        workspace = current_ws()
+        stored = StorePath("docs/transcribed.doc.html")
+        if (workspace.base_dir / str(stored)).exists():
+            return workspace.load(stored)
+        # Derived from the stored resource, because `backfill_timestamps` walks up to it.
+        result = item.derived_copy(type=ItemType.doc, format=Format.html, body=_transcribed_body())
+        result.store_path = str(stored)
+        workspace.save(result)
+        return result
+
+    def fake_format(_result: Item, base_dir: Path, **_kwargs: object) -> tuple[Path, Path]:
+        return base_dir / "docs" / "t.doc.md", base_dir / "exports" / "t.html"
+
+    monkeypatch.setattr(transcribe_commands, "_prepare_source_item", fake_prepare)
+    monkeypatch.setattr(transcribe_commands, "_transcribe_raw", fake_transcribe_raw)
+    monkeypatch.setattr(transcribe_commands, "format_results", fake_format)
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    return executed
+
+
+def _stage_of_each_stored_doc(ws_root: Path) -> dict[str, str]:
+    """The stage that produced each stored doc item, keyed by the item's filename."""
+    from frontmatter_format import fmf_read_frontmatter
+
+    stages: dict[str, str] = {}
+    for path in sorted((ws_root / "workspace" / "docs").glob("*.doc.*")):
+        if not path.is_file():
+            continue
+        metadata = fmf_read_frontmatter(path)
+        history = (metadata or {}).get("history") or []
+        if history:
+            stages[path.name] = history[-1]["action_name"]
+    return stages
+
+
+def test_rerun_from_sets_the_named_stage_and_below_aside_and_reruns_only_those(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The whole point of the flag, measured: after a full run, `--rerun-from` has to make the
+    cache miss at exactly one stage and hit above it.
+
+    kash keys a cached result on its inputs and the action's name, never on the code that
+    produced it, so a fixed stage reruns in seconds and hands back the old, wrong output —
+    which is what happened on the five-hour recording, and why the only documented remedy
+    was to recompute every post-transcription stage at about 96 minutes.
+
+    Both runs go through `main()` over one real workspace. Only the fetch, the paid
+    transcription, and the rendering are faked; the six stages in between are the real
+    actions, and they are the ones whose cached results are counted, moved, and re-run.
+    """
+    executed = _fake_a_free_pipeline(monkeypatch)
+    ws_root = tmp_path / f"ws-{tmp_path.name}"
+
+    main(["--workspace", str(ws_root), "--basic", "--with", "format", "--json", RERUN_FROM_SOURCE])
+
+    first_run = _stage_of_each_stored_doc(ws_root)
+    assert sorted(first_run.values()) == sorted(RERUN_FROM_STAGES), (
+        f"the first run did not leave one cached result per stage: {first_run}"
+    )
+    assert dict(executed) == dict.fromkeys((*RERUN_FROM_STAGES, UNCACHED_STAGE), 1), (
+        f"the first run did not run each stage exactly once: {executed}"
+    )
+
+    # Frame captures are the stage that owns sidematter, and it costs model time, so the
+    # assets directory is placed by hand on a stage that does not: what has to hold is that
+    # an item's sidematter travels with the item, whichever stage wrote it.
+    docs_dir = ws_root / "workspace" / "docs"
+    carrier = next(name for name, stage in first_run.items() if stage == "backfill_timestamps")
+    assets = docs_dir / (carrier.removesuffix(Path(carrier).suffix) + ".assets")
+    assets.mkdir()
+    (assets / "frame_0000.jpg").write_bytes(b"not really a frame")
+
+    kept = {
+        name: (docs_dir / name).read_bytes()
+        for name, stage in first_run.items()
+        if stage in RERUN_FROM_STAGES[:2]
+    }
+    moved_before = {
+        name: (docs_dir / name).read_bytes()
+        for name, stage in first_run.items()
+        if stage not in RERUN_FROM_STAGES[:2]
+    }
+    assert len(kept) == 2 and len(moved_before) == 3
+
+    executed.clear()
+    main(
+        [
+            "--workspace",
+            str(ws_root),
+            "--basic",
+            "--with",
+            "format",
+            "--rerun-from",
+            "fold_back_channel_turns",
+            "--json",
+            RERUN_FROM_SOURCE,
+        ]
+    )
+
+    # (a) Exactly the items from the named stage onward left the docs directory.
+    set_aside_root = ws_root / "workspace" / "set-aside"
+    assert set_aside_root.is_dir(), "the run set nothing aside"
+    set_aside_roots = sorted(set_aside_root.iterdir())
+    assert len(set_aside_roots) == 1, f"expected one set-aside batch, got {set_aside_roots}"
+    set_aside = set_aside_roots[0] / "docs"
+    assert sorted(p.name for p in set_aside.glob("*.doc.*") if p.is_file()) == sorted(moved_before)
+    for name in kept:
+        assert (docs_dir / name).exists(), f"{name} was set aside from above the named stage"
+    for name in moved_before:
+        assert not (docs_dir / name).exists(), f"{name} stayed in the workspace"
+
+    # (c) Nothing was deleted: every moved item is readable, byte for byte, where it went,
+    # and the sidematter went with it.
+    for name, before in moved_before.items():
+        assert (set_aside / name).read_bytes() == before, f"{name} did not survive the move"
+    assert (set_aside / assets.name / "frame_0000.jpg").read_bytes() == b"not really a frame"
+    assert not assets.exists(), "the assets directory was left behind by its item"
+
+    # (b) The stages above the named one were not run again; the named one and every stage
+    # below it were.
+    for stage in RERUN_FROM_STAGES[:2]:
+        assert stage not in executed, f"{stage} ran again from above the named stage"
+    assert dict(executed) == dict.fromkeys((UNCACHED_STAGE, *RERUN_FROM_STAGES[2:]), 1), (
+        f"the second run did not resume at {RERUN_FROM_STAGES[2]}: {executed}"
+    )
+    for name, before in kept.items():
+        assert (docs_dir / name).read_bytes() == before, f"{name} was rewritten"
+
+
+def test_rerun_from_an_unknown_stage_is_a_usage_error_naming_the_stages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mistyped stage name has to say what the names are, not start a 96-minute run."""
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+
+    errors = StringIO()
+    with redirect_stderr(errors), pytest.raises(SystemExit) as raised:
+        main(
+            [
+                "--workspace",
+                str(tmp_path),
+                "--rerun-from",
+                "demote_headings",
+                RERUN_FROM_SOURCE,
+            ]
+        )
+
+    assert raised.value.code == 2
+    reported = errors.getvalue()
+    assert "--rerun-from" in reported
+    assert "demote_model_headings" in reported, f"the error does not name the stages: {reported}"
+    assert "insert_section_headings" in reported
+    assert "Traceback" not in reported
+
+
+def test_rerun_from_refuses_the_rerun_flags_that_already_cover_it(tmp_path: Path) -> None:
+    """
+    `--rerun` and `--rerun-processing` rerun the named stage anyway, so combining them can
+    only move an hour of cached output out of the way for no reason.
+    """
+    for rerun_flag in ("--rerun", "--rerun-processing"):
+        errors = StringIO()
+        with redirect_stderr(errors), pytest.raises(SystemExit) as raised:
+            main(
+                [
+                    "--workspace",
+                    str(tmp_path),
+                    "--rerun-from",
+                    "insert_section_headings",
+                    rerun_flag,
+                    RERUN_FROM_SOURCE,
+                ]
+            )
+
+        assert raised.value.code == 2, rerun_flag
+        assert "already rerun the stage --rerun-from names" in errors.getvalue(), rerun_flag
+
+    errors = StringIO()
+    with redirect_stderr(errors), pytest.raises(SystemExit) as raised:
+        main(
+            [
+                "--workspace",
+                str(tmp_path),
+                "--export-only",
+                "--rerun-from",
+                "insert_section_headings",
+                RERUN_FROM_SOURCE,
+            ]
+        )
+
+    assert raised.value.code == 2
+    assert "cannot be combined with a rerun flag" in errors.getvalue()
+
+
+def test_parser_carries_rerun_from_and_the_help_lists_every_stage() -> None:
+    """The flag reaches the run, and `--help` is where the stage names come from."""
+    from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER
+
+    args = build_parser().parse_args(["--rerun-from", "demote_model_headings", "URL"])
+    assert args.rerun_from == "demote_model_headings"
+    assert build_parser().parse_args(["URL"]).rerun_from is None
+
+    help_text = " ".join(build_parser().format_help().split())
+    assert "--rerun-from STAGE" in help_text
+    for stage in PIPELINE_STAGE_ORDER:
+        assert f"`{stage}`" in help_text, f"--help does not list the stage {stage}"
