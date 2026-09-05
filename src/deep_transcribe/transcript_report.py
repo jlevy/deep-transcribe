@@ -19,7 +19,7 @@ import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from deep_transcribe.segment_hints import format_time
 
@@ -229,7 +229,15 @@ def _visible_text(markup: str) -> str:
     return _MARKUP.sub(" ", markup).replace("**", " ")
 
 
-def spelling_variants(texts: list[str], limit: int = SPELLING_LIMIT) -> list[SpellingEntry]:
+_ASIDE_PATTERN = re.compile(r"\[[^\]\n]{1,40}: [^\]\n]*\]")
+
+
+_NO_EXCLUDES: frozenset[str] = frozenset()
+
+
+def spelling_variants(
+    texts: list[str], limit: int = SPELLING_LIMIT, exclude: frozenset[str] = _NO_EXCLUDES
+) -> list[SpellingEntry]:
     """
     The most frequent capitalized words, so a reader can spot one name spelled several ways.
 
@@ -241,7 +249,12 @@ def spelling_variants(texts: list[str], limit: int = SPELLING_LIMIT) -> list[Spe
     """
     counts: Counter[str] = Counter()
     for text in texts:
-        for token in _WORDISH.findall(text):
+        # Folded back-channel asides carry a speaker label, `[Lex Fridman: Mhmm.]`; on the
+        # measured recording that put 'Fridman' at the top of the list with 325 counts.
+        # Speaker names are known from the roster and are never a spelling to fix.
+        for token in _WORDISH.findall(_ASIDE_PATTERN.sub(" ", text)):
+            if token.lower() in exclude:
+                continue
             if "'" in token or "’" in token:
                 continue
             if len(token) < MIN_SPELLING_LENGTH or not token[0].isupper():
@@ -253,6 +266,14 @@ def spelling_variants(texts: list[str], limit: int = SPELLING_LIMIT) -> list[Spe
         SpellingEntry(token=token, count=n)
         for token, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:limit]
     ]
+
+
+def _roster_tokens(item: Item) -> frozenset[str]:
+    """Lower-cased words of every roster name, so speaker labels never rank as spellings."""
+    extra = item.extra or {}
+    transcription = cast(dict[str, Any], extra.get("transcription") or {})
+    roster: list[object] = transcription.get("speaker_roster") or []
+    return frozenset(w.lower() for name in roster if isinstance(name, str) for w in name.split())
 
 
 def build_transcript_report(item: Item) -> TranscriptReport:
@@ -312,7 +333,9 @@ def build_transcript_report(item: Item) -> TranscriptReport:
         # the pre-thinning count survives only in the run's log. Nothing on the item can
         # recover it, and a guess here would be read as a measurement.
         frames_captured=None,
-        spellings=spelling_variants([_visible_text(unit.text) for unit in units]),
+        spellings=spelling_variants(
+            [_visible_text(unit.text) for unit in units], exclude=_roster_tokens(item)
+        ),
     )
 
 
@@ -481,3 +504,17 @@ def test_a_long_heading_list_keeps_both_ends() -> None:
     assert f"… {206 - 2 * HEADING_LIST_EDGE} more" in text
     # The whole point of the cap: a five-hour recording still prints something readable.
     assert len(text.splitlines()) < 120
+
+
+def test_aside_labels_and_roster_names_are_not_spelling_variants() -> None:
+    """Measured: 'Fridman' led the list with 325 counts, one per folded aside."""
+    texts = [
+        "Omarchy is good. [Lex Fridman: Mhmm.]",
+        "Omarchy again. [Lex Fridman: Yeah.]",
+        "Fridman said Omachi.",
+    ]
+    found = {
+        e.token: e.count for e in spelling_variants(texts, exclude=frozenset({"lex", "fridman"}))
+    }
+    assert found.get("Omarchy") == 2 and found.get("Omachi") == 1
+    assert "Fridman" not in found, "a speaker label counted as a spelling"
