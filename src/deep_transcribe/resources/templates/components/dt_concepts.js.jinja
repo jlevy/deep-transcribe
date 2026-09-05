@@ -36,7 +36,6 @@
     for (const scope of [root, ...rootExtras].filter(Boolean)) {
       scope.querySelectorAll("[data-concept]").forEach((node) => {
         node.classList.toggle("dt-selected", node.dataset.concept === selected);
-        node.classList.toggle("dt-dimmed", selected != null && node.dataset.concept !== selected);
       });
     }
   }
