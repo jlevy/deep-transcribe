@@ -302,8 +302,8 @@ def _add_transcription_arguments(
         metavar="YAML_OR_JSON",
         help=(
             "Optional structured overrides for automation: title, description, "
-            "additional_context, processing_instructions, key_terms, speaker_hints, "
-            "speaker_roster, or extra fields"
+            "additional_context, processing_instructions, key_terms, replacements, "
+            "speaker_hints, speaker_roster, or extra fields"
         ),
     )
     overrides.add_argument(
@@ -312,6 +312,17 @@ def _add_transcription_arguments(
         default=[],
         metavar="TERM",
         help="Term or name Deepgram should recognize accurately; repeat as needed",
+    )
+    overrides.add_argument(
+        "--replace",
+        action="append",
+        default=[],
+        type=_replacement,
+        metavar="WRONG=RIGHT",
+        help=(
+            "Misheard word and its correction, such as Omachi=Omarchy; applied to whole "
+            "words in the transcript, preserving case; repeat as needed"
+        ),
     )
     overrides.add_argument(
         "--speaker",
@@ -591,6 +602,13 @@ def _speaker_hint(value: str) -> tuple[str, str]:
     return speaker_id.strip(), name.strip()
 
 
+def _replacement(value: str) -> tuple[str, str]:
+    wrong, separator, right = value.partition("=")
+    if not separator or not wrong.strip() or not right.strip():
+        raise argparse.ArgumentTypeError("replacements must use WRONG=RIGHT")
+    return wrong.strip(), right.strip()
+
+
 CLEAR_TOKEN = "none"
 """
 Literal value that clears a sticky guidance input instead of setting one.
@@ -630,6 +648,10 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
         inline_data["additional_context"] = "\n\n".join(context_parts)
     if args.key_term:
         inline_data["key_terms"] = list(dict.fromkeys([*metadata.key_terms, *args.key_term]))
+    if args.replace:
+        # A mapping merges key by key below, unlike `key_terms`, so a metadata file's own
+        # corrections survive and the flag wins wherever both name the same misheard word.
+        inline_data["replacements"] = dict(args.replace)
     if args.speaker:
         inline_data["speaker_hints"] = dict(args.speaker)
     if args.speaker_role:

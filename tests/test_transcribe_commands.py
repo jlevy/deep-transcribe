@@ -152,6 +152,103 @@ def test_processing_instructions_bypass_raw_and_formatting_cache_identity(
     assert get_processing_instructions(source) == instructions
 
 
+def test_replacements_reach_the_transcript_but_never_the_raw_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Editing the replacement list must cost the correction stage and what follows it, never
+    a fresh paid transcription. The mapping is therefore held off the resource kash hashes
+    for the raw request and put onto the transcript afterwards, where the stage reads it.
+    """
+    from kash import workspaces
+
+    from deep_transcribe.transcription_metadata import get_replacements
+
+    replacements = {"Omachi": "Omarchy"}
+    source = Item(
+        type=ItemType.resource,
+        title="Fixture",
+        extra={"transcription": {"replacements": dict(replacements)}},
+        store_path="resources/fixture.resource.yml",
+    )
+    raw_result = Item(type=ItemType.doc, title="Fixture")
+    observed: dict[str, object] = {}
+    persisted: list[dict[str, str]] = []
+
+    class FakeWorkspace:
+        base_dir: Path = Path("/tmp/fake-workspace")
+
+        def save(self, _item: Item, *, overwrite: bool) -> None:
+            assert overwrite is True
+
+    def fake_persist(item: Item, _workspace: object) -> None:
+        persisted.append(get_replacements(item))
+
+    def fake_transcribe(item: Item, **_kwargs: object) -> Item:
+        observed["raw_replacements"] = get_replacements(item)
+        return raw_result
+
+    def fake_process(item: Item, _options: TranscribeOptions, **_late_inputs: object) -> Item:
+        observed["transcript_replacements"] = get_replacements(item)
+        return item
+
+    monkeypatch.setattr(transcribe_commands, "_transcribe_raw", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "_process_transcript", fake_process)
+    monkeypatch.setattr(transcribe_commands, "persist_item_metadata", fake_persist)
+    monkeypatch.setattr(workspaces, "current_ws", lambda: FakeWorkspace())
+
+    result = transcribe_commands.transcribe_with_options(source, TranscribeOptions.basic())
+
+    assert result is raw_result
+    assert observed == {"raw_replacements": {}, "transcript_replacements": replacements}
+    # The stored resource is canonical without the mapping for the request, and carries it
+    # again afterwards, so a later run with no --replace still corrects the transcript.
+    assert persisted == [{}, replacements]
+    assert get_replacements(source) == replacements
+
+
+def test_replacements_correct_the_transcript_through_the_real_pipeline(tmp_path: Path) -> None:
+    """
+    Drive `_process_transcript` itself: the stage has to run before everything else and be
+    reached from the mapping stored on the item, not from a hand-assembled call.
+    """
+    from kash.exec import kash_runtime
+    from kash.model import Format
+
+    from deep_transcribe.transcription_metadata import get_replacements
+
+    item = Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        title="A recording",
+        body=(
+            '<span class="speaker-label" data-speaker-id="0">SPEAKER 0:</span>\n'
+            '<span data-timestamp="4.56">Omachi installs in sixty seconds.</span>\n'
+            '<span data-timestamp="9.12">Hansen wrote it, and omachi is his too.</span>\n'
+        ),
+        extra={"transcription": {"replacements": {"Omachi": "Omarchy", "Hansen": "Hansson"}}},
+    )
+
+    with kash_runtime(_own_workspace(tmp_path)):
+        result = transcribe_commands._process_transcript(
+            item,
+            TranscribeOptions.basic(),
+            processing_instructions=None,
+            segment_hints=None,
+        )
+
+    assert result is not item
+    assert result.body is not None
+    assert "Omarchy installs in sixty seconds." in result.body
+    assert "Hansson wrote it, and omarchy is his too." in result.body
+    assert "Omachi" not in result.body
+    assert "Hansen" not in result.body
+    # The citation structure the later stages read is untouched.
+    assert 'data-timestamp="4.56"' in result.body
+    assert 'data-speaker-id="0"' in result.body
+    assert get_replacements(result) == {"Omachi": "Omarchy", "Hansen": "Hansson"}
+
+
 def test_processing_instructions_get_a_distinct_overview_cache_boundary() -> None:
     from inspect import unwrap
 

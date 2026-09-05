@@ -195,6 +195,44 @@ def test_cli_metadata_file_and_inline_values_merge() -> None:
     )
 
 
+def test_replace_flags_merge_with_the_metadata_file_and_win_on_conflict() -> None:
+    with TemporaryDirectory() as temp_dir:
+        metadata_path = Path(temp_dir) / "recipe.yml"
+        metadata_path.write_text(
+            dedent("""
+                replacements:
+                  Omachi: Omarchy
+                  Hansen: Hanson
+                """).strip()
+        )
+        args = build_parser().parse_args(
+            [
+                "--metadata",
+                str(metadata_path),
+                "--replace",
+                "Hansen=Hansson",
+                "--replace",
+                "Amache=Omarchy",
+                "https://example.com/video",
+            ]
+        )
+        metadata = build_transcription_metadata(args)
+
+    assert args.replace == [("Hansen", "Hansson"), ("Amache", "Omarchy")]
+    # The file's own entry survives, the new one is added, and the flag wins where both
+    # name the same misheard word.
+    assert metadata.replacements == {
+        "Omachi": "Omarchy",
+        "Hansen": "Hansson",
+        "Amache": "Omarchy",
+    }
+
+
+def test_a_replace_flag_without_an_equals_sign_is_a_usage_error() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--replace", "Omachi", "https://example.com/video"])
+
+
 def test_parser_supports_the_direct_transcription_contract() -> None:
     args = build_parser().parse_args(
         [
@@ -502,6 +540,7 @@ def test_segments_flag_survives_metadata_validation(tmp_path: Path) -> None:
         title=None,
         description=None,
         key_term=[],
+        replace=[],
         speaker=None,
         speaker_role=None,
         instructions_file=[],

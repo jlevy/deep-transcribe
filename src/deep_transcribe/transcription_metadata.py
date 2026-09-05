@@ -15,6 +15,9 @@ from sidematter_format import Sidematter
 
 TRANSCRIPTION_METADATA_KEY = "transcription"
 
+REPLACEMENTS_KEY = "replacements"
+"""Key under `extra.transcription` where wrong-to-right text replacements are stored."""
+
 
 @dataclass(frozen=True)
 class TranscriptionMetadata:
@@ -65,6 +68,20 @@ class TranscriptionMetadata:
         if not isinstance(terms, list):
             return []
         return [term for term in cast(list[object], terms) if isinstance(term, str)]
+
+    @property
+    def replacements(self) -> dict[str, str]:
+        transcription = self.extra.get(TRANSCRIPTION_METADATA_KEY)
+        if not isinstance(transcription, dict):
+            return {}
+        mapping = cast(dict[str, Any], transcription).get(REPLACEMENTS_KEY)
+        if not isinstance(mapping, dict):
+            return {}
+        return {
+            wrong: right
+            for wrong, right in cast(dict[object, object], mapping).items()
+            if isinstance(wrong, str) and isinstance(right, str)
+        }
 
     @property
     def speaker_roster(self) -> list[str]:
@@ -120,6 +137,28 @@ def _normalize_key_terms(value: object) -> list[str]:
     return list(dict.fromkeys(term.strip() for term in string_terms if term.strip()))
 
 
+def normalize_replacements(value: object) -> dict[str, str]:
+    """
+    Validate and normalize a wrong-to-right text replacement mapping.
+
+    Both sides must be plain nonempty strings. A YAML author who writes a list, or lets a
+    bare `Omarchy:` parse to None, gets told what the shape is rather than a stage failing
+    on unusable data an hour into a run.
+    """
+    if not isinstance(value, dict):
+        raise ValueError("`replacements` must map misrecognized text to its correction")
+    mapping: dict[str, str] = {}
+    for wrong, right in cast(dict[object, object], value).items():
+        if not isinstance(wrong, str) or not wrong.strip():
+            raise ValueError("`replacements` keys must be nonempty strings")
+        if not isinstance(right, str) or not right.strip():
+            raise ValueError(
+                f"`replacements` values must be nonempty strings; `{wrong}` has {right!r}"
+            )
+        mapping[wrong.strip()] = right.strip()
+    return mapping
+
+
 def _normalize_speaker_hints(value: object) -> dict[str, str]:
     if not isinstance(value, dict):
         raise ValueError("`speaker_hints` must map speaker IDs to names")
@@ -162,6 +201,7 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         "speaker_hints",
         "speaker_roster",
         "processing_instructions",
+        REPLACEMENTS_KEY,
         SEGMENTS_KEY,
     }
     unexpected_fields = sorted(str(key) for key in data_dict if key not in allowed_fields)
@@ -184,6 +224,8 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         transcription["speaker_hints"] = _normalize_speaker_hints(transcription["speaker_hints"])
     if "speaker_roster" in transcription:
         transcription["speaker_roster"] = normalize_speaker_roster(transcription["speaker_roster"])
+    if REPLACEMENTS_KEY in transcription:
+        transcription[REPLACEMENTS_KEY] = normalize_replacements(transcription[REPLACEMENTS_KEY])
     if "processing_instructions" in transcription:
         transcription["processing_instructions"] = _optional_text(
             transcription["processing_instructions"], "processing_instructions"
@@ -194,6 +236,8 @@ def transcription_metadata_from_mapping(data: object) -> TranscriptionMetadata:
         transcription["speaker_hints"] = _normalize_speaker_hints(data_dict["speaker_hints"])
     if "speaker_roster" in data_dict:
         transcription["speaker_roster"] = normalize_speaker_roster(data_dict["speaker_roster"])
+    if REPLACEMENTS_KEY in data_dict:
+        transcription[REPLACEMENTS_KEY] = normalize_replacements(data_dict[REPLACEMENTS_KEY])
     if "processing_instructions" in data_dict:
         transcription["processing_instructions"] = _optional_text(
             data_dict["processing_instructions"], "processing_instructions"
@@ -283,6 +327,46 @@ def get_concepts(item: Item) -> list[dict[str, Any]]:
 def get_processing_instructions(item: Item) -> str | None:
     """Read trusted post-transcription instructions from item metadata."""
     return TranscriptionMetadata(extra=item.extra or {}).processing_instructions
+
+
+def get_replacements(item: Item) -> dict[str, str]:
+    """Read the wrong-to-right text replacements from item metadata."""
+    return TranscriptionMetadata(extra=item.extra or {}).replacements
+
+
+def set_replacements(item: Item, replacements: dict[str, str]) -> Item:
+    """Attach text replacements to an item, in place."""
+    if not replacements:
+        return item
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.setdefault(TRANSCRIPTION_METADATA_KEY, {})
+    if not isinstance(transcription, dict):
+        raise ValueError("`extra.transcription` must be a mapping")
+    cast(dict[str, Any], transcription)[REPLACEMENTS_KEY] = dict(replacements)
+    item.extra = item_extra
+    return item
+
+
+def remove_replacements(item: Item) -> dict[str, str]:
+    """
+    Remove text replacements in place and return them for later restoration.
+
+    Same shape and the same reason as `remove_processing_instructions`: the mapping is an
+    input to the correction stage, not to speech-to-text. Left on the stored resource it
+    would be inside the raw transcription's cache key, so fixing one misheard name would
+    buy a fresh paid Deepgram request for a five-hour recording — the opposite of why a
+    deterministic replacement list exists.
+    """
+    replacements = get_replacements(item)
+    if not replacements:
+        return {}
+    item_extra = deepcopy(item.extra or {})
+    transcription = item_extra.get(TRANSCRIPTION_METADATA_KEY)
+    if isinstance(transcription, dict):
+        cast(dict[str, Any], transcription).pop(REPLACEMENTS_KEY, None)
+    _prune_empty_transcription(item_extra)
+    item.extra = item_extra
+    return replacements
 
 
 # Display names for the extractor services whose metadata we surface to models, so a
@@ -585,6 +669,65 @@ def test_transcription_metadata_normalizes_merges_and_applies() -> None:
             "speaker_roster": ["Alice Chen", "Bob Diaz"],
         }
     }
+
+
+def test_replacements_are_parsed_from_a_recipe_file() -> None:
+    parsed = parse_transcription_metadata(
+        dedent("""
+            replacements:
+              Omachi: Omarchy
+              Hansen: Hansson
+            """).strip()
+    )
+
+    assert parsed.replacements == {"Omachi": "Omarchy", "Hansen": "Hansson"}
+    assert parsed.extra["transcription"][REPLACEMENTS_KEY] == parsed.replacements
+    item = Item(type=ItemType.doc)
+    apply_transcription_metadata(item, parsed)
+    assert get_replacements(item) == {"Omachi": "Omarchy", "Hansen": "Hansson"}
+
+
+def test_replacements_reject_shapes_that_cannot_be_applied() -> None:
+    """
+    A recipe file is hand-edited, and both mistakes here are easy to make: writing a list
+    instead of a mapping, and leaving the correction off so YAML parses it as None. Failing
+    at parse time with the shape named beats failing an hour into a run.
+    """
+    for value, expected in (
+        (["Omachi", "Omarchy"], "must map misrecognized text to its correction"),
+        ({"Omachi": None}, "values must be nonempty strings"),
+        ({"Omachi": 7}, "values must be nonempty strings"),
+        ({"Omachi": "  "}, "values must be nonempty strings"),
+        ({"  ": "Omarchy"}, "keys must be nonempty strings"),
+    ):
+        try:
+            transcription_metadata_from_mapping({"replacements": value})
+        except ValueError as error:
+            assert expected in str(error), f"{value!r} gave {error}"
+        else:
+            raise AssertionError(f"{value!r} must be rejected")
+
+
+def test_replacements_can_be_excluded_from_upstream_cache_identity() -> None:
+    """
+    The mapping is read only by the correction stage, so it must leave no trace on the
+    resource kash hashes for the paid speech-to-text request.
+    """
+    item = Item(
+        type=ItemType.doc,
+        extra={"transcription": {"replacements": {"Omachi": "Omarchy"}}},
+    )
+
+    replacements = remove_replacements(item)
+
+    assert replacements == {"Omachi": "Omarchy"}
+    assert item.extra == {}
+    assert get_replacements(item) == {}
+    # Removing from an item that never had them is a no-op, not a mutation.
+    assert remove_replacements(item) == {}
+    assert item.extra == {}
+    set_replacements(item, replacements)
+    assert get_replacements(item) == replacements
 
 
 def test_speaker_roster_rejects_ambiguous_duplicate_labels() -> None:

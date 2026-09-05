@@ -32,8 +32,10 @@ from deep_transcribe.transcription_metadata import (
     parse_transcription_metadata,
     persist_item_metadata,
     remove_processing_instructions,
+    remove_replacements,
     remove_segment_hints,
     set_processing_instructions,
+    set_replacements,
     set_segment_hints,
     strip_volatile_source_fields,
 )
@@ -203,8 +205,11 @@ def transcribe_with_options(
     # restore them immediately before the overview stages that consume them.
     processing_instructions = remove_processing_instructions(item)
     segment_hints = remove_segment_hints(item)
+    # Text replacements are read only by the correction stage below, so they get the same
+    # treatment: held off the source for the raw request, then put back on the transcript.
+    replacements = remove_replacements(item)
     if (
-        processing_instructions is not None or segment_hints is not None
+        processing_instructions is not None or segment_hints is not None or replacements
     ) and item.store_path is not None:
         # Kash hashes a stored input's file content when assembling an operation. Keep
         # the persisted source canonical too, or an in-memory removal alone cannot make
@@ -224,6 +229,9 @@ def transcribe_with_options(
         old_metadata = result.metadata()
         copy_source_metadata(item, result)
         remove_processing_instructions(result)
+        # The mapping travels on the transcript rather than the resource, so changing it
+        # re-runs the correction stage and everything below it, never speech-to-text.
+        set_replacements(result, replacements)
         if result.metadata() != old_metadata:
             workspace.save(result, overwrite=True)
     finally:
@@ -241,8 +249,9 @@ def transcribe_with_options(
         set_processing_instructions(item, processing_instructions)
         if segment_hints is not None:
             set_segment_hints(item, segment_hints)
+        set_replacements(item, replacements)
         if (
-            processing_instructions is not None or segment_hints is not None
+            processing_instructions is not None or segment_hints is not None or replacements
         ) and item.store_path is not None:
             persist_item_metadata(item, workspace)
 
@@ -284,6 +293,7 @@ def _process_transcript(
         add_transcript_description,
         add_transcript_outline,
     )
+    from deep_transcribe.transcript_replacements import apply_replacements_if_any
     from deep_transcribe.transcript_spacing import (
         fold_back_channel_turns,
         normalize_transcript_fragments,
@@ -292,6 +302,10 @@ def _process_transcript(
     # Sanitize legacy raw-cache entries that may still carry output-only inputs.
     remove_processing_instructions(result)
     remove_segment_hints(result)
+
+    # Deterministic corrections come first, so speaker correction, paragraphs, headings,
+    # and the overview stages all read the corrected words.
+    result = apply_replacements_if_any(result)
 
     # Apply formatting pipeline if requested
     if options.format:
@@ -380,8 +394,8 @@ TRANSCRIPTION_ACTION_PARAMS = common_params("language") + (
         "metadata_yaml",
         (
             "Inline YAML or JSON source metadata. Supports title, description, "
-            "additional_context, processing_instructions, key_terms, speaker_hints, "
-            "speaker_roster, and extra."
+            "additional_context, processing_instructions, key_terms, replacements, "
+            "speaker_hints, speaker_roster, and extra."
         ),
         type=str,
         default_value="",

@@ -18,7 +18,10 @@ What each part of the recipe does, and what a change to it costs on this recordi
   transcript has Omarchy 47 times (was 4), Amache 0 (was 14), Hansson 5 (was 1), and
   Omachi 19 (was 25), so a residue remains that only a replacement list would remove.
   Changing them re-runs speech-to-text (about twelve minutes plus the request) and
-  everything after it.
+  everything after it. The `replacements` entry here removes the residue: `Omachi:
+  Omarchy` cleared all 19 remaining occurrences from the raw transcript body, taking
+  Omarchy there from 40 to 59, and editing that list re-runs only the correction stage and
+  what follows it.
 - `additional_context` and `speaker_roster`: who is speaking and how to label them.
   Changing them re-runs speaker correction and everything after it.
 - `processing_instructions`: how the synopsis and outline are written. Changing them

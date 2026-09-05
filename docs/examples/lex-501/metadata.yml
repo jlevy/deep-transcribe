@@ -26,6 +26,9 @@ key_terms:
   - Anthropic
   - Cursor
   - Grok
+replacements:
+  Omachi: Omarchy
+  Hansen: Hansson
 processing_instructions: >-
   Spell the Linux distribution "Omarchy" and the guest's surname "Hansson". The synopsis is
   two paragraphs that name both speakers and say what was argued, not what was discussed.

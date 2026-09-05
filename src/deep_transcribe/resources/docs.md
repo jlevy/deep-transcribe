@@ -153,6 +153,24 @@ one speaker. Use the repeatable `--speaker-role` override only when the prose is
 ambiguous or the inferred complete roster needs an exact correction.
 Do not guess names that are not supported by the recording context.
 
+Key terms raise the odds that Deepgram spells an unusual name correctly, but they do not
+settle it, and what is left sits in the transcript body where processing instructions
+cannot reach it: those are read only by the synopsis and outline stages.
+Repeatable `--replace WRONG=RIGHT` corrects the residue.
+Measured on a five-hour interview already carrying seventeen key terms, the raw
+transcript still spelled the Linux distribution `Omachi` 19 times; `--replace
+Omachi=Omarchy` removed all 19 and left the citation structure untouched.
+Corrections apply to whole words only, so `Omachi` never rewrites the middle of a longer
+word, and each occurrence keeps its own case: `omachi` becomes `omarchy`, `OMACHI`
+becomes `OMARCHY`, and a possessive or plural follows the word.
+Text inside HTML tags and attributes is never touched.
+List several corrections under `replacements:` in a `--metadata` file when the recipe is
+worth keeping.
+Use them for words the recognizer got wrong, not to change what a speaker said.
+Correcting the transcript early is what makes it worth doing: every later stage, from
+speaker correction to the synopsis, reads the corrected words, and changing the list
+never repeats speech-to-text.
+
 ## Iterate Without Repeating Speech-to-Text
 
 A Deep Transcribe workspace is a reusable computation graph.
@@ -186,6 +204,7 @@ iterations.
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
 | Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses everything through section headings and resumes at the outline; about 20 minutes on a five-hour recording |
 | Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
+| Add or change a `--replace WRONG=RIGHT` correction | Run the same command with the new correction | Reuses the cached transcript and resumes at the correction stage, so every stage below it is redone |
 | Add `--with STAGE` or move to a richer preset | Run the expanded command normally | Reuses the cached transcript and compatible processing |
 | Change the saved Anthropic/OpenAI profile or deliberately regenerate all model-derived output | Add `--rerun-processing` | Reuses the cached transcript and forces later stages |
 | Change `key_terms`, language, transcription model, or diarization model | Run normally with the new recognition input | Creates a new transcript cache entry |

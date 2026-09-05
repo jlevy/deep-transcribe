@@ -24,9 +24,10 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--segments PATH] [--instructions TEXT]
                        [--instructions-file PATH] [--title TEXT]
                        [--description TEXT] [--metadata YAML_OR_JSON]
-                       [--key-term TERM] [--speaker ID=NAME]
-                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
-                       [--models [PROFILE]] [--language LANGUAGE]
+                       [--key-term TERM] [--replace WRONG=RIGHT]
+                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
+                       [--workspace WORKSPACE] [--models [PROFILE]]
+                       [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--report] [--export-only]
@@ -109,10 +110,14 @@ Exact and Structured Overrides:
   --metadata YAML_OR_JSON
                         Optional structured overrides for automation: title,
                         description, additional_context,
-                        processing_instructions, key_terms, speaker_hints,
-                        speaker_roster, or extra fields
+                        processing_instructions, key_terms, replacements,
+                        speaker_hints, speaker_roster, or extra fields
   --key-term TERM       Term or name Deepgram should recognize accurately;
                         repeat as needed
+  --replace WRONG=RIGHT
+                        Misheard word and its correction, such as
+                        Omachi=Omarchy; applied to whole words in the
+                        transcript, preserving case; repeat as needed
   --speaker ID=NAME     Authoritative speaker label, such as 0='Alice Chen';
                         repeat as needed
   --speaker-role NAME_OR_ROLE
@@ -232,9 +237,10 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--segments PATH] [--instructions TEXT]
                        [--instructions-file PATH] [--title TEXT]
                        [--description TEXT] [--metadata YAML_OR_JSON]
-                       [--key-term TERM] [--speaker ID=NAME]
-                       [--speaker-role NAME_OR_ROLE] [--workspace WORKSPACE]
-                       [--models [PROFILE]] [--language LANGUAGE]
+                       [--key-term TERM] [--replace WRONG=RIGHT]
+                       [--speaker ID=NAME] [--speaker-role NAME_OR_ROLE]
+                       [--workspace WORKSPACE] [--models [PROFILE]]
+                       [--language LANGUAGE]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--report] [--export-only]
