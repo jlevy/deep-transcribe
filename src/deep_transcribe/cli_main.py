@@ -26,6 +26,7 @@ from deep_transcribe.model_profiles import (
 from deep_transcribe.transcribe_options import TranscribeOptions
 
 if TYPE_CHECKING:
+    from deep_transcribe.transcript_report import TranscriptReport
     from deep_transcribe.transcription_metadata import TranscriptionMetadata
 
 log = logging.getLogger(__name__)
@@ -372,6 +373,15 @@ def _add_transcription_arguments(
         ),
     )
     execution.add_argument(
+        "--report",
+        action="store_true",
+        help=(
+            "Describe what the run produced — section headings and their density, outline "
+            "entries, themes, segments in effect, speaker turns, frames, and repeated "
+            "capitalized spellings to choose --key-term values from"
+        ),
+    )
+    execution.add_argument(
         "--json",
         action="store_true",
         help="Print final workspace and artifact paths as JSON",
@@ -464,8 +474,9 @@ def display_results(
     html_path: Path,
     *,
     as_json: bool,
+    report: "TranscriptReport | None" = None,
 ) -> None:
-    """Display generated artifact paths."""
+    """Display generated artifact paths, and the report when one was built."""
     from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
 
     # `base_dir` is the root the user passed; the kash workspace, where the pipeline
@@ -473,7 +484,7 @@ def display_results(
     # directory, so it is the reliable way back to it.
     suggested = transcript_path.parent.parent / SUGGESTED_SEGMENTS_NAME
     if as_json:
-        result: dict[str, str] = {
+        result: dict[str, object] = {
             "workspace": str(base_dir.resolve()),
             "transcript": str(transcript_path.resolve()),
             "html": str(html_path.resolve()),
@@ -481,12 +492,24 @@ def display_results(
         # An agent driving the review loop needs to find this without reading the log.
         if suggested.exists():
             result["suggested_segments"] = str(suggested.resolve())
+        # Folded into the one document rather than printed beside it, so `--json` output
+        # stays parseable by a single read.
+        if report is not None:
+            result["report"] = report.to_json_dict()
         print(json.dumps(result, sort_keys=True))
         return
 
     # fmt_path is missing from prettyfmt's __all__ (upstream oversight); it is public API.
     from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
     from rich import print as rprint
+
+    if report is not None:
+        from deep_transcribe.transcript_report import format_report_text
+
+        # Printed before the paths so the paths stay the last thing on screen, and without
+        # rich markup so a bracket in a heading or a name cannot be read as a style tag.
+        print(format_report_text(report))
+        print()
 
     rprint(
         dedent(f"""
@@ -856,7 +879,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         except ValueError as error:
             parser.error(str(error))
 
-        transcript_path, html_path = run_transcription(
+        outputs = run_transcription(
             workspace,
             args.source,
             options,
@@ -868,12 +891,14 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             rerun=args.rerun,
             rerun_processing=args.rerun_processing,
             elements=elements,
+            report=args.report,
         )
         display_results(
             workspace,
-            transcript_path,
-            html_path,
+            outputs.transcript_path,
+            outputs.html_path,
             as_json=args.json,
+            report=outputs.report,
         )
     except Exception as error:
         from kash.config.logger import get_log_settings

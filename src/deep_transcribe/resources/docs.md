@@ -173,6 +173,7 @@ iterations.
 
 | Desired change | What to run | Speech-to-text behavior |
 | --- | --- | --- |
+| See what the last run produced before deciding what to change | Add `--report` | Reuses everything; the report is read from the final item |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
 | Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses everything through section headings and resumes at the outline; about 20 minutes on a five-hour recording |
 | Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |
@@ -364,6 +365,18 @@ Each successful run reports:
 Use `--json` when another tool or agent needs stable artifact paths.
 Open the workspace with `kash` when intermediate items or action history require deeper
 inspection.
+
+Add `--report` to read what a run produced without opening the page: the section headings
+with their count and per-hour density, the number of outline entries, the themes with
+their concept counts, the segments in effect with their spans, the speaker turn counts,
+the frames kept, and the capitalized words that recur most often.
+Every number comes from the final transcript item rather than from the HTML, so the
+report describes the analysis and not the template.
+The spelling list is the practical reason to run it: one name transcribed several ways is
+invisible in a five-hour transcript and obvious in that list, and each variant is a
+`--key-term` worth passing on the next run.
+With `--json` the same report is folded into the output under a `report` key, so one parse
+gets both the paths and the counts.
 
 ### Save the HTML as a PDF
 

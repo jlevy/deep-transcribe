@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -39,8 +40,23 @@ from deep_transcribe.transcription_metadata import (
 
 if TYPE_CHECKING:
     from deep_transcribe.segment_hints import SegmentHints
+    from deep_transcribe.transcript_report import TranscriptReport
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class TranscriptionOutputs:
+    """
+    What a run produced: the two paths, and the report when one was asked for.
+
+    The report has to be built where the final item still exists, so it is carried back
+    with the paths rather than recomputed by the caller from a path.
+    """
+
+    transcript_path: Path
+    html_path: Path
+    report: TranscriptReport | None = None
 
 
 def _media_source_locator(source: str) -> str:
@@ -489,7 +505,8 @@ def run_transcription(
     rerun: bool = False,
     rerun_processing: bool = False,
     elements: list[str] | None = None,
-) -> tuple[Path, Path]:
+    report: bool = False,
+) -> TranscriptionOutputs:
     """
     Transcribe the audio or video at the given URL using kash with the specified options.
 
@@ -504,9 +521,10 @@ def run_transcription(
         no_minify: If True, skip HTML minification
         rerun: If True, rerun every action, including raw transcription
         rerun_processing: If True, rerun post-transcription processing only
+        report: If True, also describe what the run produced, from the final item
 
     Returns:
-        Tuple of (transcript_path, html_path) for the generated files
+        The generated paths, and the report when one was requested
     """
     # Import dynamically for faster startup.
     from kash.config.setup import kash_setup
@@ -575,9 +593,23 @@ def run_transcription(
                 rerun_processing=rerun_processing,
             )
 
-            return format_results(
+            transcript_path, html_path = format_results(
                 result_item, runtime.workspace.base_dir, no_minify=no_minify, elements=elements
             )
+            # Built here, inside the runtime and while the exported item is still in hand,
+            # because that item is the only thing that knows what this run produced.
+            return TranscriptionOutputs(
+                transcript_path,
+                html_path,
+                report=_build_report(result_item) if report else None,
+            )
+
+
+def _build_report(result_item: Item) -> TranscriptReport:
+    """Describe the exported item. Imported lazily to keep a plain run's startup unchanged."""
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    return build_transcript_report(result_item)
 
 
 PAGE_ELEMENTS = (

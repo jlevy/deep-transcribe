@@ -588,3 +588,228 @@ def test_keeping_back_channels_leaves_every_turn_standing(
     assert _turn_count(body) == 5
     assert "[DHH: Mhmm.]" not in body
     assert "**DHH:** Mhmm." in body
+
+REPORT_SOURCE_URL = "https://example.com/report-recording"
+"""The source the reported item claims, so the re-export lookup has something to match."""
+
+
+def _reported_body() -> str:
+    """
+    A final item's body, small but shaped like the real one.
+
+    Every count the report prints is read out of this body, so it carries the structures
+    that matter and nothing else: three `##` sections, six labelled turns anchored by the
+    citation spans the pipeline emits, an outline block, a frame capture, and one name
+    spelled two ways. The spelling pair is the planted measurement — Omarchy three times
+    and Omachi twice is the mistake the real recording made about sixty times, and it is
+    invisible without this list.
+    """
+
+    def turn(label: str, ts: str, text: str) -> str:
+        chip = (
+            f'<span class="citation timestamp-link" data-src="r.yml" '
+            f'data-timestamp="{ts}">{ts}</span>'
+        )
+        return f"**{label}:** {text} {chip}\n\n"
+
+    return (
+        '<div class="transcript-outline" style="x">\n\n'
+        "- **Opening**\n  - a point\n- **The setup**\n  - another\n\n"
+        '<div class="original">\n\n</div>\n\n'
+        "## Opening\n\n"
+        + turn("Ada", "12.50", "Welcome. We are talking about Omarchy today.")
+        + turn("Grace", "48.00", "I have used Omarchy for a while.")
+        + "## The setup\n\n"
+        + turn("Ada", "600.25", "Tell me how Omachi installs.")
+        + turn("Grace", "900.00", "Omachi is the spelling on the box.")
+        + '<img class="frame-capture" src="frames/f1.jpg" alt="Frame at 900.0 seconds">\n\n'
+        + "## The tooling\n\n"
+        + turn("Ada", "1200.00", "So Omarchy is a Linux distribution.")
+        + turn("Grace", "1500.00", "Linux, yes.")
+    )
+
+
+def _reported_item() -> Item:
+    """The item a finished run would hand `format_results`, with its analysis attached."""
+    from kash.model import Format
+    from kash.utils.common.url import Url
+
+    from deep_transcribe.transcription_metadata import set_segment_hints
+
+    item = Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        title="A reported recording",
+        url=Url(REPORT_SOURCE_URL),
+        body=_reported_body(),
+        # The density is per hour of source, and the extractor's duration is where that
+        # comes from; half an hour makes the arithmetic checkable by eye.
+        extra={"duration": 1800},
+    )
+    item.extra = dict(item.extra or {})
+    item.extra["transcription"] = {
+        "concepts": [
+            {"name": "Omarchy", "theme": "Tooling", "mentions": ["12.50", "1200.00"]},
+            {"name": "Linux", "theme": "Tooling", "mentions": ["1500.00"]},
+            {"name": "Installation", "theme": "Setup", "mentions": ["600.25"]},
+            {"name": "An aside", "mentions": ["48.00"]},
+        ]
+    }
+    set_segment_hints(item, {"segments": [{"at": "0:00:00 - 0:01:00", "purpose": "teaser"}]})
+    return item
+
+
+def test_the_report_counts_what_the_final_item_actually_holds() -> None:
+    """
+    The report over a realistic final item, field by field.
+
+    Each number here is one the agent reading the report acts on, so each is pinned rather
+    than smoke-tested: a report that silently counted zero sections would still print.
+    """
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    report = build_transcript_report(_reported_item())
+
+    assert [h.title for h in report.headings] == ["Opening", "The setup", "The tooling"]
+    # The first citation under each heading is where that section starts.
+    assert [h.start for h in report.headings] == [12.50, 600.25, 1200.00]
+    assert report.duration == 1800.0
+    # Three sections in half an hour.
+    assert report.headings_per_hour == 6.0
+
+    assert report.outline_entries == 2
+
+    assert [(t.name, t.concepts) for t in report.themes] == [("Tooling", 2), ("Setup", 1)]
+    assert report.unthemed_concepts == 1
+
+    assert [(s.label, s.turns) for s in report.speakers] == [("Ada", 3), ("Grace", 3)]
+
+    assert len(report.segments) == 1
+    segment = report.segments[0]
+    assert segment.purpose == "teaser"
+    assert (segment.start, segment.end) == (0.0, 60.0)
+    assert segment.suppressed is True
+    # The 12.50 and 48.00 turns fall inside the first minute; 600.25 onward do not.
+    assert segment.units == 2
+
+    assert report.frames_kept == 1
+
+
+def test_the_report_surfaces_one_name_spelled_two_ways() -> None:
+    """
+    The planted pair. Choosing `--key-term` values is the reason this list exists, so the
+    variants have to appear with their counts and the ordinary words must not crowd them out.
+    """
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    report = build_transcript_report(_reported_item())
+    counts = {entry.token: entry.count for entry in report.spellings}
+
+    assert counts["Omarchy"] == 3
+    assert counts["Omachi"] == 2
+    assert counts["Linux"] == 2
+    for ordinary in ("Welcome", "Tell", "So"):
+        assert ordinary not in counts
+
+
+def test_the_report_text_renders_every_section() -> None:
+    """A report an agent reads is the text, not the dataclass."""
+    from deep_transcribe.transcript_report import build_transcript_report, format_report_text
+
+    text = format_report_text(build_transcript_report(_reported_item()))
+
+    assert "headings 3 (6.0/h)" in text
+    assert "outline 2 entries" in text
+    assert "themes 2 (1 concepts unthemed)" in text
+    assert "segments 1" in text
+    assert "teaser" in text and "suppressed" in text
+    assert "speakers 2" in text
+    assert "frames 1 kept" in text
+    assert "Omarchy" in text and "Omachi" in text
+
+
+def test_the_json_report_carries_the_same_counts() -> None:
+    """`--json` folds this dict in, so its shape is what an agent parses."""
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    payload = build_transcript_report(_reported_item()).to_json_dict()
+
+    assert payload["headings"]["count"] == 3
+    assert payload["headings"]["per_hour"] == 6.0
+    assert payload["outline"]["entries"] == 2
+    assert payload["themes"]["count"] == 2
+    assert payload["themes"]["unthemed_concepts"] == 1
+    assert payload["segments"][0]["at"] == "0:00:00 - 0:01:00"
+    assert payload["frames"]["kept"] == 1
+    spellings = {row["token"]: row["count"] for row in payload["spellings"]}
+    assert spellings["Omarchy"] == 3
+
+
+def test_a_run_asked_for_a_report_describes_the_item_it_exported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    A normal run has to build the report from the item it just handed `format_results`.
+
+    Fetching, transcription and rendering are faked because none of them is the point, but
+    the seam under test is the real one: a run that reports on the source it started from,
+    or on nothing at all, would still print a plausible-looking report. The last assertion
+    is the other half — without the flag a run stays exactly as cheap as it was.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    exported: list[Item] = []
+
+    def fake_prepare(_source: str) -> Item:
+        item = Item(
+            type=ItemType.resource,
+            format=Format.url,
+            url=Url(REPORT_SOURCE_URL),
+            title="Fixture",
+        )
+        current_ws().save(item)
+        return item
+
+    def fake_transcribe(_item: Item, *_args: object, **_kwargs: object) -> Item:
+        return _reported_item()
+
+    def fake_format(result: Item, _base_dir: Path, **_kwargs: object) -> tuple[Path, Path]:
+        exported.append(result)
+        return Path("transcript.md"), Path("transcript.html")
+
+    monkeypatch.setattr(transcribe_commands, "_prepare_source_item", fake_prepare)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "format_results", fake_format)
+
+    ws_root = _own_workspace(tmp_path)
+    outputs = transcribe_commands.run_transcription(
+        ws_root,
+        REPORT_SOURCE_URL,
+        TranscribeOptions.basic(),
+        "en",
+        report=True,
+    )
+
+    assert len(exported) == 1
+    report = outputs.report
+    assert report is not None, "a run asked for a report came back without one"
+    # The exported item's own sections, not the source resource's (which has none).
+    assert [heading.title for heading in report.headings] == [
+        "Opening",
+        "The setup",
+        "The tooling",
+    ]
+    assert [(theme.name, theme.concepts) for theme in report.themes] == [
+        ("Tooling", 2),
+        ("Setup", 1),
+    ]
+
+    plain = transcribe_commands.run_transcription(
+        ws_root,
+        REPORT_SOURCE_URL,
+        TranscribeOptions.basic(),
+        "en",
+    )
+    assert plain.report is None

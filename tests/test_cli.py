@@ -289,6 +289,7 @@ def test_models_profile_can_be_selected_before_transcription(
     from kash.config import setup
 
     from deep_transcribe import transcribe_commands
+    from deep_transcribe.transcribe_commands import TranscriptionOutputs
 
     source = "https://example.com/video"
     observed: dict[str, object] = {}
@@ -301,12 +302,12 @@ def test_models_profile_can_be_selected_before_transcription(
         source_arg: str,
         *_args: object,
         **_kwargs: object,
-    ) -> tuple[Path, Path]:
+    ) -> TranscriptionOutputs:
         profile = MODEL_PROFILES[ModelProvider.openai]
         params_text = (base_dir / "workspace/.kash/settings/params.yml").read_text(encoding="utf-8")
         observed["source"] = source_arg
         observed["profile_saved"] = f"careful_llm: {profile.careful_llm}" in params_text
-        return base_dir / "transcript.md", base_dir / "transcript.html"
+        return TranscriptionOutputs(base_dir / "transcript.md", base_dir / "transcript.html")
 
     monkeypatch.setattr(transcribe_commands, "run_transcription", fake_run_transcription)
     monkeypatch.setattr(setup, "kash_setup", fake_kash_setup)
@@ -894,3 +895,130 @@ def test_an_unmapped_failure_still_gets_the_traceback_it_always_had(
     assert code != 0
     assert "Error: something structural went wrong" in reported, reported
     assert "Traceback" in console, f"an unknown failure lost its traceback:\n{console}"
+
+
+EXPORTED_SOURCE = "https://example.com/exported-recording"
+"""The source the stored item claims, so the re-export has something to match it against."""
+
+
+def _exported_body() -> str:
+    """
+    A final item's body, small but shaped like a real one: the structures the report counts
+    and nothing else. Two `##` sections, two labelled turns anchored by the citation spans
+    the pipeline emits, an outline block, and one name spelled two ways.
+    """
+
+    def turn(label: str, ts: str, text: str) -> str:
+        chip = (
+            f'<span class="citation timestamp-link" data-src="r.yml" '
+            f'data-timestamp="{ts}">{ts}</span>'
+        )
+        return f"**{label}:** {text} {chip}\n\n"
+
+    return (
+        '<div class="transcript-outline" style="x">\n\n'
+        "- **Opening**\n- **The setup**\n\n"
+        '<div class="original">\n\n</div>\n\n'
+        "## Opening\n\n"
+        + turn("Ada", "12.50", "We are talking about Omarchy today.")
+        + "## The setup\n\n"
+        + turn("Grace", "600.25", "Omachi is the spelling on the box.")
+    )
+
+
+def _exported_item() -> Item:
+    """The item a finished run hands `format_results`, with its analysis attached."""
+    from kash.model import Format, Item, ItemType
+    from kash.utils.common.url import Url
+
+    return Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        title="A finished recording",
+        url=Url(EXPORTED_SOURCE),
+        body=_exported_body(),
+        extra={
+            # Half an hour makes the per-hour density checkable by eye.
+            "duration": 1800,
+            "transcription": {
+                "concepts": [
+                    {"name": "Omarchy", "theme": "Tooling", "mentions": ["12.50"]},
+                    {"name": "Linux", "theme": "Tooling", "mentions": ["600.25"]},
+                    {"name": "An aside", "mentions": ["12.50"]},
+                ]
+            },
+        },
+    )
+
+
+def test_report_is_folded_into_the_json_a_run_prints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    `--report --json` has to stay one parseable document.
+
+    An agent driving the loop reads the JSON with a single parse, so the report belongs
+    under a key beside the paths rather than printed next to them. This also pins that
+    `--report` actually reaches the run, which is the half a report-shaped dict cannot
+    prove on its own.
+    """
+    from kash.config import setup
+
+    from deep_transcribe import transcribe_commands
+    from deep_transcribe.transcribe_commands import TranscriptionOutputs
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    observed: dict[str, object] = {}
+
+    def fake_kash_setup(**_kwargs: object) -> None:
+        pass
+
+    def fake_run_transcription(
+        base_dir: Path, _source: str, *_args: object, **kwargs: object
+    ) -> TranscriptionOutputs:
+        observed["report_requested"] = kwargs.get("report")
+        return TranscriptionOutputs(
+            base_dir / "transcript.md",
+            base_dir / "transcript.html",
+            # Built by the real builder over a real item: the CLI's job is to carry and
+            # render this, and a hand-written stub would test the test.
+            report=build_transcript_report(_exported_item()),
+        )
+
+    monkeypatch.setattr(transcribe_commands, "run_transcription", fake_run_transcription)
+    monkeypatch.setattr(setup, "kash_setup", fake_kash_setup)
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    output = StringIO()
+    with redirect_stdout(output):
+        main(["--workspace", str(tmp_path), "--report", "--json", EXPORTED_SOURCE])
+
+    assert observed == {"report_requested": True}
+
+    payload = json.loads(output.getvalue())
+    assert payload["html"].endswith("transcript.html")
+    report = payload["report"]
+    assert sorted(report) == [
+        "duration",
+        "frames",
+        "headings",
+        "outline",
+        "segments",
+        "speakers",
+        "spellings",
+        "themes",
+    ]
+    assert report["headings"]["count"] == 2
+    # Two sections in half an hour.
+    assert report["headings"]["per_hour"] == 4.0
+    assert [h["title"] for h in report["headings"]["list"]] == ["Opening", "The setup"]
+    assert report["outline"]["entries"] == 2
+    assert report["themes"] == {
+        "count": 1,
+        "unthemed_concepts": 1,
+        "list": [{"name": "Tooling", "concepts": 2}],
+    }
+    assert [(s["label"], s["turns"]) for s in report["speakers"]] == [("Ada", 1), ("Grace", 1)]
+    spelled = {row["token"] for row in report["spellings"]}
+    assert {"Omarchy", "Omachi"} <= spelled

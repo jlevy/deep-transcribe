@@ -227,6 +227,16 @@ def scan_section_offsets(body: str) -> list[int]:
     return [match.start() for match in _H2_PATTERN.finditer(body)]
 
 
+def scan_section_headings(body: str) -> list[str]:
+    """
+    The `##` heading texts, in the order `RawUnit.section` indexes them.
+
+    Shares the heading pattern with the index and the chunker, so a report of how many
+    sections a run produced cannot drift from the sections the pipeline actually saw.
+    """
+    return [match.group("heading") for match in _H2_PATTERN.finditer(body)]
+
+
 def scan_raw_units(body: str) -> list[RawUnit]:
     """Scan citation-anchored units with their full text, label stripped."""
     citations = list(_CITATION_PATTERN.finditer(body))
