@@ -42,6 +42,7 @@ _CITATION_PATTERN = re.compile(
 # Deliberately the same shape as `transcript_index._H2_PATTERN`, restricted to a single
 # line: what that pattern sees is the section skeleton, so what this module writes and
 # rewrites has to be exactly the same set of lines.
+_HTML_H2_PATTERN = re.compile(r"<h2\b[^>]*>(?P<inner>.*?)</h2>", re.IGNORECASE | re.DOTALL)
 _H2_LINE_PATTERN = re.compile(r"^##(?!#)[ \t]+(?P<heading>.+?)[ \t]*$", re.MULTILINE)
 
 # A block that is nothing but a heading, at any level.
@@ -220,13 +221,30 @@ def demote_nonchapter_headings_in_body(body: str, chapters: list[Chapter]) -> st
     if not body or not chapters:
         return body
     titles = {normalize_heading(chapter.title) for chapter in chapters}
+    # Two shapes measured on the real recording. The model stage echoed a chapter title
+    # verbatim later in its window, and both stayed H2 because both matched: only the first
+    # occurrence is the chapter now. And it emitted four headings as multi-line HTML <h2>
+    # blocks, invisible to a markdown-only demote and to the index, so they never became
+    # sections but rendered as H2 on the page: they become one-line ### headings.
+    seen: set[str] = set()
 
     def demote(match: re.Match[str]) -> str:
-        if normalize_heading(match.group("heading")) in titles:
+        key = normalize_heading(match.group("heading"))
+        if key in titles and key not in seen:
+            seen.add(key)
             return match.group(0)
         return "#" + match.group(0)
 
-    return _H2_LINE_PATTERN.sub(demote, body)
+    body = _H2_LINE_PATTERN.sub(demote, body)
+
+    def demote_html(match: re.Match[str]) -> str:
+        text = normalize_heading(re.sub(r"<[^>]+>", "", match.group("inner")))
+        if text in titles and text not in seen:
+            seen.add(text)
+            return f"## {text}"
+        return f"### {text}"
+
+    return _HTML_H2_PATTERN.sub(demote_html, body)
 
 
 def _fetch_publisher_chapters(url: str) -> list[dict[str, Any]]:
@@ -595,3 +613,26 @@ def test_malformed_chapter_entries_cost_the_entry_and_not_the_run() -> None:
     assert [chapter.title for chapter in chapters] == ["First", "Second"]
     assert parse_chapters(None) == []
     assert parse_chapters({"chapters": []}) == []
+
+
+def test_a_chapter_title_the_model_echoes_stays_a_chapter_only_once() -> None:
+    """Measured: 'Voice prompting vs typing' appeared twice as H2; the second was the model's."""
+    chapters = [Chapter(start=0.0, end=100.0, title="Voice prompting vs typing")]
+    body = "## Voice prompting vs typing\n\nOne.\n\n## Voice prompting vs typing\n\nTwo.\n"
+    out = demote_nonchapter_headings_in_body(body, chapters)
+    # Whole lines: "### Voice…" contains "## Voice…" as a substring.
+    assert len(re.findall(r"^## Voice prompting vs typing$", out, re.M)) == 1, (
+        "the echo stayed a chapter"
+    )
+    assert len(re.findall(r"^### Voice prompting vs typing$", out, re.M)) == 1
+    assert "### Voice prompting vs typing\n\nTwo." in out
+
+
+def test_a_multiline_html_h2_from_the_model_becomes_a_markdown_subheading() -> None:
+    """Measured: four headings came out as <h2> blocks with embedded newlines and rendered as H2."""
+    chapters = [Chapter(start=0.0, end=100.0, title="Introduction")]
+    body = "## Introduction\n\nOne.\n\n<h2>Defining Programming vs.\nAgentic Engineering</h2>\n\nTwo.\n"
+    out = demote_nonchapter_headings_in_body(body, chapters)
+    assert "<h2" not in out, "the html heading survived"
+    assert "### Defining Programming vs. Agentic Engineering\n" in out
+    assert "## Introduction\n" in out
