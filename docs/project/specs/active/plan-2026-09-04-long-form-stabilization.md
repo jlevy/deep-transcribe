@@ -160,9 +160,11 @@ None new. `--segments none` / `--instructions none` (review R6) is landing separ
 
 ### Phase 2: Make a hint edit cheap
 
-- [ ] Decide the stickiness question (see Open Questions) and implement the chosen
-  option so a `--segments` rerun resumes at the outline. Then restore row 162 to its
-  original wording, now true. (dt-xjlp)
+- [x] Done without a design change. The cost was never stickiness: kash fills
+  `original_filename`, `history` and `modified_at` on load and not on a fresh item, so
+  the first re-persist of a resource changed its hashed bytes once.
+  `persist_item_metadata` now writes all three from the start; a hint change resumes at
+  the outline whether or not the source had hints before. (dt-xjlp)
 
 ### Phase 3: Twelve hours, by envelope
 
@@ -212,12 +214,8 @@ Phase 2 and 3 are follow-on PRs.
 
 ## Open Questions
 
-- **Stickiness.** Hints and instructions are written back to the stored resource so a
-  later run without the flag still honours them. That is what makes a hint change re-run
-  46 minutes of formatting. Two ways out: (a) keep stickiness and store the late inputs
-  in a sidecar the hash does not cover—more plumbing, preserves the feature; (b) drop
-  stickiness and require `--segments` on every run—one flag, simplest code, removes the
-  need for a "clear" affordance at all. This is a product choice.
+- **Stickiness.** Resolved: hints stay on the resource. The expensive rerun was kash
+  bookkeeping fields, fixed in `persist_item_metadata`; see dt-xjlp.
 - **Twelve hours.** A real validation costs roughly five hours of wall time and the
   Deepgram request for a 12-hour file. Worth doing once, or leave the claim softened?
 
