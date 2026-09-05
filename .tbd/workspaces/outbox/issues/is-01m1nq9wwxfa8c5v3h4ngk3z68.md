@@ -5,13 +5,13 @@ title: Keep hint reruns cheap and prove it
 kind: task
 status: open
 priority: 1
-version: 5
+version: 6
 spec_path: docs/project/specs/active/plan-2026-09-04-transcript-segments.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-04T08:07:01.788Z
-updated_at: 2026-09-05T00:02:06.111Z
+updated_at: 2026-09-05T00:07:22.000Z
 closed_at: 2026-09-04T18:27:41.675Z
 close_reason: "Both properties measured: an unchanged rerun costs 4 s with zero API calls, and adding a hint costs 48 s and 3 LLM calls while leaving speech-to-text, speaker correction, paragraphs and section headings untouched."
 resolution: null
@@ -45,4 +45,4 @@ Depends on the hints file format (dt-g4qm) existing first.
 
 ## Notes
 
-AT FULL SCALE (5h15m, current code): a rerun with the same hints in effect — the stored hints equal the file passed — completed in 13 s against a 96-minute pipeline, 0 Deepgram, everything cached. That is the unchanged-rerun property at scale. The cost of a CHANGED hint at scale is being measured now with the R7-corrected span (0:00:04 instead of the stored 0:00:05).
+CONTROLLED, short source (dt-freshcheck, 4 passes): p1 first run 96 s; p2 unchanged 5 s; p3 hints added for the FIRST time 62 s, re-ran break_into_paragraphs and insert_section_headings; p4 existing hint EDITED (0:20 -> 0:25) 36 s, 0 Deepgram, 3 LLM calls, formatting stages 0, resumed at add_transcript_outline. So the expensive rerun is the first application of hints to a workspace that had none; later edits resume at the outline, which is the loop a user actually iterates in. At-scale hint-edit run in flight to supply the minutes.

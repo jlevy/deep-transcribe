@@ -3,15 +3,19 @@ type: is
 id: is-01m1qdyhhry2322zwqx0dsscr2
 title: Collapse a hint span as one block, not one fragment per section
 kind: bug
-status: open
+status: closed
 priority: 1
-version: 1
+version: 2
 spec_path: docs/project/specs/active/plan-2026-09-04-long-form-stabilization.md
 labels: []
 dependencies: []
 parent_id: is-01m1n3q978x6fyhsyfm175ngy6
 created_at: 2026-09-05T00:02:01.399Z
-updated_at: 2026-09-05T00:02:01.399Z
+updated_at: 2026-09-05T00:16:34.355Z
+closed_at: 2026-09-05T00:16:34.354Z
+close_reason: "Runs now break only on suppression; a heading goes inside only when its whole section is in the run (R4 preserved by a second case); sub-minute spans read in seconds. Verified in real headless Chrome on the measured shape: one 'Teaser — 2 min' block with four inner headings and six paragraphs, versus four '0 min' fragments with the fix reverted. Browser confirmation on the real full-scale export follows once the in-flight run finishes."
+resolution: null
+duplicate_of: null
 ---
 Measured on the full 5h15m export with the current code. The stored teaser hint is one span, 0:00:05 - 0:01:49, six paragraphs. The transcript shows FOUR collapsed blocks — 2, 2, 1 and 1 paragraphs — each headed 'Teaser — 0 min, left out of the analysis' (20-30 s rounds to 0 min), because collapseSegments in dt_core.js.jinja splits a run on unit.section and four section headings were inserted inside the highlight clip. The reader sees four tiny boxes instead of one 'Teaser — 2 min' box, and three of the four pulled a section heading inside them (R4's rule fires because each fragment does reach its own section's end).
 
