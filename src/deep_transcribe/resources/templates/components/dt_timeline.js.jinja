@@ -23,7 +23,6 @@
   const BAND_Y = 78;
   const BAND_H = 24;
   const FRAME_Y = 116;
-  const CHAR_WIDTH = 5.8;
 
   /* Round row durations, tried shortest first. A row that reads as "1:30 to
      2:00" is worth more than one that exactly divides the recording. */
@@ -149,38 +148,72 @@
         group.appendChild(block);
       }
       if (widest.row !== row) continue;
-      const maxChars = Math.floor((widest.w - 8) / CHAR_WIDTH);
-      if (maxChars >= 4) {
-        group.appendChild(sectionLabel(section.heading, widest.x0 + 5, maxChars));
-      }
+      const label = sectionLabel(section.heading, widest.x0 + 5, widest.w - 8);
+      if (label) group.appendChild(label);
     }
     return group;
   }
 
   /* Section names wrap to two lines rather than truncating early. One line
      centers in the block; two lines split at the word boundary that best
-     balances them, and an ellipsis appears only if even two will not fit. */
-  function wrapLabel(heading, maxChars) {
-    if (heading.length <= maxChars) return [heading];
+     balances them, and an ellipsis appears only if even two will not fit.
+
+     Widths are measured, not estimated. A per-character estimate of 5.8px
+     ran about 15% narrow for this face at 12.5px, so labels near the limit
+     stayed on one line and spilled 50px into the next block — on the
+     five-hour recording "Longevity, over-optimization…" ran 158px in a
+     118px block. The scratch text below shares the label's class, so it
+     measures with the same font. */
+  let scratch = null;
+  function measure(text) {
+    if (!scratch) {
+      const svg = svgEl("svg", { width: 1, height: 1, "aria-hidden": "true" });
+      svg.style.cssText = "position:absolute;left:-9999px;top:0;overflow:hidden";
+      scratch = svgEl("text", { class: "dt-ov-section-label", x: 0, y: 0 });
+      svg.appendChild(scratch);
+      document.body.appendChild(svg);
+    }
+    scratch.textContent = text;
+    return scratch.getComputedTextLength();
+  }
+
+  function clipToWidth(text, maxWidth) {
+    if (measure(text) <= maxWidth) return text;
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (measure(text.slice(0, mid).trimEnd() + "…") <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo > 0 ? text.slice(0, lo).trimEnd() + "…" : null;
+  }
+
+  function wrapLabel(heading, maxWidth) {
+    if (measure(heading) <= maxWidth) return [heading];
     const words = heading.split(" ");
     let best = null;
     for (let i = 1; i < words.length; i += 1) {
       const first = words.slice(0, i).join(" ");
       const second = words.slice(i).join(" ");
-      if (first.length > maxChars) break;
-      const cost = Math.max(first.length, second.length);
+      const firstW = measure(first);
+      if (firstW > maxWidth) break;
+      const cost = Math.max(firstW, measure(second));
       if (!best || cost < best.cost) best = { cost, lines: [first, second] };
     }
-    if (!best) return [heading.slice(0, Math.max(1, maxChars - 1)) + "…"];
+    if (!best) {
+      const clipped = clipToWidth(heading, maxWidth);
+      return clipped ? [clipped] : null;
+    }
     const [first, second] = best.lines;
-    return [
-      first,
-      second.length > maxChars ? second.slice(0, Math.max(1, maxChars - 1)) + "…" : second,
-    ];
+    const secondFit = clipToWidth(second, maxWidth);
+    return secondFit ? [first, secondFit] : [first];
   }
 
-  function sectionLabel(heading, x, maxChars) {
-    const lines = wrapLabel(heading, maxChars);
+  function sectionLabel(heading, x, maxWidth) {
+    if (maxWidth < 12) return null;
+    const lines = wrapLabel(heading, maxWidth);
+    if (!lines) return null;
     const lineHeight = 12;
     const top =
       SECTION_Y + SECTION_H / 2 + 4 - ((lines.length - 1) * lineHeight) / 2;
