@@ -120,10 +120,12 @@ option. No change to existing flag semantics.
 
 - [x] Back-channel folding, default on. Measure turn count before and after on Lex #501.
   (dt-aueh)
-- [ ] Publisher chapters as the H2 skeleton, model headings demoted to H3. The index,
+- [x] Publisher chapters as the H2 skeleton, model headings demoted to H3. The index,
   outline and timeline already read only H2, so no downstream change is needed; Lex #501
   goes from 206 sections to 23. A density cap for sources without chapters is a
   follow-on. (dt-21df)
+- [x] Recipe replacements after speech-to-text; Omachi 19 → 0 on the real transcript.
+  (dt-il5d)
 - [ ] Rerun the Lex #501 recipe and record the result in its README.
 
 ## Testing Strategy
