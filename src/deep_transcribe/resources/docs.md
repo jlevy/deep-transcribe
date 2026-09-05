@@ -215,6 +215,7 @@ iterations.
 | --- | --- | --- |
 | See what the last run produced before deciding what to change | Add `--report`, or `--report --export-only` to read an existing workspace without running anything | Reuses everything; the report is read from the final item |
 | Rebuild the HTML after a template or `--elements` change | Add `--export-only` | Runs no stage at all and re-renders the cached final item |
+| Turn theme grouping on or off, or move its cutoff (the outline, concepts, claims, and graph group by theme from 45 minutes by default) | Add `--grouping on`, `--grouping off`, or `--grouping MINUTES` with `--export-only` | Runs no stage at all; grouping is a view setting read from the page |
 | Change the title, description, context, instructions, or speaker overrides | Run the same command normally | Reuses the cached transcript |
 | Mark or unmark a segment in the hints file | Run the same command with `--segments PATH` | Reuses everything through section headings and resumes at the outline; about 20 minutes on a five-hour recording |
 | Stop honoring stored hints or instructions | Run the same command with `--segments none` or `--instructions none` | Reuses the cached transcript |

@@ -19,7 +19,8 @@ subcommands, stale examples, and wrapping changes are visible in review.
 $ deep-transcribe --help
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--keep-backchannel] [--elements PARTS] [--no-chapters]
+                       [--keep-backchannel] [--elements PARTS]
+                       [--grouping on|off|MINUTES] [--no-chapters]
                        [--no-minify] [--context TEXT] [--context-file PATH]
                        [--segments PATH] [--instructions TEXT]
                        [--instructions-file PATH] [--title TEXT]
@@ -83,6 +84,12 @@ Custom Processing:
                         export (default: everything). Choices: title,
                         thumbnail, summary, timeline, speakers, outline,
                         concepts, claims, frames, transcript
+  --grouping on|off|MINUTES
+                        Whether the outline, concepts, claims, and concept
+                        graph group by theme: on, off, or the length in
+                        minutes from which a recording groups (default: 45). A
+                        view setting: change it and re-export with --export-
+                        only
   --no-chapters, --no_chapters
                         Ignore the chapters the publisher wrote and let the
                         model's own section headings be the sections (chapters
@@ -258,7 +265,8 @@ $ deep-transcribe --models anthropic --workspace ./output --json && \
 $ deep-transcribe --models invalid --workspace ./output 2>&1
 usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--deep] [--with STAGES] [--concepts] [--web-search]
-                       [--keep-backchannel] [--elements PARTS] [--no-chapters]
+                       [--keep-backchannel] [--elements PARTS]
+                       [--grouping on|off|MINUTES] [--no-chapters]
                        [--no-minify] [--context TEXT] [--context-file PATH]
                        [--segments PATH] [--instructions TEXT]
                        [--instructions-file PATH] [--title TEXT]

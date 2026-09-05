@@ -352,6 +352,25 @@
     return content;
   }
 
+  /* Whether the outline, concepts, claims, and graph group by theme. Decided once,
+     here, and read by every module: on or off by the export setting
+     (window.DT_GROUPING, from --grouping), otherwise by length, since a recording
+     shorter than the cutoff reads better flat. Whatever the setting, there is
+     nothing to group by without at least two themes. */
+  const GROUPING_CUTOFF_MINUTES = 45;
+
+  function decideGrouping(model) {
+    const setting = window.DT_GROUPING || {};
+    const themes = new Set(
+      (model.index.concepts || []).map((c) => c.theme).filter(Boolean)
+    );
+    if (themes.size < 2) return false;
+    if (setting.mode === "on") return true;
+    if (setting.mode === "off") return false;
+    const cutoff = Number(setting.cutoff_minutes) || GROUPING_CUTOFF_MINUTES;
+    return model.duration >= cutoff * 60;
+  }
+
   /* Panel containers straddle the server-rendered outline so injected panels
      land in the agreed order (Timeline, Speakers / outline / Concepts, Claims)
      without moving stored content. */
@@ -537,6 +556,7 @@
       if (!model.elements.has(part)) document.body.classList.add(`dt-no-${part}`);
     }
     decorateSpeakerLabels(model);
+    model.grouped = decideGrouping(model);
     document.body.classList.add("dt-on");
     if (model.elements.has("summary")) {
       dressSummary(scope);

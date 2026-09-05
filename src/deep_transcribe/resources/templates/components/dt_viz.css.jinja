@@ -566,9 +566,51 @@ body.yt-open #dt-rail {
   width: 100%;
 }
 
+/* In the graph a chip is one of a hundred, so it takes the tiny size and its
+   label is clipped to a width that still fits three to a row; the tooltip and the
+   list carry the full label. */
 .dt-graph-chip {
   position: absolute;
   white-space: nowrap;
+  font-size: var(--font-size-tiny);
+}
+
+.dt-graph-chip .dt-chip-label {
+  font-size: var(--font-size-tiny);
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Grouped, the graph is in theme bands: a faint ground behind each band, its
+   label above the chips, and space rather than a rule between bands. The
+   ground sits under the edges, the label between edges and chips. */
+.dt-graph-band {
+  position: absolute;
+  left: -0.4rem;
+  right: -0.4rem;
+  background: var(--color-bg-alt);
+  border-radius: var(--dt-radius);
+}
+
+.dt-graph-band-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features-sans);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--dt-text);
+  pointer-events: none;
+}
+
+.dt-graph-band-when {
+  font-weight: 400;
 }
 
 /* Two prebuilt layouts, one per medium: the screen graph tracks the panel
@@ -711,12 +753,6 @@ body.yt-open #dt-rail {
 /* Expanded, the words themselves stay quiet: they are context, not the transcript. */
 .dt-segment-body {
   color: var(--dt-text-support);
-}
-
-/* A theme's own graph sits above its concepts, set in from the group's edge so it
-   reads as belonging to the theme rather than to the panel. */
-.dt-theme-graph {
-  margin: 0.4rem 0 0.9rem;
 }
 
 /* The grouped outline reuses the theme container, so its lists lose the default

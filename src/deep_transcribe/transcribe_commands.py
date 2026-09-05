@@ -558,6 +558,7 @@ def run_transcription(
     rerun_processing: bool = False,
     rerun_from: str | None = None,
     elements: list[str] | None = None,
+    grouping: dict[str, object] | None = None,
     report: bool = False,
 ) -> TranscriptionOutputs:
     """
@@ -662,7 +663,11 @@ def run_transcription(
             )
 
             transcript_path, html_path = format_results(
-                result_item, runtime.workspace.base_dir, no_minify=no_minify, elements=elements
+                result_item,
+                runtime.workspace.base_dir,
+                no_minify=no_minify,
+                elements=elements,
+                grouping=grouping,
             )
             # Built here, inside the runtime and while the exported item is still in hand,
             # because that item is the only thing that knows what this run produced.
@@ -918,6 +923,7 @@ def export_only(
     *,
     no_minify: bool = False,
     elements: list[str] | None = None,
+    grouping: dict[str, object] | None = None,
     report: bool = False,
 ) -> TranscriptionOutputs:
     """
@@ -948,7 +954,11 @@ def export_only(
         log.info("Re-exporting the cached result at %s", store_path)
         result_item = workspace.load(store_path)
         transcript_path, html_path = format_results(
-            result_item, workspace.base_dir, no_minify=no_minify, elements=elements
+            result_item,
+            workspace.base_dir,
+            no_minify=no_minify,
+            elements=elements,
+            grouping=grouping,
         )
         return TranscriptionOutputs(
             transcript_path,
@@ -985,20 +995,64 @@ def parse_page_elements(spec: str) -> list[str]:
     return elements
 
 
-def inject_page_elements(html: str, elements: list[str] | None) -> str:
-    """
-    Inject the element selection into the exported page as configuration.
+GROUPING_CUTOFF_MINUTES = 45
+"""
+Recordings at least this long group their outline, concepts, claims, and graph by theme;
+shorter ones read flat. The middle of the range the owner named (thirty minutes to an
+hour). The page applies the same default when the export carries no setting.
+"""
 
-    The client reads `window.DT_ELEMENTS`, skips excluded panels, and hides
-    excluded stored content. No selection means the full page.
+
+def parse_grouping(spec: str) -> dict[str, object]:
     """
-    if elements is None or set(elements) == set(PAGE_ELEMENTS):
+    Parse `--grouping`: `on`, `off`, `auto`, or the cutoff in minutes.
+
+    Returns the page setting, `{"mode": ..., "cutoff_minutes": ...}`. A number sets the
+    cutoff and leaves the mode automatic.
+    """
+    value = spec.strip().lower()
+    if value in ("on", "off", "auto"):
+        return {"mode": value, "cutoff_minutes": GROUPING_CUTOFF_MINUTES}
+    if value.endswith("m"):
+        value = value[:-1]
+    if value.isdigit():
+        return {"mode": "auto", "cutoff_minutes": int(value)}
+    raise ValueError(
+        f"--grouping needs on, off, auto, or a number of minutes (default "
+        f"{GROUPING_CUTOFF_MINUTES}), not {spec!r}"
+    )
+
+
+def inject_page_config(
+    html: str,
+    elements: list[str] | None = None,
+    grouping: dict[str, object] | None = None,
+) -> str:
+    """
+    Inject the export settings into the page as configuration.
+
+    The client reads `window.DT_ELEMENTS` (skips excluded panels, hides excluded stored
+    content; no selection means the full page) and `window.DT_GROUPING` (whether the
+    long-recording views group by theme; absent means the automatic rule). These are
+    view settings, so a change to either is a re-export, never a rerun.
+    """
+    statements: list[str] = []
+    if elements is not None and set(elements) != set(PAGE_ELEMENTS):
+        statements.append(f"window.DT_ELEMENTS = {json.dumps(list(elements))};")
+    if grouping is not None:
+        statements.append(f"window.DT_GROUPING = {json.dumps(grouping)};")
+    if not statements:
         return html
-    config = f"<script>window.DT_ELEMENTS = {json.dumps(list(elements))};</script>"
+    config = f"<script>{' '.join(statements)}</script>"
     marker = "</body>"
     if marker not in html:
         return html + config
     return html.replace(marker, f"{config}\n{marker}", 1)
+
+
+def inject_page_elements(html: str, elements: list[str] | None) -> str:
+    """The element selection alone; see `inject_page_config`."""
+    return inject_page_config(html, elements=elements)
 
 
 # Matches a sidematter assets directory prefix in an image path, e.g.
@@ -1192,6 +1246,7 @@ def format_results(
     base_dir: Path,
     no_minify: bool = False,
     elements: list[str] | None = None,
+    grouping: dict[str, object] | None = None,
 ) -> tuple[Path, Path]:
     """
     Format the results of a transcription into HTML and ensure proper file paths.
@@ -1201,6 +1256,7 @@ def format_results(
         base_dir: Base directory for output files
         no_minify: If True, skip HTML minification
         elements: Page parts to include (see PAGE_ELEMENTS); None means all
+        grouping: The theme-grouping setting (see `parse_grouping`); None means automatic
 
     Returns:
         Tuple of (transcript_path, html_path) for the generated files
@@ -1225,7 +1281,7 @@ def format_results(
             template_filename="deep_transcribe_webpage.html.jinja",
         )
     assert raw_html_item.body
-    raw_html_item.body = inject_page_elements(raw_html_item.body, elements)
+    raw_html_item.body = inject_page_config(raw_html_item.body, elements, grouping)
     current_ws().save(raw_html_item)
 
     if not no_minify:
@@ -1268,6 +1324,29 @@ def test_inject_page_elements_only_when_subset() -> None:
     injected = inject_page_elements(html, ["summary", "timeline"])
     assert 'window.DT_ELEMENTS = ["summary", "timeline"];' in injected
     assert injected.index("DT_ELEMENTS") < injected.index("</body>")
+
+
+def test_parse_grouping() -> None:
+    import pytest
+
+    assert parse_grouping("on") == {"mode": "on", "cutoff_minutes": GROUPING_CUTOFF_MINUTES}
+    assert parse_grouping("OFF") == {"mode": "off", "cutoff_minutes": GROUPING_CUTOFF_MINUTES}
+    assert parse_grouping("30") == {"mode": "auto", "cutoff_minutes": 30}
+    assert parse_grouping("60m") == {"mode": "auto", "cutoff_minutes": 60}
+    with pytest.raises(ValueError, match="on, off, auto, or a number"):
+        parse_grouping("sometimes")
+
+
+def test_inject_page_config_carries_grouping() -> None:
+    html = "<html><body><p>x</p></body></html>"
+
+    assert inject_page_config(html) == html
+    injected = inject_page_config(html, grouping={"mode": "auto", "cutoff_minutes": 30})
+    assert 'window.DT_GROUPING = {"mode": "auto", "cutoff_minutes": 30};' in injected
+    assert injected.index("DT_GROUPING") < injected.index("</body>")
+    both = inject_page_config(html, ["summary"], {"mode": "on", "cutoff_minutes": 45})
+    assert both.count("<script>") == 1
+    assert "DT_ELEMENTS" in both and "DT_GROUPING" in both
 
 
 def test_format_results_relocates_assets_through_minification() -> None:

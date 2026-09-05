@@ -11,7 +11,6 @@
   let selected = null;
   let root = null;
   const rootExtras = [];
-  let conceptGroups = [];
 
   function svgEl(name, attrs, text) {
     const el = document.createElementNS(SVG_NS, name);
@@ -106,23 +105,55 @@
   /* Deterministic time-layered graph: the actual chip elements are positioned
      over an SVG that draws only the relation edges, so graph nodes and
      standalone chips are identical by construction. Chips are measured in the
-     document, then packed into rows by first-mention time. */
-  function buildGraph(concepts, width) {
+     document, then packed into rows by first-mention time.
+
+     Grouped, it is one graph in bands. Each theme is a band — a label line, then
+     its chips in clock order, flowing left to right and wrapping — and the bands
+     stack in the order the conversation reaches the themes. Inside a band the
+     axis is ordinal, not time: a theme's concepts are introduced in one cluster
+     of minutes while the theme itself spans hours, so on a time axis they stack
+     into a column of rows (23 rows for one theme on the measured recording). The
+     edges are drawn across bands in the one SVG, so a relation between themes is
+     visible. Ungrouped, there is one unlabeled band on the recording's time axis:
+     the flat graph. */
+  function buildGraph(concepts, width, groups) {
     const wrap = el("div", "dt-graph");
     const edges = svgEl("svg", { class: "dt-graph-edges" });
     wrap.appendChild(edges);
-    const nodes = concepts.map((concept) => {
-      const chip = makeConceptChip(concept);
-      chip.classList.add("dt-graph-chip");
-      model.tooltip.attach(chip, () => `${concept.label} — ${concept.gloss}`);
-      wrap.appendChild(chip);
-      return { concept, chip };
+    const bands = (groups || [{ theme: null, concepts }]).map((group) => {
+      const band = { nodes: [], span: null, ground: null, label: null };
+      if (group.theme) {
+        band.span = spanOf(group.concepts);
+        band.ground = el("div", "dt-graph-band");
+        wrap.appendChild(band.ground);
+        band.label = el("div", "dt-graph-band-label");
+        band.label.appendChild(el("span", "dt-graph-band-name", group.theme));
+        if (band.span) {
+          const end = band.span.start + band.span.length;
+          band.label.appendChild(
+            el(
+              "span",
+              "dt-graph-band-when dt-timestamp",
+              `${model.formatTime(band.span.start)}–${model.formatTime(end)}`
+            )
+          );
+        }
+        wrap.appendChild(band.label);
+      }
+      for (const concept of group.concepts) {
+        const chip = makeConceptChip(concept);
+        chip.classList.add("dt-graph-chip");
+        model.tooltip.attach(chip, () => `${concept.label} — ${concept.gloss}`);
+        wrap.appendChild(chip);
+        band.nodes.push({ concept, chip });
+      }
+      return band;
     });
-    return { wrap, edges, nodes, width };
+    const nodes = bands.flatMap((band) => band.nodes);
+    return { wrap, edges, nodes, bands, width };
   }
 
-  /* The time range a set of concepts actually occupies, padded so the first and last
-     chips are not flush against the edges. */
+  /* The time range a set of concepts actually occupies, for the band label. */
   function spanOf(concepts) {
     let first = Infinity;
     let last = -Infinity;
@@ -135,33 +166,72 @@
   }
 
   function layoutGraph(graph) {
-    const { wrap, edges, nodes, width } = graph;
-    // A theme's graph spans the theme, not the recording. Laying a thirty-minute theme
-    // out on a five-hour axis would crowd every chip into the left tenth of it.
-    const { start, length } = graph.span || timeSpan();
-    const rowGap = 12;
-    const x = (t) => 8 + ((t - start) / length) * (width - 24);
-    const rows = [];
+    const { wrap, edges, nodes, bands, width } = graph;
+    const rowGap = 6;
+    const bandGap = 12;
+    const bandPad = 6;
     let chipHeight = 0;
     for (const node of nodes) {
       node.w = node.chip.offsetWidth;
       chipHeight = Math.max(chipHeight, node.chip.offsetHeight);
-      node.x = Math.max(8, Math.min(x(node.concept.mentions[0].t), width - node.w - 8));
-      let row = rows.findIndex((endX) => node.x > endX + 10);
-      if (row === -1) {
-        row = rows.length;
-        rows.push(-Infinity);
-      }
-      node.row = row;
-      rows[row] = node.x + node.w;
     }
     const rowHeight = chipHeight + rowGap;
-    for (const node of nodes) {
-      node.y = 6 + node.row * rowHeight;
-      node.chip.style.left = `${node.x}px`;
-      node.chip.style.top = `${node.y}px`;
+    let y = 0;
+    for (const band of bands) {
+      const top = y;
+      if (band.label) {
+        band.label.style.top = `${y}px`;
+        y += band.label.offsetHeight + 2;
+      }
+      // Chips arrive in theme order, which is not clock order across themes.
+      const ordered = [...band.nodes].sort(
+        (a, b) => a.concept.mentions[0].t - b.concept.mentions[0].t
+      );
+      let rowCount = 0;
+      if (band.label) {
+        // Flow: clock order, wrapping when the row is full.
+        let cx = 8;
+        let row = 0;
+        for (const node of ordered) {
+          if (cx > 8 && cx + node.w > width - 8) {
+            cx = 8;
+            row += 1;
+          }
+          node.x = cx;
+          node.row = row;
+          cx += node.w + 8;
+        }
+        rowCount = ordered.length ? row + 1 : 0;
+      } else {
+        // Time axis: first mention sets x, and a chip takes the first row with room.
+        const { start, length } = timeSpan();
+        const x = (t) => 8 + ((t - start) / length) * (width - 24);
+        const rows = [];
+        for (const node of ordered) {
+          node.x = Math.max(8, Math.min(x(node.concept.mentions[0].t), width - node.w - 8));
+          let row = rows.findIndex((endX) => node.x > endX + 10);
+          if (row === -1) {
+            row = rows.length;
+            rows.push(-Infinity);
+          }
+          rows[row] = node.x + node.w;
+          node.row = row;
+        }
+        rowCount = rows.length;
+      }
+      for (const node of ordered) {
+        node.y = y + bandPad + node.row * rowHeight;
+        node.chip.style.left = `${node.x}px`;
+        node.chip.style.top = `${node.y}px`;
+      }
+      y += bandPad + rowCount * rowHeight - rowGap + bandPad;
+      if (band.ground) {
+        band.ground.style.top = `${top}px`;
+        band.ground.style.height = `${y - top}px`;
+      }
+      y += bandGap;
     }
-    const height = rows.length * rowHeight + 6;
+    const height = Math.max(0, y - bandGap) + 6;
     wrap.style.height = `${height}px`;
     edges.setAttribute("viewBox", `0 0 ${width} ${height}`);
     edges.style.height = `${height}px`;
@@ -189,54 +259,12 @@
     }
   }
 
-  /* Chip positions are pixel measurements — the row packing compares measured chip
-     widths, and the edge paths share that coordinate space — so a resized panel needs a
-     real re-layout rather than rescaled percentages. Re-laying reuses a graph's existing
-     chips and only moves them.
-
-     A collapsed group is display:none and so measures zero. Those are skipped here and
-     laid out on the way open instead. */
-  function layoutThemeGraphs() {
-    for (const group of conceptGroups) {
-      if (group.failed) continue;
-      const width = Math.floor(group.body.getBoundingClientRect().width);
-      if (!width || width === group.laidOutAt) continue;
-      // The wrap is in the document before layout runs, so the failure path has to hold
-      // it in a variable the catch can still see. group.graph is only set once layout has
-      // succeeded, which is exactly what left the old cleanup here unreachable.
-      let wrap = group.graph ? group.graph.wrap : null;
-      try {
-        if (group.graph) {
-          group.graph.width = width;
-          layoutGraph(group.graph);
-        } else {
-          const graph = buildGraph(group.concepts, width);
-          graph.span = spanOf(group.concepts);
-          graph.wrap.classList.add("dt-graph-screen", "dt-theme-graph");
-          wrap = graph.wrap;
-          group.body.prepend(wrap);
-          layoutGraph(graph);
-          group.graph = graph;
-        }
-        group.laidOutAt = width;
-      } catch (error) {
-        // A graph that will not lay out is worth losing; the list is not. Give up on this
-        // one for good rather than retrying it on every later resize.
-        if (wrap) wrap.remove();
-        group.graph = null;
-        group.failed = true;
-      }
-    }
-    applySelection();
-  }
-
   /* Long recordings arrive already grouped: the reduce pass names a theme for each
      concept and orders them by theme, so consecutive runs of one theme are the groups.
-     Below the length where a flat list is still a map, groups start collapsed — a dozen
-     theme lines you can open beats twenty screens you have to scroll. Short media has no
-     themes at all and renders exactly as before. */
-  const FLAT_LIST_LIMIT = 24;
-
+     Whether the page uses them is model.grouped, decided once in the core module by
+     length and the --grouping setting. Grouped lists start collapsed — a dozen theme
+     lines you can open beats twenty screens you have to scroll — and the graph never
+     does. Ungrouped, everything renders flat. */
   function groupByTheme(concepts) {
     const groups = [];
     for (const concept of concepts) {
@@ -277,24 +305,16 @@
   function buildDefinitions(concepts) {
     const byId = new Map(concepts.map((c) => [c.id, c]));
     const list = el("div", "dt-concept-defs");
-    const groups = groupByTheme(concepts);
-    const themed = groups.some((g) => g.theme);
-    const collapsed = themed && concepts.length > FLAT_LIST_LIMIT;
-    // Built expanded even when they will end collapsed, so their graphs can be measured
-    // and laid out once before anything is hidden.
+    const groups = model.grouped ? groupByTheme(concepts) : null;
     let target = list;
     let groupIndex = -1;
-    conceptGroups = [];
     for (const concept of concepts) {
       // Open a new theme container whenever this concept starts the next group.
-      const nextGroup = groups[groupIndex + 1];
-      if (themed && nextGroup && nextGroup.concepts[0] === concept) {
+      const nextGroup = groups && groups[groupIndex + 1];
+      if (nextGroup && nextGroup.concepts[0] === concept) {
         groupIndex += 1;
         if (nextGroup.theme) {
-          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, false);
-          built.collapse = collapsed;
-          built.concepts = nextGroup.concepts;
-          conceptGroups.push(built);
+          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, true);
           list.appendChild(built.group);
           target = built.body;
         } else {
@@ -347,7 +367,23 @@
     if (!claims.length) return null;
     const panel = model.makePanel("Claims");
     const list = el("div", "dt-concept-defs");
+    // Claims are already in theme order because the concept list is, so the same
+    // walk that groups the definitions groups them.
+    const groups = model.grouped ? groupByTheme(claims) : null;
+    let target = list;
+    let groupIndex = -1;
     for (const concept of claims) {
+      const nextGroup = groups && groups[groupIndex + 1];
+      if (nextGroup && nextGroup.concepts[0] === concept) {
+        groupIndex += 1;
+        if (nextGroup.theme) {
+          const built = buildThemeGroup(nextGroup.theme, nextGroup.concepts.length, true);
+          list.appendChild(built.group);
+          target = built.body;
+        } else {
+          target = list;
+        }
+      }
       const entry = el("div", `dt-concept-entry dt-kind-${concept.kind}`);
       const term = el("div", "dt-concept-term");
       term.appendChild(makeConceptChip(concept));
@@ -370,7 +406,7 @@
         );
       });
       entry.append(term, madeBy, el("div", "dt-concept-gloss", concept.gloss));
-      list.appendChild(entry);
+      target.appendChild(entry);
     }
     panel.appendChild(list);
     return panel;
@@ -379,8 +415,8 @@
   /* The outline names every section — 172 of them on a five-hour recording, which is a
      wall rather than a map. Group it under the themes the reduce pass already found, so
      the outline and the concept map agree on the shape of the conversation instead of
-     describing it two different ways. Short media has no themes and is left alone. */
-  const OUTLINE_FLAT_LIMIT = 30;
+     describing it two different ways. Ungrouped (short media, or --grouping off), it is
+     left alone. */
 
   /* Themes overlap in time — a conversation returns to a subject — so "the theme whose
      span covers this moment" is ambiguous, and taken first-match-first it hands almost
@@ -444,8 +480,8 @@
     if (!outline) return;
     const list = outline.querySelector("ul, ol");
     if (!list) return;
+    if (!model.grouped) return;
     const items = [...list.children].filter((el) => el.tagName === "LI");
-    if (items.length <= OUTLINE_FLAT_LIMIT) return;
     const points = themeByTime(concepts);
     if (new Set(points.map((p) => p.theme)).size < 2) return;
 
@@ -506,56 +542,35 @@
       const printHost = el("div", "dt-print-host");
       printHost.style.width = `${printWidth}px`;
       root.insertBefore(printHost, charts.nextSibling);
-      const printGraph = buildGraph(concepts, printWidth);
+
+      // Grouped, the one graph is in theme bands; see buildGraph. The screen graph is
+      // laid out again at each panel width, reusing its chips.
+      const bands = model.grouped ? groupByTheme(concepts) : null;
+      const printGraph = buildGraph(concepts, printWidth, bands);
       printGraph.wrap.classList.add("dt-graph-print");
       printHost.appendChild(printGraph.wrap);
 
-      // A time-layered graph of a hundred chips is not a graph anyone can read, and it
-      // is what is left of the Concepts panel's height once the list is grouped. When
-      // there are themes, each one gets its own graph of a handful of chips inside its
-      // group instead of one graph of everything.
-      const perTheme = conceptGroups.length > 1 && concepts.length > FLAT_LIST_LIMIT;
-
+      let screenGraph = null;
       let chartWidth = 0;
       const renderCharts = () => {
         const width = Math.floor(charts.getBoundingClientRect().width);
         if (!width || width === chartWidth) return;
         chartWidth = width;
-        charts.textContent = "";
-        if (perTheme) {
-          layoutThemeGraphs();
+        if (screenGraph) {
+          screenGraph.width = width;
         } else {
-          const graph = buildGraph(concepts, width);
-          graph.wrap.classList.add("dt-graph-screen");
-          charts.appendChild(graph.wrap);
-          layoutGraph(graph);
+          screenGraph = buildGraph(concepts, width, bands);
+          screenGraph.wrap.classList.add("dt-graph-screen");
+          charts.appendChild(screenGraph.wrap);
         }
+        layoutGraph(screenGraph);
         layoutGraph(printGraph);
         applySelection();
       };
-      // One observer for the panel, not one per graph: every theme graph is as wide as
-      // the panel, and a container observer also catches the width changes a window
-      // resize listener would miss.
+      // A container observer catches the width changes a window resize listener
+      // would miss.
       new ResizeObserver(renderCharts).observe(charts);
-      // Runs while the groups are still expanded, so their graphs can be measured and
-      // laid out before anything is hidden.
       renderCharts();
-
-      if (perTheme) {
-        // A group that was collapsed through a resize got skipped, so lay it out as it
-        // opens. One delegated listener; by the time it runs the head's own handler has
-        // already toggled the class, and a group that is still collapsed measures zero
-        // and is skipped again.
-        root.addEventListener("click", (event) => {
-          if (event.target.closest(".dt-theme-head")) layoutThemeGraphs();
-        });
-      }
-      for (const group of conceptGroups) {
-        if (group.collapse) {
-          group.group.classList.add("dt-collapsed");
-          group.group.querySelector(".dt-theme-head").setAttribute("aria-expanded", "false");
-        }
-      }
     }
 
     if (model.elements.has("claims")) {

@@ -237,6 +237,16 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--grouping",
+        type=str,
+        metavar="on|off|MINUTES",
+        help=(
+            "Whether the outline, concepts, claims, and concept graph group by theme: "
+            "on, off, or the length in minutes from which a recording groups "
+            "(default: 45). A view setting: change it and re-export with --export-only"
+        ),
+    )
+    processing.add_argument(
         "--no-chapters",
         "--no_chapters",
         dest="no_chapters",
@@ -990,6 +1000,14 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
                 elements = parse_page_elements(args.elements)
             except ValueError as error:
                 parser.error(str(error))
+        grouping = None
+        if args.grouping:
+            from deep_transcribe.transcribe_commands import parse_grouping
+
+            try:
+                grouping = parse_grouping(args.grouping)
+            except ValueError as error:
+                parser.error(str(error))
 
         # A hints or metadata file the user wrote is an argument, so a mistake in one is a
         # usage error: reported as one line, before the generic handler below turns it into
@@ -1010,6 +1028,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
                     args.source,
                     no_minify=args.no_minify,
                     elements=elements,
+                    grouping=grouping,
                     report=args.report,
                 )
             except NoCachedResult as error:
@@ -1028,6 +1047,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
                 rerun_processing=args.rerun_processing,
                 rerun_from=args.rerun_from,
                 elements=elements,
+                grouping=grouping,
                 report=args.report,
             )
         # Started before anything is printed, because with --json the URL has to go into
