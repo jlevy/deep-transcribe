@@ -3,9 +3,9 @@ type: is
 id: is-01m1qfsvgm7h96jcrcyv7k6mxg
 title: Cap section-heading density; use publisher chapters as the skeleton
 kind: feature
-status: open
+status: closed
 priority: 1
-version: 5
+version: 6
 spec_path: docs/project/specs/active/plan-2026-09-04-agent-iteration-loop.md
 labels: []
 dependencies: []
@@ -13,7 +13,11 @@ parent_id: is-01m1qfkw8vxpzmyds5qsxm798b
 child_order_hints:
   - is-01m1n9pf2qwyfejb1xdjzx385k
 created_at: 2026-09-05T00:34:24.914Z
-updated_at: 2026-09-05T00:41:23.341Z
+updated_at: 2026-09-05T06:56:47.538Z
+closed_at: 2026-09-05T06:56:47.538Z
+close_reason: "Publisher chapters fetched once (metadata-only yt-dlp) and stored on the resource; insert_chapter_headings puts one H2 per chapter before the first paragraph at or after its start, demote_model_headings turns the model's H2s into H3s. Real document: 206 H2 -> 23 H2 + 206 H3, index 23 sections, none empty, idempotent. --no-chapters disables the stages without refetching. Nine revert probes."
+resolution: null
+duplicate_of: null
 ---
 Measured on Lex #501: insert_section_headings (kash, WINDOW_128_PARA) produced 206 headings over 5h15m — one every 1.5 minutes — and the outline is sectional, so it inherits all 206 entries. A reader of a five-hour interview wants roughly 30–60 sections. No flag controls density and processing instructions do not reach this stage.
 
