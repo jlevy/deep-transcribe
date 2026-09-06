@@ -242,6 +242,15 @@ Feature changes, planned in `plan-2026-09-05-theme-grouping-across-the-page.md`:
 - [x] One unified concept graph with the themes as visible bands. (dt-td4s)
 - [x] Claims grouped by theme. (dt-r25q)
 
+The merge gate the owner set, run from scratch on 2026-09-05 (dt-9omf): the SNL sketch
+in a fresh workspace with the documented five-role context reproduces the reference
+(five labels, 45 paragraphs, 104 utterances corrected, 7 sections, 17 frames, none
+broken), reruns in 8 s with no API call, resumes at the outline on a `--segments` edit
+(46 s, no Deepgram call), and re-exports flat with `--grouping on` in 6 s. With no
+roster in the context the page falls to the provider's two speaker IDs, which is the
+fallback kash always had; filed as dt-fxoe. tbd housekeeping (dt-8zy3): the outbox
+workspace PR #18 checked in is retired, doctor is clean, sync pushes over SSH.
+
 Withdrawn and still open:
 
 - [x] Print layout: text column too wide, margins too small. Measured identical to the
