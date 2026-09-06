@@ -397,6 +397,12 @@ Deterministic, no animation loop, no dependency, and considerably more readable 
 force blob, because the conversation’s own chronology supplies the layout’s primary
 axis.
 
+On a recording long enough to group by theme (see
+`plan-2026-09-05-theme-grouping-across-the-page.md`), the graph is one graph in theme
+bands: chips flow in clock order inside each band, the time axis giving way to an ordinal
+one, with the edges still drawn across bands in the one SVG. Below that length the flat
+time-layered graph above is what renders.
+
 Selecting a concept in either view filters the rail to its spans and highlights its
 mentions in the prose at runtime.
 Highlighting is applied by the client and never written into the source HTML, so the

@@ -65,6 +65,15 @@ vivid fill variant toned to read as the same color.
 Fills are used for bands, bars, dots, and markers; text variants for names and labels.
 Assignment is by roster order and stable across reruns.
 
+### Label caps
+
+Uppercase is decided once, as three tokens (`--dt-name-transform`, `--dt-name-size`,
+`--dt-name-spacing`): people's names, in their speaker color, and entity kind tags take
+it, as faux small caps (an uppercase transform at 0.82em with a little tracking, never
+`font-variant`, which depends on the face). Topics never do: concept labels, theme
+names, section headings, and band labels stay as written, in the text, the panels, and
+tooltips alike. A tooltip head carries the name class only when it names a speaker.
+
 ### Concept kinds
 
 A fixed ontology: `topic`, `entity`, `claim` (`decision` folds into claim, `term` into

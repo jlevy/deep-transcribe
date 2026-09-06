@@ -34,6 +34,9 @@ def test_built_in_docs_cover_iterative_reruns_and_skill_installation() -> None:
     assert "normal cache-aware rerun" in docs
     assert "--rerun-processing" in docs
     assert "--rerun" in docs
+    # The narrow rerun belongs in the table too, or an agent reading only the guide has
+    # `--rerun-processing` as its sole answer to a stage whose code changed.
+    assert "--rerun-from STAGE" in docs
     assert "Deepgram request count" in docs
     assert "## Install the Agent Skill" in docs
     assert "deep-transcribe --install-skill" in docs

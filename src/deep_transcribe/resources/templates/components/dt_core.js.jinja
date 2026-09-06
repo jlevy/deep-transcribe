@@ -45,6 +45,117 @@
     }
   }
 
+  /* Suppressed stretches — a teaser, an ad read, an outro — are marked in the index
+     rather than removed, because the reader should be able to see what was set aside
+     and why. Each run of them collapses behind one line saying what it is, and opens on
+     click. The analysis never saw them; this is only about the page. */
+  const SEGMENT_NAMES = {
+    teaser: "Teaser",
+    intro: "Introduction",
+    promo: "Promotion",
+    outro: "Outro",
+    other: "Set aside",
+  };
+
+  function collapseSegments(index) {
+    // How much of a section a run covers decides where that section's heading goes, so
+    // count the units each section holds before any of them move.
+    const sectionSize = new Map();
+    for (const unit of index.units) {
+      if (unit.section == null) continue;
+      sectionSize.set(unit.section, (sectionSize.get(unit.section) || 0) + 1);
+    }
+    // One run per contiguous suppressed span: consecutive suppressed units with no
+    // unsuppressed unit between them. Section boundaries do not break a run. A hint marks
+    // one stretch and the reader should get one block for it, however many headings the
+    // section pass happened to drop inside — splitting on unit.section turned a single
+    // 1:44 teaser into four boxes of two, two, one and one paragraphs.
+    const runs = [];
+    let current = null;
+    for (const unit of index.units) {
+      if (!unit.segment || !unit.el) {
+        current = null;
+        continue;
+      }
+      if (current && current.segment === unit.segment) {
+        current.units.push(unit);
+      } else {
+        current = { segment: unit.segment, units: [unit] };
+        runs.push(current);
+      }
+    }
+    for (const run of runs) {
+      const first = run.units[0].el;
+      const last = run.units[run.units.length - 1].el;
+      if (!first || !first.parentElement) continue;
+      const wrap = document.createElement("div");
+      wrap.className = "dt-segment dt-collapsed";
+      wrap.dataset.segment = run.segment;
+      const head = document.createElement("button");
+      head.type = "button";
+      head.className = "dt-segment-head";
+      const name = SEGMENT_NAMES[run.segment] || SEGMENT_NAMES.other;
+      const elapsed = run.units[run.units.length - 1].end - run.units[0].start;
+      const seconds = Math.max(0, Math.round(elapsed) || 0);
+      // Under a minute in minutes reads "0 min", which sounds like nothing was set aside,
+      // so short spans say their length in seconds.
+      const length = seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`;
+      head.textContent = `${name} — ${length}, left out of the analysis`;
+      head.setAttribute("aria-expanded", "false");
+      head.addEventListener("click", () => {
+        const collapsed = !wrap.classList.contains("dt-collapsed");
+        wrap.classList.toggle("dt-collapsed", collapsed);
+        head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      });
+      // A section the run covers whole heads only suppressed material, so its heading
+      // goes inside the block with it. A section that continues past the run keeps its
+      // heading outside, or the material the reader still gets would be left with no
+      // heading at all — the usual shape, where a span covers a section's opening
+      // paragraphs and stops.
+      const covered = new Map();
+      for (const unit of run.units) {
+        if (unit.section == null) continue;
+        covered.set(unit.section, (covered.get(unit.section) || 0) + 1);
+      }
+      const coversWholeSection = (section) =>
+        section != null && covered.get(section) === sectionSize.get(section);
+      // The elements the run spans, listed before anything moves, since appending to the
+      // body detaches the siblings a live walk would step through. The heading directly
+      // above the run counts as part of the span and gets the same test.
+      const above =
+        first.previousElementSibling && first.previousElementSibling.tagName === "H2"
+          ? first.previousElementSibling
+          : null;
+      const spanned = [];
+      for (let el = above || first; el; el = el.nextElementSibling) {
+        spanned.push(el);
+        if (el === last) break;
+      }
+      first.parentElement.insertBefore(wrap, first);
+      wrap.appendChild(head);
+      const body = document.createElement("div");
+      body.className = "dt-segment-body";
+      wrap.appendChild(body);
+      const unitOf = new Map();
+      for (const unit of run.units) if (unit.el) unitOf.set(unit.el, unit);
+      // A heading is claimed by the paragraph under it: that paragraph opens the section,
+      // so its unit says which section the heading names.
+      let pending = [];
+      for (const el of spanned) {
+        const unit = unitOf.get(el);
+        if (!unit) {
+          if (el.tagName === "H2") pending.push(el);
+          continue;
+        }
+        if (coversWholeSection(unit.section)) {
+          for (const heading of pending) body.appendChild(heading);
+        }
+        pending = [];
+        body.appendChild(el);
+      }
+    }
+  }
+
   function bindFrames(index, scope) {
     const byTime = new Map();
     scope.querySelectorAll("img.frame-capture").forEach((img) => {
@@ -71,7 +182,11 @@
         strong.classList.add("dt-speaker-label", model.speakerClass(unit.speaker));
         // Isolate the colon so screen styles can drop it while print keeps
         // the original inline "Name:" form byte for byte.
-        strong.textContent = name;
+        strong.textContent = "";
+        const nameEl = document.createElement("span");
+        nameEl.className = "dt-name";
+        nameEl.textContent = name;
+        strong.appendChild(nameEl);
         const colon = document.createElement("span");
         colon.className = "dt-colon";
         colon.textContent = ":";
@@ -80,6 +195,28 @@
         // end of the spoken text. Continuations without a label keep theirs.
         if (unit.citationEl) strong.appendChild(unit.citationEl);
       }
+    }
+    // A paragraph the section-heading stage split off a long turn keeps a bare
+    // **Name:** and has no citation of its own, so it is not a unit and the loop above
+    // never reaches it: "DHH:" rendered as plain bold under such headings on the
+    // five-hour recording, 147 times. Decorate every remaining roster label the same
+    // way, without a chip.
+    const byName = new Map(model.index.speakers.map((sp) => [sp.name, sp.id]));
+    for (const strong of document.querySelectorAll(".long-text p > strong:first-child")) {
+      if (strong.classList.contains("dt-speaker-label")) continue;
+      const name = strong.textContent.replace(/:\s*$/, "").trim();
+      const id = byName.get(name);
+      if (id == null) continue;
+      strong.classList.add("dt-speaker-label", model.speakerClass(id));
+      strong.textContent = "";
+      const nameEl = document.createElement("span");
+      nameEl.className = "dt-name";
+      nameEl.textContent = name;
+      strong.appendChild(nameEl);
+      const colon = document.createElement("span");
+      colon.className = "dt-colon";
+      colon.textContent = ":";
+      strong.appendChild(colon);
     }
   }
 
@@ -170,7 +307,9 @@
       // The name appears once, colored like the transcript labels — name on
       // its own line means no colon, and the color makes a dot redundant.
       const name = document.createElement("span");
-      name.className = `dt-tip-name${opts.speakerClass ? ` ${opts.speakerClass}` : ""}`;
+      name.className = opts.speakerClass
+        ? `dt-tip-name dt-name ${opts.speakerClass}`
+        : "dt-tip-name";
       name.textContent = opts.name;
       head.appendChild(name);
     }
@@ -193,6 +332,16 @@
       text.textContent = opts.text;
       content.appendChild(text);
     }
+    if (opts.items && opts.items.length) {
+      const list = document.createElement("ul");
+      list.className = "dt-tip-list";
+      for (const item of opts.items) {
+        const li = document.createElement("li");
+        li.textContent = item;
+        list.appendChild(li);
+      }
+      content.appendChild(list);
+    }
     if (opts.image) {
       const img = document.createElement("img");
       img.src = opts.image;
@@ -201,6 +350,25 @@
       content.appendChild(img);
     }
     return content;
+  }
+
+  /* Whether the outline, concepts, claims, and graph group by theme. Decided once,
+     here, and read by every module: on or off by the export setting
+     (window.DT_GROUPING, from --grouping), otherwise by length, since a recording
+     shorter than the cutoff reads better flat. Whatever the setting, there is
+     nothing to group by without at least two themes. */
+  const GROUPING_CUTOFF_MINUTES = 45;
+
+  function decideGrouping(model) {
+    const setting = window.DT_GROUPING || {};
+    const themes = new Set(
+      (model.index.concepts || []).map((c) => c.theme).filter(Boolean)
+    );
+    if (themes.size < 2) return false;
+    if (setting.mode === "on") return true;
+    if (setting.mode === "off") return false;
+    const cutoff = Number(setting.cutoff_minutes) || GROUPING_CUTOFF_MINUTES;
+    return model.duration >= cutoff * 60;
   }
 
   /* Panel containers straddle the server-rendered outline so injected panels
@@ -367,8 +535,23 @@
     );
   }
 
+  /* kash previews the target of every internal link on hover ("Section: …") and
+     holds the preview open after a click, so on the contents column every jump
+     raises a tooltip. The links are kash's own, made at load, and its scan runs
+     on the same DOMContentLoaded turn as this module, so the previews are taken
+     off once that turn is over. */
+  function muteContentsPreviews() {
+    setTimeout(() => {
+      if (typeof TooltipManager === "undefined") return;
+      document.querySelectorAll(".toc-container a[data-tooltip-trigger]").forEach((a) => {
+        TooltipManager.removeTooltip(a);
+      });
+    }, 0);
+  }
+
   function init() {
     if (window.location.protocol === "file:") enableFileProtocolFallback();
+    muteContentsPreviews();
     const index = parseIndex();
     if (!index) {
       window.DeepTranscript = Object.freeze({ ready: false });
@@ -376,6 +559,7 @@
     }
     const scope = document.querySelector(".long-text") || document.body;
     bindUnits(index, scope);
+    collapseSegments(index);
     bindFrames(index, scope);
     bindSections(index, scope);
     const model = buildModel(index);
@@ -387,6 +571,7 @@
       if (!model.elements.has(part)) document.body.classList.add(`dt-no-${part}`);
     }
     decorateSpeakerLabels(model);
+    model.grouped = decideGrouping(model);
     document.body.classList.add("dt-on");
     if (model.elements.has("summary")) {
       dressSummary(scope);

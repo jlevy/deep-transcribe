@@ -23,9 +23,16 @@ from deep_transcribe.model_profiles import (
     get_model_profile,
     set_model_profile,
 )
-from deep_transcribe.transcribe_options import TranscribeOptions
+from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER, TranscribeOptions
+
+# `transcribe` is the one stage --rerun-from must not name: the prefix rule cannot tell
+# lineages apart at their shared first stage, so it would set aside every transcript in the
+# workspace and the next run would pay for speech-to-text again. --rerun is the flag for
+# a fresh transcript, and it says so.
+RERUN_FROM_STAGES = tuple(stage for stage in PIPELINE_STAGE_ORDER if stage != "transcribe")
 
 if TYPE_CHECKING:
+    from deep_transcribe.transcript_report import TranscriptReport
     from deep_transcribe.transcription_metadata import TranscriptionMetadata
 
 log = logging.getLogger(__name__)
@@ -209,6 +216,17 @@ def _add_transcription_arguments(
         ),
     )
     processing.add_argument(
+        "--keep-backchannel",
+        "--keep_backchannel",
+        dest="keep_backchannel",
+        action="store_true",
+        help=(
+            "Keep one-word acknowledgement turns (Mhmm, Yeah, Right) as their own "
+            "paragraphs; by default they are folded into the previous paragraph as a "
+            "bracketed aside"
+        ),
+    )
+    processing.add_argument(
         "--elements",
         type=str,
         metavar="PARTS",
@@ -216,6 +234,26 @@ def _add_transcription_arguments(
             "Comma-separated page parts to include in the HTML export "
             "(default: everything). Choices: title, thumbnail, summary, timeline, "
             "speakers, outline, concepts, claims, frames, transcript"
+        ),
+    )
+    processing.add_argument(
+        "--grouping",
+        type=str,
+        metavar="on|off|MINUTES",
+        help=(
+            "Whether the outline, concepts, claims, and concept graph group by theme: "
+            "on, off, or the length in minutes from which a recording groups "
+            "(default: 45). A view setting: change it and re-export with --export-only"
+        ),
+    )
+    processing.add_argument(
+        "--no-chapters",
+        "--no_chapters",
+        dest="no_chapters",
+        action="store_true",
+        help=(
+            "Ignore the chapters the publisher wrote and let the model's own section "
+            "headings be the sections (chapters are used whenever a source has them)"
         ),
     )
     processing.add_argument(
@@ -246,11 +284,23 @@ def _add_transcription_arguments(
         help="UTF-8 prose to use as recording context; repeat to join files",
     )
     guidance.add_argument(
+        "--segments",
+        metavar="PATH",
+        help=(
+            "YAML listing stretches to mark (teaser, intro, promo, outro); suppressed "
+            "ones are left out of the analysis. Editing it and rerunning reuses the "
+            "transcript. Hints stick to the source; pass `none` to clear them"
+        ),
+    )
+    guidance.add_argument(
         "--instructions",
         action="append",
         default=[],
         metavar="TEXT",
-        help="Trusted post-transcription processing instructions; repeat to join paragraphs",
+        help=(
+            "Trusted post-transcription processing instructions; repeat to join "
+            "paragraphs. Instructions stick to the source; pass `none` to clear them"
+        ),
     )
     guidance.add_argument(
         "--instructions-file",
@@ -278,8 +328,8 @@ def _add_transcription_arguments(
         metavar="YAML_OR_JSON",
         help=(
             "Optional structured overrides for automation: title, description, "
-            "additional_context, processing_instructions, key_terms, speaker_hints, "
-            "speaker_roster, or extra fields"
+            "additional_context, processing_instructions, key_terms, replacements, "
+            "speaker_hints, speaker_roster, or extra fields"
         ),
     )
     overrides.add_argument(
@@ -288,6 +338,17 @@ def _add_transcription_arguments(
         default=[],
         metavar="TERM",
         help="Term or name Deepgram should recognize accurately; repeat as needed",
+    )
+    overrides.add_argument(
+        "--replace",
+        action="append",
+        default=[],
+        type=_replacement,
+        metavar="WRONG=RIGHT",
+        help=(
+            "Misheard word and its correction, such as Omachi=Omarchy; applied to whole "
+            "words in the transcript, preserving case; repeat as needed"
+        ),
     )
     overrides.add_argument(
         "--speaker",
@@ -349,6 +410,43 @@ def _add_transcription_arguments(
         ),
     )
     execution.add_argument(
+        "--rerun-from",
+        metavar="STAGE",
+        choices=RERUN_FROM_STAGES,
+        help=(
+            "Set aside this stage's cached results, and every cached result below them, then "
+            "rerun — what a change to the stage's own code needs, since a cached result is "
+            "keyed on its inputs and not on the code that made it (stages listed below)"
+        ),
+    )
+    execution.add_argument(
+        "--report",
+        action="store_true",
+        help=(
+            "Describe what the run produced — section headings and their density, outline "
+            "entries, themes, segments in effect, speaker turns, frames, and repeated "
+            "capitalized spellings to choose --key-term values from"
+        ),
+    )
+    execution.add_argument(
+        "--export-only",
+        action="store_true",
+        help=(
+            "Rebuild the HTML from the cached final item without running any stage, for a "
+            "template or --elements change"
+        ),
+    )
+    execution.add_argument(
+        "--open",
+        action="store_true",
+        help=(
+            "Serve the finished export from 127.0.0.1 on a free port and open it in your "
+            "browser, so the embedded player works — a page opened as a file:// URL "
+            "cannot embed the video. Keeps serving in the foreground until Ctrl-C; with "
+            "--json the URL is added to the output first"
+        ),
+    )
+    execution.add_argument(
         "--json",
         action="store_true",
         help="Print final workspace and artifact paths as JSON",
@@ -382,6 +480,13 @@ def _help_epilog() -> str:
         stage while preserving the raw transcript. `--rerun` forces every stage,
         including speech-to-text.
 
+        **Stages accepted by `--rerun-from`,** in pipeline order:
+
+        """).strip()
+        + "\n\n"
+        + _rerun_from_stage_help()
+        + "\n\n"
+        + dedent("""
         Examples:
 
         ```shell
@@ -398,6 +503,13 @@ def _help_epilog() -> str:
         ```
         """).strip()
     )
+
+
+def _rerun_from_stage_help() -> str:
+    """The stage names `--rerun-from` accepts, wrapped to the help page's width."""
+    from textwrap import fill
+
+    return fill(", ".join(f"`{stage}`" for stage in RERUN_FROM_STAGES), width=80)
 
 
 def _profile_help() -> str:
@@ -441,24 +553,53 @@ def display_results(
     html_path: Path,
     *,
     as_json: bool,
+    report: "TranscriptReport | None" = None,
+    serve_url: str | None = None,
 ) -> None:
-    """Display generated artifact paths."""
+    """
+    Display generated artifact paths, and the report when one was built.
+
+    `serve_url` is where `--open` is serving the page. With `--json` it belongs in the one
+    document; the text form gets it from `_announce_serving` instead, on stderr and
+    unstyled, so the URL is exactly what a copy-paste picks up.
+    """
+    from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
+
+    # `base_dir` is the root the user passed; the kash workspace, where the pipeline
+    # writes, is a level inside it. The transcript is always in that workspace's docs
+    # directory, so it is the reliable way back to it.
+    suggested = transcript_path.parent.parent / SUGGESTED_SEGMENTS_NAME
     if as_json:
-        print(
-            json.dumps(
-                {
-                    "workspace": str(base_dir.resolve()),
-                    "transcript": str(transcript_path.resolve()),
-                    "html": str(html_path.resolve()),
-                },
-                sort_keys=True,
-            )
-        )
+        result: dict[str, object] = {
+            "workspace": str(base_dir.resolve()),
+            "transcript": str(transcript_path.resolve()),
+            "html": str(html_path.resolve()),
+        }
+        # An agent driving the review loop needs to find this without reading the log.
+        if suggested.exists():
+            result["suggested_segments"] = str(suggested.resolve())
+        # Printed before the process settles into serving, so a caller reading one line of
+        # JSON is not waiting on a server that only stops at Ctrl-C.
+        if serve_url is not None:
+            result["url"] = serve_url
+        # Folded into the one document rather than printed beside it, so `--json` output
+        # stays parseable by a single read.
+        if report is not None:
+            result["report"] = report.to_json_dict()
+        print(json.dumps(result, sort_keys=True))
         return
 
     # fmt_path is missing from prettyfmt's __all__ (upstream oversight); it is public API.
     from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
     from rich import print as rprint
+
+    if report is not None:
+        from deep_transcribe.transcript_report import format_report_text
+
+        # Printed before the paths so the paths stay the last thing on screen, and without
+        # rich markup so a bracket in a heading or a name cannot be read as a style tag.
+        print(format_report_text(report))
+        print()
 
     rprint(
         dedent(f"""
@@ -479,6 +620,34 @@ def display_results(
             To inspect other cached or intermediate outputs, run `kash`, change to the
             workspace, and use `files`, `show`, `help`, and related commands.
             """)
+    )
+    if suggested.exists():
+        rprint(
+            dedent(f"""
+                The opening of this recording repeats later, which usually means a
+                highlight reel. Suggested segment hints are at:
+
+                    [yellow]{fmt_path(suggested)}[/yellow]
+
+                Review them and rerun with `--segments` to leave that stretch out of the
+                analysis. The transcript is reused, so the rerun is quick.
+                """)
+        )
+
+
+def _announce_serving(url: str, *, as_json: bool) -> None:
+    """
+    Say where the export is being served, and why the command has not exited.
+
+    Printed on stderr, and without rich markup or wrapping: the URL is meant to be
+    copy-pasted, and stdout stays whatever the run already put there.
+    """
+    if not as_json:
+        print(f"\nThe export is being served at:\n\n    {url}\n", file=sys.stderr)
+    print(
+        "A page opened straight from disk cannot embed the video player, so the export is "
+        "served here instead. Serving until you press Ctrl-C.",
+        file=sys.stderr,
     )
 
 
@@ -520,6 +689,28 @@ def _speaker_hint(value: str) -> tuple[str, str]:
     return speaker_id.strip(), name.strip()
 
 
+def _replacement(value: str) -> tuple[str, str]:
+    wrong, separator, right = value.partition("=")
+    if not separator or not wrong.strip() or not right.strip():
+        raise argparse.ArgumentTypeError("replacements must use WRONG=RIGHT")
+    return wrong.strip(), right.strip()
+
+
+CLEAR_TOKEN = "none"
+"""
+Literal value that clears a sticky guidance input instead of setting one.
+
+`--segments` and `--instructions` are written back onto the stored source, so a later run
+without the flag still honors them. Without a spelling for "remove it" the only way back
+is hand-editing the resource YAML in the workspace.
+"""
+
+
+def _is_clear_token(value: object) -> bool:
+    """Whether a flag value is the literal clear request rather than a value to store."""
+    return str(value).strip().casefold() == CLEAR_TOKEN
+
+
 def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMetadata":
     from deep_transcribe.transcription_metadata import (
         TranscriptionMetadata,
@@ -544,16 +735,47 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
         inline_data["additional_context"] = "\n\n".join(context_parts)
     if args.key_term:
         inline_data["key_terms"] = list(dict.fromkeys([*metadata.key_terms, *args.key_term]))
+    if args.replace:
+        # A mapping merges key by key below, unlike `key_terms`, so a metadata file's own
+        # corrections survive and the flag wins wherever both name the same misheard word.
+        inline_data["replacements"] = dict(args.replace)
     if args.speaker:
         inline_data["speaker_hints"] = dict(args.speaker)
     if args.speaker_role:
         inline_data["speaker_roster"] = list(
             dict.fromkeys([*metadata.speaker_roster, *args.speaker_role])
         )
+    segments_arg = getattr(args, "segments", None)
+    clear_segments = bool(segments_arg) and _is_clear_token(segments_arg)
+    if segments_arg and not clear_segments:
+        from deep_transcribe.segment_hints import format_time, load_hints
+
+        hints = load_hints(Path(segments_arg))
+        if hints.segments:
+            overlaps = hints.overlaps()
+            if overlaps:
+                log.warning(
+                    "%d segment hint pair(s) overlap; the earlier one wins where they do",
+                    len(overlaps),
+                )
+            inline_data["segments"] = {
+                "segments": [
+                    {
+                        "at": f"{format_time(h.start)} - {format_time(h.end)}",
+                        "purpose": h.purpose.value,
+                        **({"suppress": h.suppress} if h.suppress is not None else {}),
+                        **({"note": h.note} if h.note else {}),
+                    }
+                    for h in hints.segments
+                ]
+            }
+
+    instruction_values = [value.strip() for value in args.instructions]
+    clear_instructions = any(_is_clear_token(value) for value in instruction_values)
     instruction_parts = (
         [metadata.processing_instructions or ""]
         + [path.read_text(encoding="utf-8").strip() for path in args.instructions_file]
-        + [value.strip() for value in args.instructions]
+        + [value for value in instruction_values if not _is_clear_token(value)]
     )
     instruction_parts = [value for value in instruction_parts if value]
     if instruction_parts:
@@ -561,6 +783,19 @@ def build_transcription_metadata(args: argparse.Namespace) -> "TranscriptionMeta
 
     if inline_data:
         metadata = metadata.merged_with(transcription_metadata_from_mapping(inline_data))
+    # Supplying replacement text already overwrites the stored value, so `none` alongside
+    # real instructions is the text winning rather than a clear.
+    clear_instructions = clear_instructions and not instruction_parts
+    if clear_segments or clear_instructions:
+        from dataclasses import replace
+
+        metadata = replace(
+            metadata,
+            clear_segments=metadata.clear_segments or clear_segments,
+            clear_processing_instructions=(
+                metadata.clear_processing_instructions or clear_instructions
+            ),
+        )
     return metadata
 
 
@@ -584,11 +819,15 @@ def _build_transcribe_options(args: argparse.Namespace) -> TranscribeOptions:
     if args.concepts:
         options = options.merge_with(TranscribeOptions(extract_concepts=True))
 
-    # Presets do not carry this: it is an explicit opt-in that must outlive them.
-    if args.web_search:
-        from dataclasses import replace
+    # Presets do not carry these: they are explicit choices that must outlive them.
+    from dataclasses import replace
 
+    if args.web_search:
         options = replace(options, web_search=True)
+    if args.keep_backchannel:
+        options = replace(options, keep_back_channel=True)
+    if args.no_chapters:
+        options = replace(options, no_chapters=True)
 
     return options
 
@@ -715,11 +954,22 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         console_log_level=LogLevel.warning,
     )
 
+    if args.export_only and (args.rerun or args.rerun_processing or args.rerun_from):
+        parser.error("--export-only runs no stage, so it cannot be combined with a rerun flag")
+
+    if args.rerun_from and (args.rerun or args.rerun_processing):
+        parser.error(
+            "--rerun and --rerun-processing already rerun the stage --rerun-from names, "
+            "so combining them only moves cached results out of the way for nothing"
+        )
+
     # Fail fast, after kash setup has loaded .env files, if required keys are absent.
     from deep_transcribe.api_keys import format_missing_keys_message, missing_api_keys
 
     options = _build_transcribe_options(args)
-    missing_keys = missing_api_keys(options, workspace)
+    # Re-exporting calls no service, so a workspace can be re-rendered on a machine that
+    # has no keys at all.
+    missing_keys = [] if args.export_only else missing_api_keys(options, workspace)
     if missing_keys:
         if args.json:
             print(
@@ -740,7 +990,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(2)
 
     try:
-        from deep_transcribe.transcribe_commands import run_transcription
+        from deep_transcribe.transcribe_commands import NoCachedResult, run_transcription
 
         elements = None
         if args.elements:
@@ -750,34 +1000,99 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
                 elements = parse_page_elements(args.elements)
             except ValueError as error:
                 parser.error(str(error))
+        grouping = None
+        if args.grouping:
+            from deep_transcribe.transcribe_commands import parse_grouping
 
-        transcript_path, html_path = run_transcription(
-            workspace,
-            args.source,
-            options,
-            args.language,
-            transcription_model=args.transcription_model,
-            diarize_model=args.diarize_model,
-            metadata=build_transcription_metadata(args),
-            no_minify=args.no_minify,
-            rerun=args.rerun,
-            rerun_processing=args.rerun_processing,
-            elements=elements,
-        )
+            try:
+                grouping = parse_grouping(args.grouping)
+            except ValueError as error:
+                parser.error(str(error))
+
+        # A hints or metadata file the user wrote is an argument, so a mistake in one is a
+        # usage error: reported as one line, before the generic handler below turns it into
+        # a traceback pointing at our own parser.
+        try:
+            metadata = build_transcription_metadata(args)
+        except ValueError as error:
+            parser.error(str(error))
+
+        if args.export_only:
+            from deep_transcribe.transcribe_commands import export_only
+
+            # Naming the wrong workspace or the wrong source is a mistake about the
+            # command, so it gets the one usage line rather than the failure report.
+            try:
+                outputs = export_only(
+                    workspace,
+                    args.source,
+                    no_minify=args.no_minify,
+                    elements=elements,
+                    grouping=grouping,
+                    report=args.report,
+                )
+            except NoCachedResult as error:
+                parser.error(str(error))
+        else:
+            outputs = run_transcription(
+                workspace,
+                args.source,
+                options,
+                args.language,
+                transcription_model=args.transcription_model,
+                diarize_model=args.diarize_model,
+                metadata=metadata,
+                no_minify=args.no_minify,
+                rerun=args.rerun,
+                rerun_processing=args.rerun_processing,
+                rerun_from=args.rerun_from,
+                elements=elements,
+                grouping=grouping,
+                report=args.report,
+            )
+        # Started before anything is printed, because with --json the URL has to go into
+        # the one document; nothing reaches the console until display_results runs, so the
+        # report still comes first and the URL still comes last.
+        served = None
+        if args.open:
+            from deep_transcribe.serve_export import serve_and_open
+
+            served = serve_and_open(outputs.html_path, block=False)
+
         display_results(
             workspace,
-            transcript_path,
-            html_path,
+            outputs.transcript_path,
+            outputs.html_path,
             as_json=args.json,
+            report=outputs.report,
+            serve_url=served.url if served is not None else None,
         )
+
+        if served is not None:
+            _announce_serving(served.url, as_json=args.json)
+            # Ctrl-C leaves through main's handler, which reports the interrupt as usual.
+            served.block_until_interrupt()
     except Exception as error:
         from kash.config.logger import get_log_settings
 
-        log.error("Error running deep transcription", exc_info=error)
+        from deep_transcribe.media_errors import explain_error
+
+        # A recognized failure already knows the whole story, and a traceback through
+        # yt-dlp's internals tells the user nothing they can act on. Log it at info so the
+        # detail still reaches the log file — whose path is printed either way — while the
+        # console gets the one line. Anything unrecognized keeps the full report, because a
+        # confident wrong summary is worse than a stack trace.
+        explained = explain_error(error, source=args.source, workspace_path=workspace)
+        if explained is None:
+            log.error("Error running deep transcription", exc_info=error)
+        else:
+            log.info("Error running deep transcription", exc_info=error)
         log_file = get_log_settings().log_file_path
         if args.json:
             print(
-                json.dumps({"error": str(error), "log": str(log_file)}, sort_keys=True),
+                json.dumps(
+                    {"error": explained or str(error), "log": str(log_file)}, sort_keys=True
+                ),
                 file=sys.stderr,
             )
         else:
@@ -785,7 +1100,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             from prettyfmt import fmt_path  # pyright: ignore[reportPrivateImportUsage]
             from rich import print as rprint
 
-            rprint(f"[red]Error: {error}[/red]")
+            rprint(f"[red]{explained or f'Error: {error}'}[/red]")
             rprint(f"[bright_black]See logs for more details: {fmt_path(log_file)}[/bright_black]")
         raise SystemExit(1) from error
 

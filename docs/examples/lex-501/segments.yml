@@ -1,0 +1,12 @@
+# Segment hints for Lex #501. Edit and rerun with --segments; a hint edit resumes at the
+# outline (about 20 minutes on this recording). Times are h:mm:ss.
+segments:
+  - at: "0:00:04 - 0:01:49"
+    purpose: teaser
+    note: "Highlight clip: six paragraphs, 83% of them found again later in the interview"
+  - at: "0:01:49 - 0:02:56"
+    purpose: intro
+    note: "Lex introduces DHH, then points at the sponsors in the description"
+  - at: "5:15:17 - 5:15:51"
+    purpose: outro
+    note: "Thanks and sign-off"

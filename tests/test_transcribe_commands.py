@@ -1,8 +1,11 @@
 # pyright: reportPrivateUsage=false
 
+import logging
+import re
+from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from kash.model import Item, ItemType
@@ -127,6 +130,7 @@ def test_processing_instructions_bypass_raw_and_formatting_cache_identity(
         _options: TranscribeOptions,
         *,
         processing_instructions: str | None,
+        **_late_inputs: object,
     ) -> Item:
         observed["formatting_instructions"] = get_processing_instructions(item)
         observed["overview_instructions"] = processing_instructions
@@ -149,6 +153,103 @@ def test_processing_instructions_bypass_raw_and_formatting_cache_identity(
     assert get_processing_instructions(source) == instructions
 
 
+def test_replacements_reach_the_transcript_but_never_the_raw_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Editing the replacement list must cost the correction stage and what follows it, never
+    a fresh paid transcription. The mapping is therefore held off the resource kash hashes
+    for the raw request and put onto the transcript afterwards, where the stage reads it.
+    """
+    from kash import workspaces
+
+    from deep_transcribe.transcription_metadata import get_replacements
+
+    replacements = {"Omachi": "Omarchy"}
+    source = Item(
+        type=ItemType.resource,
+        title="Fixture",
+        extra={"transcription": {"replacements": dict(replacements)}},
+        store_path="resources/fixture.resource.yml",
+    )
+    raw_result = Item(type=ItemType.doc, title="Fixture")
+    observed: dict[str, object] = {}
+    persisted: list[dict[str, str]] = []
+
+    class FakeWorkspace:
+        base_dir: Path = Path("/tmp/fake-workspace")
+
+        def save(self, _item: Item, *, overwrite: bool) -> None:
+            assert overwrite is True
+
+    def fake_persist(item: Item, _workspace: object) -> None:
+        persisted.append(get_replacements(item))
+
+    def fake_transcribe(item: Item, **_kwargs: object) -> Item:
+        observed["raw_replacements"] = get_replacements(item)
+        return raw_result
+
+    def fake_process(item: Item, _options: TranscribeOptions, **_late_inputs: object) -> Item:
+        observed["transcript_replacements"] = get_replacements(item)
+        return item
+
+    monkeypatch.setattr(transcribe_commands, "_transcribe_raw", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "_process_transcript", fake_process)
+    monkeypatch.setattr(transcribe_commands, "persist_item_metadata", fake_persist)
+    monkeypatch.setattr(workspaces, "current_ws", lambda: FakeWorkspace())
+
+    result = transcribe_commands.transcribe_with_options(source, TranscribeOptions.basic())
+
+    assert result is raw_result
+    assert observed == {"raw_replacements": {}, "transcript_replacements": replacements}
+    # The stored resource is canonical without the mapping for the request, and carries it
+    # again afterwards, so a later run with no --replace still corrects the transcript.
+    assert persisted == [{}, replacements]
+    assert get_replacements(source) == replacements
+
+
+def test_replacements_correct_the_transcript_through_the_real_pipeline(tmp_path: Path) -> None:
+    """
+    Drive `_process_transcript` itself: the stage has to run before everything else and be
+    reached from the mapping stored on the item, not from a hand-assembled call.
+    """
+    from kash.exec import kash_runtime
+    from kash.model import Format
+
+    from deep_transcribe.transcription_metadata import get_replacements
+
+    item = Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        title="A recording",
+        body=(
+            '<span class="speaker-label" data-speaker-id="0">SPEAKER 0:</span>\n'
+            '<span data-timestamp="4.56">Omachi installs in sixty seconds.</span>\n'
+            '<span data-timestamp="9.12">Hansen wrote it, and omachi is his too.</span>\n'
+        ),
+        extra={"transcription": {"replacements": {"Omachi": "Omarchy", "Hansen": "Hansson"}}},
+    )
+
+    with kash_runtime(_own_workspace(tmp_path)):
+        result = transcribe_commands._process_transcript(
+            item,
+            TranscribeOptions.basic(),
+            processing_instructions=None,
+            segment_hints=None,
+        )
+
+    assert result is not item
+    assert result.body is not None
+    assert "Omarchy installs in sixty seconds." in result.body
+    assert "Hansson wrote it, and omarchy is his too." in result.body
+    assert "Omachi" not in result.body
+    assert "Hansen" not in result.body
+    # The citation structure the later stages read is untouched.
+    assert 'data-timestamp="4.56"' in result.body
+    assert 'data-speaker-id="0"' in result.body
+    assert get_replacements(result) == {"Omachi": "Omarchy", "Hansen": "Hansson"}
+
+
 def test_processing_instructions_get_a_distinct_overview_cache_boundary() -> None:
     from inspect import unwrap
 
@@ -159,7 +260,7 @@ def test_processing_instructions_get_a_distinct_overview_cache_boundary() -> Non
         store_path="docs/sectioned.doc.md",
     )
 
-    result = unwrap(transcribe_commands._attach_processing_instructions)(
+    result = unwrap(transcribe_commands._attach_late_inputs)(
         item,
         processing_instructions=instructions,
     )
@@ -168,3 +269,1143 @@ def test_processing_instructions_get_a_distinct_overview_cache_boundary() -> Non
     assert result.store_path is None
     assert get_processing_instructions(item) is None
     assert get_processing_instructions(result) == instructions
+
+
+def test_hints_leave_no_trace_for_the_stages_above_the_boundary() -> None:
+    """
+    The whole segment-hint design rests on this: editing a hint must not disturb
+    transcription, speaker correction, paragraph formatting or section headings.
+
+    Those stages key their cache on the item, so the test is that an item with hints
+    stripped is indistinguishable from one that never carried any. If this ever fails,
+    the symptom is only that reruns "feel slow", which nobody files as a bug.
+    """
+    from deep_transcribe.transcription_metadata import (
+        get_segment_hints,
+        remove_segment_hints,
+        set_segment_hints,
+    )
+
+    def make() -> Item:
+        return Item(
+            type=ItemType.doc,
+            body="Transcript body.",
+            extra={"transcription": {"key_terms": ["Omarchy"], "speaker_roster": ["Alice"]}},
+        )
+
+    never_had_hints = make()
+    carried_hints = make()
+    hints = {"segments": [{"at": "0:00 - 3:14", "purpose": "teaser"}]}
+    set_segment_hints(carried_hints, hints)
+
+    assert carried_hints.extra != never_had_hints.extra
+    returned = remove_segment_hints(carried_hints)
+
+    assert returned == hints
+    assert carried_hints.extra == never_had_hints.extra
+    assert get_segment_hints(carried_hints) is None
+    # Removing from an item that never had them is a no-op, not a mutation.
+    before = dict(never_had_hints.extra or {})
+    assert remove_segment_hints(never_had_hints) is None
+    assert never_had_hints.extra == before
+
+
+def test_late_inputs_carry_both_instructions_and_hints() -> None:
+    from inspect import unwrap
+
+    from deep_transcribe.transcription_metadata import get_segment_hints
+
+    item = Item(type=ItemType.doc, body="Transcript body.", store_path="docs/sectioned.doc.md")
+
+    result = unwrap(transcribe_commands._attach_late_inputs)(  # noqa: SLF001
+        item,
+        processing_instructions="Keep it short.",
+        segment_hints='segments:\n- at: "0:00 - 3:14"\n  purpose: teaser\n',
+    )
+
+    assert get_processing_instructions(result) == "Keep it short."
+    hints = get_segment_hints(result)
+    assert isinstance(hints, dict)
+    assert hints["segments"][0]["purpose"] == "teaser"
+    # The source item is untouched, so its own identity is unchanged.
+    assert get_segment_hints(item) is None
+
+
+def test_clearing_a_hint_reaches_the_stored_resource_on_disk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Drive the real CLI path: `--segments none` must delete the key from the resource file.
+
+    Hints and instructions are sticky by design — they are written back onto the stored
+    source so a later run without the flag still honors them — so a clear only counts if
+    the stored YAML in the workspace loses the key. An in-memory removal would leave the
+    next run reading the hint straight back off disk while every unit test still passed.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    from deep_transcribe.cli_main import build_parser, build_transcription_metadata
+    from deep_transcribe.transcription_metadata import set_segment_hints
+
+    stored_path: list[Path] = []
+    before_clear: list[str] = []
+
+    def fake_prepare(_source: str) -> Item:
+        workspace = current_ws()
+        item = Item(
+            type=ItemType.resource,
+            format=Format.url,
+            url=Url("https://example.com/video"),
+            title="Fixture",
+            extra={"transcription": {"speaker_roster": ["Host", "Guest"]}},
+        )
+        set_segment_hints(item, {"segments": [{"at": "0:00:00 - 0:01:49", "purpose": "teaser"}]})
+        workspace.save(item)
+        path = workspace.base_dir / str(item.store_path)
+        stored_path.append(path)
+        before_clear.append(path.read_text())
+        return item
+
+    def fake_transcribe(item: Item, *_args: object, **_kwargs: object) -> Item:
+        return item
+
+    def fake_format(_result: Item, _base_dir: Path, **_kwargs: object) -> tuple[Path, Path]:
+        return Path("transcript.md"), Path("transcript.html")
+
+    monkeypatch.setattr(transcribe_commands, "_prepare_source_item", fake_prepare)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "format_results", fake_format)
+
+    args = build_parser().parse_args(["--segments", "none", "https://example.com/video"])
+
+    with TemporaryDirectory() as temp_dir:
+        transcribe_commands.run_transcription(
+            Path(temp_dir),
+            "https://example.com/video",
+            TranscribeOptions.basic(),
+            "en",
+            metadata=build_transcription_metadata(args),
+        )
+        after = stored_path[0].read_text()
+
+    assert "purpose: teaser" in before_clear[0]
+    assert "segments" not in after
+    assert "speaker_roster" in after
+
+
+DETECTED_CLIP_START = 4.56
+DETECTED_CLIP_END = 108.55
+"""The span the detector found on the measured recording, used as the fixed detection."""
+
+
+def _fix_the_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Make detection return the clip measured on the real recording, always.
+
+    These tests say nothing about the detector and everything about what is done with
+    what it found, and a fixed clip keeps them offline and deterministic.
+    """
+    from deep_transcribe import preview_detection
+    from deep_transcribe.preview_detection import PreviewClip
+
+    clip = PreviewClip(
+        start=DETECTED_CLIP_START, end=DETECTED_CLIP_END, units=6, echoed_fraction=0.83
+    )
+
+    def fixed_detection(*_args: object, **_kwargs: object) -> PreviewClip:
+        return clip
+
+    monkeypatch.setattr(preview_detection, "detect_preview_clip", fixed_detection)
+
+
+def _transcript_item() -> Item:
+    from kash.model import Format
+
+    return Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        title="A recording",
+        body="The best moments, first. <span data-timestamp='4.56' />\n",
+    )
+
+
+def _own_workspace(tmp_path: Path) -> Path:
+    """
+    A workspace directory whose name no other test shares.
+
+    kash registers workspaces by directory name, so two tests both using `tmp_path /
+    "workspace"` resolve `current_ws()` to whichever one registered first — and then one
+    test reads the suggestion file the other wrote. Measured while writing these: the
+    "no coverage" cases passed against a deliberately broken fix because the file was
+    already sitting in a workspace from an earlier test.
+    """
+    return tmp_path / f"ws-{tmp_path.name}"
+
+
+def _suggestion_path(workspace_path: Path) -> Path:
+    """Where the suggestion goes, checked against the workspace the runtime actually used."""
+    from kash.workspaces import current_ws
+
+    from deep_transcribe.transcribe_commands import SUGGESTED_SEGMENTS_NAME
+
+    base_dir = current_ws().base_dir
+    assert base_dir.resolve() == workspace_path.resolve(), (
+        f"the runtime used workspace {base_dir}, not {workspace_path}"
+    )
+    return base_dir / SUGGESTED_SEGMENTS_NAME
+
+
+def _run_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, hints: object) -> Path:
+    """
+    Run the real processing pipeline the way a run with hints reaches the suggestion.
+
+    Driven through `_process_transcript` rather than the suggestion alone, because the
+    stage strips the hints off the item on the way in and `_attach_late_inputs` puts them
+    back: a check that only ever saw a hand-assembled item could pass while the real path
+    saw nothing. Every option is off, so nothing here calls a model.
+
+    Returns the path the suggestion would occupy, so a caller can assert either way.
+    """
+    from kash.exec import kash_runtime
+
+    _fix_the_detection(monkeypatch)
+    workspace_path = _own_workspace(tmp_path)
+
+    with kash_runtime(workspace_path):
+        transcribe_commands._process_transcript(
+            _transcript_item(),
+            TranscribeOptions.basic(),
+            processing_instructions=None,
+            segment_hints=hints,
+        )
+        return _suggestion_path(workspace_path)
+
+
+ADOPTED_HINTS = {"segments": [{"at": "0:00:04 - 0:01:49", "purpose": "teaser"}]}
+"""The suggestion for the detected clip, as the tool wrote it and the user adopted it."""
+
+
+def test_a_segment_the_user_already_marked_is_not_suggested_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    The user ran the tool, adopted the suggestion, and reran with `--segments`. Proposing
+    the same span again asks them to adopt what they already adopted, and teaches them to
+    ignore the message that will matter the next time detection finds something new.
+
+    The adopted span is the one the tool wrote for this clip, rounded outward to whole
+    seconds, which is why the comparison cannot be an exact one.
+
+    The log line is part of the behaviour, not decoration: silence here is also what a
+    version that never looked at the hints produces, and those two are not the same thing
+    — one of them goes on to suggest a genuinely new detection.
+    """
+    with caplog.at_level(logging.INFO, logger="deep_transcribe.transcribe_commands"):
+        path = _run_pipeline(tmp_path, monkeypatch, hints=ADOPTED_HINTS)
+
+    assert not path.exists(), f"re-offered a segment already marked: {path.read_text()}"
+    said = [r.getMessage() for r in caplog.records if r.name == transcribe_commands.__name__]
+    assert any("already mark" in message for message in said), (
+        f"nothing says the clip was found already marked in the hints in effect: {said}"
+    )
+
+
+def test_a_marked_segment_carried_only_on_the_item_is_not_suggested_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The same check, reading the other place hints live: on the item, where the stage below
+    the cache boundary puts them for the analysis to read. Whichever of the two a caller
+    holds, an adopted segment must not come back as a proposal.
+    """
+    from kash.exec import kash_runtime
+
+    from deep_transcribe.transcription_metadata import set_segment_hints
+
+    _fix_the_detection(monkeypatch)
+    item = _transcript_item()
+    set_segment_hints(item, ADOPTED_HINTS)
+    workspace_path = _own_workspace(tmp_path)
+
+    with kash_runtime(workspace_path):
+        transcribe_commands._suggest_segments(item, None)
+        path = _suggestion_path(workspace_path)
+
+    assert not path.exists(), f"re-offered a segment already marked: {path.read_text()}"
+
+
+@pytest.mark.parametrize(
+    "hints",
+    [
+        pytest.param(
+            {"segments": [{"at": "1:00:00 - 1:02:30", "purpose": "promo"}]},
+            id="a_hint_somewhere_else",
+        ),
+        pytest.param(
+            {"segments": [{"at": "0:00:04 - 0:00:30", "purpose": "teaser"}]},
+            id="a_hint_that_stops_short",
+        ),
+    ],
+)
+def test_hints_that_do_not_cover_the_clip_still_get_a_suggestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hints: dict[str, Any]
+) -> None:
+    """
+    Marking an ad read, or catching only the first paragraph of the reel, says nothing
+    about the rest of the opening. Those runs still want the draft.
+    """
+    path = _run_pipeline(tmp_path, monkeypatch, hints=hints)
+
+    assert path.exists()
+    text = path.read_text()
+    assert "0:00:04 - 0:01:49" in text
+    assert "purpose: teaser" in text
+
+
+def test_a_run_with_no_hints_at_all_gets_a_suggestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The first run, which is what the detector is there for."""
+    path = _run_pipeline(tmp_path, monkeypatch, hints=None)
+
+    assert path.exists()
+    assert "0:00:04 - 0:01:49" in path.read_text()
+
+
+def _speaker_label(speaker_id: int, name: str) -> str:
+    return f'<span class="speaker-label" data-speaker-id="{speaker_id}">**{name}:**</span>'
+
+
+def _exchange_with_back_channels() -> Item:
+    """
+    A five-turn exchange in the shape the transcribe stage hands downstream, two of whose
+    turns are nothing but an acknowledgement.
+
+    Taken from the measured recording, where turns like these run to several hundred.
+    """
+    from kash.model import Format
+
+    body = "\n\n".join(
+        f'{_speaker_label(speaker_id, name)} <span data-timestamp="{timestamp}">{text}</span>'
+        for speaker_id, name, timestamp, text in [
+            (0, "DHH", "313.84", "Everything turned from, like, this glamour, the pop."),
+            (1, "Lex Fridman", "314.76", "Great regression."),
+            (0, "DHH", "314.77", "So"),
+            (1, "Lex Fridman", "314.83", "They niche in, you know, eternal recurrence."),
+            (0, "DHH", "320.10", "Mhmm."),
+        ]
+    )
+    return Item(
+        type=ItemType.doc,
+        format=Format.html,
+        title="A recording",
+        body=body + "\n",
+    )
+
+
+def _body_reaching_backfill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options: TranscribeOptions
+) -> str:
+    """
+    Run the real formatting pipeline and return the body `backfill_timestamps` is handed.
+
+    Only that one stage is replaced, and only because it reads timestamps back off the
+    media resource the doc was derived from, which a synthetic item has not got. Every
+    other stage runs for real: `break_into_paragraphs` skips itself on a doc this small,
+    so nothing here calls a model.
+
+    Reading the body at that point is what pins the fold's position in the pipeline — a
+    fold that happened after backfill would leave the timestamps it is supposed to remove.
+    """
+    import kash.kits.media.actions.transcribe.backfill_timestamps as backfill_module
+    from kash.exec import kash_runtime
+    from kash.model import Format
+
+    seen: list[str] = []
+
+    def fake_backfill(item: Item, **_kwargs: object) -> Item:
+        seen.append(item.body or "")
+        return item.derived_copy(type=ItemType.doc, format=Format.md_html)
+
+    monkeypatch.setattr(backfill_module, "backfill_timestamps", fake_backfill)
+
+    with kash_runtime(_own_workspace(tmp_path)):
+        transcribe_commands._process_transcript(
+            _exchange_with_back_channels(),
+            options,
+            processing_instructions=None,
+            segment_hints=None,
+        )
+
+    assert len(seen) == 1, f"expected one backfill call, got {len(seen)}"
+    return seen[0]
+
+
+def _turn_count(body: str) -> int:
+    """Speaker turns, counted the way the rendered page shows them: one per labelled paragraph."""
+    import re
+
+    return len(re.findall(r"(?:\A|\n\s*\n)\s*\*\*[^*\n]+:\*\*", body))
+
+
+def _paragraph_holding(body: str, text: str) -> str:
+    """
+    The paragraph containing `text`, which is the unit that matters here.
+
+    The aside is appended to the paragraph, not to its last line: saving the item runs the
+    Markdown formatter, which puts a sentence on a line of its own. Same paragraph either
+    way, and one timestamp chip either way, so the check is paragraph membership.
+    """
+    import re
+
+    holders = [p for p in re.split(r"\n[ \t]*\n", body) if text in p]
+    assert len(holders) == 1, f"expected one paragraph holding {text!r}, got {len(holders)}"
+    return holders[0]
+
+
+def test_the_formatting_pipeline_folds_back_channel_turns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two of the five turns carry no content, and by default they stop being turns."""
+    body = _body_reaching_backfill(tmp_path, monkeypatch, TranscribeOptions(format=True))
+
+    assert _turn_count(body) == 3
+    assert "[DHH: So]" in _paragraph_holding(body, "Great regression.")
+    assert "[DHH: Mhmm.]" in _paragraph_holding(body, "eternal recurrence.")
+
+
+def test_keeping_back_channels_leaves_every_turn_standing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--keep-backchannel` reaches the pipeline, and nothing is folded."""
+    body = _body_reaching_backfill(
+        tmp_path, monkeypatch, TranscribeOptions(format=True, keep_back_channel=True)
+    )
+
+    assert _turn_count(body) == 5
+    assert "[DHH: Mhmm.]" not in body
+    assert "**DHH:** Mhmm." in body
+
+
+REPORT_SOURCE_URL = "https://example.com/report-recording"
+"""The source the reported item claims, so the re-export lookup has something to match."""
+
+
+def _reported_body() -> str:
+    """
+    A final item's body, small but shaped like the real one.
+
+    Every count the report prints is read out of this body, so it carries the structures
+    that matter and nothing else: three `##` sections, six labelled turns anchored by the
+    citation spans the pipeline emits, an outline block, a frame capture, and one name
+    spelled two ways. The spelling pair is the planted measurement — Omarchy three times
+    and Omachi twice is the mistake the real recording made about sixty times, and it is
+    invisible without this list.
+    """
+
+    def turn(label: str, ts: str, text: str) -> str:
+        chip = (
+            f'<span class="citation timestamp-link" data-src="r.yml" '
+            f'data-timestamp="{ts}">{ts}</span>'
+        )
+        return f"**{label}:** {text} {chip}\n\n"
+
+    return (
+        '<div class="transcript-outline" style="x">\n\n'
+        "- **Opening**\n  - a point\n- **The setup**\n  - another\n\n"
+        '<div class="original">\n\n</div>\n\n'
+        "## Opening\n\n"
+        + turn("Ada", "12.50", "Welcome. We are talking about Omarchy today.")
+        + turn("Grace", "48.00", "I have used Omarchy for a while.")
+        + "## The setup\n\n"
+        + turn("Ada", "600.25", "Tell me how Omachi installs.")
+        + turn("Grace", "900.00", "Omachi is the spelling on the box.")
+        + '<img class="frame-capture" src="frames/f1.jpg" alt="Frame at 900.0 seconds">\n\n'
+        + "## The tooling\n\n"
+        + turn("Ada", "1200.00", "So Omarchy is a Linux distribution.")
+        + turn("Grace", "1500.00", "Linux, yes.")
+    )
+
+
+def _reported_item() -> Item:
+    """The item a finished run would hand `format_results`, with its analysis attached."""
+    from kash.model import Format
+    from kash.utils.common.url import Url
+
+    from deep_transcribe.transcription_metadata import set_segment_hints
+
+    item = Item(
+        type=ItemType.doc,
+        format=Format.md_html,
+        title="A reported recording",
+        url=Url(REPORT_SOURCE_URL),
+        body=_reported_body(),
+        # The density is per hour of source, and the extractor's duration is where that
+        # comes from; half an hour makes the arithmetic checkable by eye.
+        extra={"duration": 1800},
+    )
+    item.extra = dict(item.extra or {})
+    item.extra["transcription"] = {
+        "concepts": [
+            {"name": "Omarchy", "theme": "Tooling", "mentions": ["12.50", "1200.00"]},
+            {"name": "Linux", "theme": "Tooling", "mentions": ["1500.00"]},
+            {"name": "Installation", "theme": "Setup", "mentions": ["600.25"]},
+            {"name": "An aside", "mentions": ["48.00"]},
+        ]
+    }
+    set_segment_hints(item, {"segments": [{"at": "0:00:00 - 0:01:00", "purpose": "teaser"}]})
+    return item
+
+
+def test_the_report_counts_what_the_final_item_actually_holds() -> None:
+    """
+    The report over a realistic final item, field by field.
+
+    Each number here is one the agent reading the report acts on, so each is pinned rather
+    than smoke-tested: a report that silently counted zero sections would still print.
+    """
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    report = build_transcript_report(_reported_item())
+
+    assert [h.title for h in report.headings] == ["Opening", "The setup", "The tooling"]
+    # The first citation under each heading is where that section starts.
+    assert [h.start for h in report.headings] == [12.50, 600.25, 1200.00]
+    assert report.duration == 1800.0
+    # Three sections in half an hour.
+    assert report.headings_per_hour == 6.0
+
+    assert report.outline_entries == 2
+
+    assert [(t.name, t.concepts) for t in report.themes] == [("Tooling", 2), ("Setup", 1)]
+    assert report.unthemed_concepts == 1
+
+    assert [(s.label, s.turns) for s in report.speakers] == [("Ada", 3), ("Grace", 3)]
+
+    assert len(report.segments) == 1
+    segment = report.segments[0]
+    assert segment.purpose == "teaser"
+    assert (segment.start, segment.end) == (0.0, 60.0)
+    assert segment.suppressed is True
+    # The 12.50 and 48.00 turns fall inside the first minute; 600.25 onward do not.
+    assert segment.units == 2
+
+    assert report.frames_kept == 1
+
+
+def test_the_report_surfaces_one_name_spelled_two_ways() -> None:
+    """
+    The planted pair. Choosing `--key-term` values is the reason this list exists, so the
+    variants have to appear with their counts and the ordinary words must not crowd them out.
+    """
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    report = build_transcript_report(_reported_item())
+    counts = {entry.token: entry.count for entry in report.spellings}
+
+    assert counts["Omarchy"] == 3
+    assert counts["Omachi"] == 2
+    assert counts["Linux"] == 2
+    for ordinary in ("Welcome", "Tell", "So"):
+        assert ordinary not in counts
+
+
+def test_the_report_text_renders_every_section() -> None:
+    """A report an agent reads is the text, not the dataclass."""
+    from deep_transcribe.transcript_report import build_transcript_report, format_report_text
+
+    text = format_report_text(build_transcript_report(_reported_item()))
+
+    assert "headings 3 (6.0/h)" in text
+    assert "outline 2 entries" in text
+    assert "themes 2 (1 concepts unthemed)" in text
+    assert "segments 1" in text
+    assert "teaser" in text and "suppressed" in text
+    assert "speakers 2" in text
+    assert "frames 1 kept" in text
+    assert "Omarchy" in text and "Omachi" in text
+
+
+def test_the_json_report_carries_the_same_counts() -> None:
+    """`--json` folds this dict in, so its shape is what an agent parses."""
+    from deep_transcribe.transcript_report import build_transcript_report
+
+    payload = build_transcript_report(_reported_item()).to_json_dict()
+
+    assert payload["headings"]["count"] == 3
+    assert payload["headings"]["per_hour"] == 6.0
+    assert payload["outline"]["entries"] == 2
+    assert payload["themes"]["count"] == 2
+    assert payload["themes"]["unthemed_concepts"] == 1
+    assert payload["segments"][0]["at"] == "0:00:00 - 0:01:00"
+    assert payload["frames"]["kept"] == 1
+    spellings = {row["token"]: row["count"] for row in payload["spellings"]}
+    assert spellings["Omarchy"] == 3
+
+
+def test_a_run_asked_for_a_report_describes_the_item_it_exported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    A normal run has to build the report from the item it just handed `format_results`.
+
+    Fetching, transcription and rendering are faked because none of them is the point, but
+    the seam under test is the real one: a run that reports on the source it started from,
+    or on nothing at all, would still print a plausible-looking report. The last assertion
+    is the other half — without the flag a run stays exactly as cheap as it was.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    exported: list[Item] = []
+
+    def fake_prepare(_source: str) -> Item:
+        item = Item(
+            type=ItemType.resource,
+            format=Format.url,
+            url=Url(REPORT_SOURCE_URL),
+            title="Fixture",
+        )
+        current_ws().save(item)
+        return item
+
+    def fake_transcribe(_item: Item, *_args: object, **_kwargs: object) -> Item:
+        return _reported_item()
+
+    def fake_format(result: Item, _base_dir: Path, **_kwargs: object) -> tuple[Path, Path]:
+        exported.append(result)
+        return Path("transcript.md"), Path("transcript.html")
+
+    monkeypatch.setattr(transcribe_commands, "_prepare_source_item", fake_prepare)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "format_results", fake_format)
+
+    ws_root = _own_workspace(tmp_path)
+    outputs = transcribe_commands.run_transcription(
+        ws_root,
+        REPORT_SOURCE_URL,
+        TranscribeOptions.basic(),
+        "en",
+        report=True,
+    )
+
+    assert len(exported) == 1
+    report = outputs.report
+    assert report is not None, "a run asked for a report came back without one"
+    # The exported item's own sections, not the source resource's (which has none).
+    assert [heading.title for heading in report.headings] == [
+        "Opening",
+        "The setup",
+        "The tooling",
+    ]
+    assert [(theme.name, theme.concepts) for theme in report.themes] == [
+        ("Tooling", 2),
+        ("Setup", 1),
+    ]
+
+    plain = transcribe_commands.run_transcription(
+        ws_root,
+        REPORT_SOURCE_URL,
+        TranscribeOptions.basic(),
+        "en",
+    )
+    assert plain.report is None
+
+
+def test_pipeline_stage_order_covers_the_stages_the_pipeline_runs() -> None:
+    """
+    Pin the ranking's stage list to the pipeline it describes.
+
+    `find_exported_item` ranks stored items by how far each got, which is only meaningful
+    while this tuple lists the stages in the order `_process_transcript` applies them. The
+    check is against the source of that function, so reordering or renaming a stage there
+    without touching the tuple fails here rather than silently degrading a re-export into
+    picking the wrong item.
+    """
+    import inspect
+
+    from deep_transcribe.transcribe_commands import _process_transcript
+    from deep_transcribe.transcribe_options import PIPELINE_STAGE_ORDER
+
+    source = inspect.getsource(_process_transcript)
+    # The stages that appear as `result = <stage>(...)` in the body, in body order.
+    called = re.findall(r"result = (\w+)\(", source)
+    known = [name for name in called if name in PIPELINE_STAGE_ORDER]
+
+    assert known, f"no stage in {PIPELINE_STAGE_ORDER} is called in _process_transcript"
+    ranks = [PIPELINE_STAGE_ORDER.index(name) for name in known]
+    assert ranks == sorted(ranks), (
+        f"_process_transcript runs {known}, which is not the order PIPELINE_STAGE_ORDER lists"
+    )
+
+
+def _write_doc(
+    docs_dir: Path, name: str, *, last_stage: str, created_at: str, url: str = REPORT_SOURCE_URL
+) -> None:
+    """A stored doc item with the history and timestamp the ranking reads, and nothing else."""
+    import yaml
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "type": "doc",
+        "format": "md_html",
+        "url": url,
+        "created_at": created_at,
+        "history": [{"action_name": "transcribe"}, {"action_name": last_stage}],
+    }
+    frontmatter = yaml.safe_dump(metadata, sort_keys=True)
+    (docs_dir / f"{name}.doc.md").write_text(
+        f"---\n{frontmatter}---\n\n## A section\n", encoding="utf-8"
+    )
+
+
+def test_the_re_export_prefers_a_finished_run_over_a_newer_unfinished_one(
+    tmp_path: Path,
+) -> None:
+    """
+    The case the measured workspace holds: a run that died after concepts sits beside an
+    older run that finished, and the newer one has the newer timestamp and just as many
+    history entries. Rebuilding the page from the item that never reached the index loses
+    the index, the timeline and the concept map, and the only sign is a thinner page.
+
+    Ranking on how far each run actually got is what separates them, so this is the check
+    that a count of history entries cannot pass.
+    """
+    from deep_transcribe.transcribe_commands import find_exported_item
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    _write_doc(
+        docs,
+        "finished_older",
+        last_stage="attach_transcript_index",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    _write_doc(
+        docs,
+        "unfinished_newer",
+        last_stage="extract_transcript_concepts",
+        created_at="2026-06-01T00:00:00Z",
+    )
+
+    found = find_exported_item(cast("Any", Stub), REPORT_SOURCE_URL)
+
+    assert found is not None
+    assert Path(found).name == "finished_older.doc.md", (
+        "the re-export took the newer half-finished item over the finished one"
+    )
+
+
+def test_the_re_export_takes_the_newest_of_two_finished_runs(tmp_path: Path) -> None:
+    """Two complete runs in one workspace: the page should come from the later result."""
+    from deep_transcribe.transcribe_commands import find_exported_item
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    _write_doc(
+        docs, "first_run", last_stage="attach_transcript_index", created_at="2026-01-01T00:00:00Z"
+    )
+    _write_doc(
+        docs, "second_run", last_stage="attach_transcript_index", created_at="2026-06-01T00:00:00Z"
+    )
+
+    found = find_exported_item(cast("Any", Stub), REPORT_SOURCE_URL)
+
+    assert found is not None
+    assert Path(found).name == "second_run.doc.md"
+
+
+def test_the_re_export_ignores_items_from_another_source(tmp_path: Path) -> None:
+    """One workspace can hold several recordings; a re-export must not cross between them."""
+    from deep_transcribe.transcribe_commands import find_exported_item
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    _write_doc(
+        docs,
+        "another_recording",
+        last_stage="attach_transcript_index",
+        created_at="2026-06-01T00:00:00Z",
+        url="https://example.com/something-else",
+    )
+
+    assert find_exported_item(cast("Any", Stub), REPORT_SOURCE_URL) is None
+
+
+def test_re_exporting_a_workspace_with_no_run_says_so(tmp_path: Path) -> None:
+    """
+    The mistyped workspace or source. The answer is one line the CLI turns into a usage
+    error, not a traceback and not an empty page.
+    """
+    from deep_transcribe.transcribe_commands import NoCachedResult, export_only
+
+    ws_root = _own_workspace(tmp_path)
+    ws_root.mkdir(parents=True)
+
+    with pytest.raises(NoCachedResult) as raised:
+        export_only(ws_root, REPORT_SOURCE_URL)
+
+    message = str(raised.value)
+    assert REPORT_SOURCE_URL in message
+    assert "--export-only" in message
+
+
+def _cited_paragraph(text: str, timestamp: float) -> str:
+    return (
+        f"{text}\n"
+        f'<span class="citation timestamp-link" data-src="resources/x.resource.yml" '
+        f'data-timestamp="{timestamp:.2f}">'
+        f'<a href="https://www.youtube.com/watch?v=x&amp;t={timestamp}s">{timestamp:.0f}</a>'
+        "</span>"
+    )
+
+
+def _fake_section_headings(item: Item) -> Item:
+    """
+    Stand in for the windowed LLM stage: one `##` heading above every paragraph.
+
+    Nothing here calls a model, but the real chapter stages run on either side of it, which
+    is the point — the demotion has to cope with whatever that stage actually emits.
+    """
+    blocks = (item.body or "").split("\n\n")
+    out: list[str] = []
+    for number, block in enumerate(blocks, start=1):
+        if "citation" in block:
+            out.append(f"## Model heading {number}")
+        out.append(block)
+    return item.derived_copy(body="\n\n".join(out))
+
+
+def test_publisher_chapters_become_the_sections_and_model_headings_go_under_them(
+    tmp_path: Path,
+) -> None:
+    """
+    Driven through `_process_transcript` rather than the two helpers, because the wiring is
+    the part that can break: the stages have to run in the right order, on either side of
+    the heading stage, and only when the resource actually carries chapters.
+    """
+    from unittest.mock import patch
+
+    from kash.exec import kash_runtime
+    from kash.model import Format
+    from kash.workspaces import current_ws
+
+    chapters = [
+        {"start_time": 0.0, "end_time": 60.0, "title": "Cold open"},
+        {"start_time": 60.0, "end_time": 300.0, "title": "The interview"},
+    ]
+    body = (
+        "\n\n".join(
+            _cited_paragraph(f"Paragraph at {ts:.0f} seconds.", ts)
+            for ts in (4.5, 30.0, 90.0, 150.0)
+        )
+        + "\n"
+    )
+
+    def run(extra: dict[str, Any], options: TranscribeOptions) -> str:
+        with kash_runtime(_own_workspace(tmp_path)):
+            item = Item(
+                type=ItemType.doc,
+                format=Format.md_html,
+                title="A chaptered recording",
+                extra=extra,
+                body=body,
+            )
+            current_ws().save(item)
+            with patch(
+                "kash.kits.docs.actions.text.insert_section_headings.insert_section_headings",
+                _fake_section_headings,
+            ):
+                result = transcribe_commands._process_transcript(
+                    item,
+                    options,
+                    processing_instructions=None,
+                )
+        assert result.body
+        return result.body
+
+    with_chapters = run({"chapters": chapters}, TranscribeOptions(insert_section_headings=True))
+    h2 = [line for line in with_chapters.splitlines() if line.startswith("## ")]
+    h3 = [line for line in with_chapters.splitlines() if line.startswith("### ")]
+
+    assert h2 == ["## Cold open", "## The interview"]
+    assert len(h3) == 4
+    assert len(h2) == len(chapters)
+
+    # And with the flag, or with no chapters at all, the model's headings stay the sections.
+    disabled = run(
+        {"chapters": chapters},
+        TranscribeOptions(insert_section_headings=True, no_chapters=True),
+    )
+    unchaptered = run({}, TranscribeOptions(insert_section_headings=True))
+
+    assert len([line for line in disabled.splitlines() if line.startswith("## ")]) == 4
+    assert "### " not in disabled
+    assert unchaptered == disabled
+
+
+def test_fetched_chapters_reach_the_stored_resource_on_disk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Drive the real CLI path: the chapters have to be in the resource file, not just in
+    memory.
+
+    kash's fetch has already written the resource by the time the chapters are read, and
+    every later action hashes what is on disk. An in-memory attachment alone would leave
+    the stored source without them, so the very next rerun would fetch and attach again and
+    the resource would never settle.
+    """
+    from kash.model import Format
+    from kash.utils.common.url import Url
+    from kash.workspaces import current_ws
+
+    from deep_transcribe import chapter_headings
+
+    stored_path: list[Path] = []
+    before: list[str] = []
+
+    def fake_prepare(_source: str) -> Item:
+        workspace = current_ws()
+        item = Item(
+            type=ItemType.resource,
+            format=Format.url,
+            url=Url("https://www.youtube.com/watch?v=abcdefghijk"),
+            title="Fixture",
+            extra={"media_service": "youtube", "view_count": 1_227_118},
+        )
+        workspace.save(item)
+        path = workspace.base_dir / str(item.store_path)
+        stored_path.append(path)
+        before.append(path.read_text())
+        return item
+
+    def fake_fetch(_url: str) -> list[dict[str, Any]]:
+        return [
+            {"start_time": 0.0, "end_time": 87.0, "title": "Episode highlight"},
+            {"start_time": 87.0, "end_time": 176.0, "title": "Introduction"},
+        ]
+
+    def fake_transcribe(item: Item, *_args: object, **_kwargs: object) -> Item:
+        return item
+
+    def fake_format(_result: Item, _base_dir: Path, **_kwargs: object) -> tuple[Path, Path]:
+        return Path("transcript.md"), Path("transcript.html")
+
+    monkeypatch.setattr(transcribe_commands, "_prepare_source_item", fake_prepare)
+    monkeypatch.setattr(chapter_headings, "_fetch_publisher_chapters", fake_fetch)
+    monkeypatch.setattr(transcribe_commands, "transcribe_with_options", fake_transcribe)
+    monkeypatch.setattr(transcribe_commands, "format_results", fake_format)
+
+    with TemporaryDirectory() as temp_dir:
+        transcribe_commands.run_transcription(
+            Path(temp_dir),
+            "https://www.youtube.com/watch?v=abcdefghijk",
+            TranscribeOptions.basic(),
+            "en",
+        )
+        after = stored_path[0].read_text()
+
+    assert "Episode highlight" not in before[0]
+    assert "chapters" in after
+    assert "Episode highlight" in after
+    assert "Introduction" in after
+    # The volatile counter still goes, which is the other half of the same persist.
+    assert "view_count" in before[0]
+    assert "view_count" not in after
+
+
+def test_the_replacement_action_accepts_the_raw_html_transcript(tmp_path: Path) -> None:
+    """
+    Drives the ACTION on the shape the pipeline actually hands it: the raw transcript is
+    an HTML item. Guarded with `has_simple_text_body`, the action refused the real run
+    within ten seconds ("Precondition for action apply_transcript_replacements not
+    satisfied") while every test passed on plain-text fixtures — the same wired-path miss
+    this branch has shipped before. This test exists so it cannot recur.
+    """
+    from kash.exec import kash_runtime
+    from kash.model import Format, Item, ItemType
+
+    from deep_transcribe.transcript_replacements import apply_transcript_replacements
+
+    item = Item(
+        type=ItemType.doc,
+        format=Format.html,
+        body='<p><span class="speaker" data-name="Omachi">DHH:</span> Omachi is the distro.</p>',
+        extra={"transcription": {"replacements": {"Omachi": "Omarchy"}}},
+    )
+    with kash_runtime(tmp_path / f"ws-{tmp_path.name}"):
+        result = apply_transcript_replacements(item)
+
+    assert result.body
+    assert "Omarchy is the distro." in result.body, "the action did not run on an HTML item"
+    assert 'data-name="Omachi"' in result.body, "an attribute was rewritten"
+
+
+def _write_lineage(
+    docs_dir: Path, prefix: str, stages: Sequence[str], *, created_at: str
+) -> dict[str, Path]:
+    """
+    One stored doc item per stage of a chain, each carrying the history that produced it.
+
+    Written as files rather than through a run because the selection reads frontmatter and
+    nothing else, and because two divergent lineages over one source is the shape that
+    matters here — expensive to produce for real and cheap to state.
+    """
+    import yaml
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    written: dict[str, Path] = {}
+    for depth, stage in enumerate(stages, start=1):
+        metadata = {
+            "type": "doc",
+            "format": "md_html",
+            "url": REPORT_SOURCE_URL,
+            "created_at": created_at,
+            "history": [{"action_name": name} for name in stages[:depth]],
+        }
+        path = docs_dir / f"{prefix}_{depth}.doc.md"
+        path.write_text(
+            f"---\n{yaml.safe_dump(metadata, sort_keys=True)}---\n\n## {stage}\n",
+            encoding="utf-8",
+        )
+        written[stage] = path
+    return written
+
+
+CORRECTED_LINEAGE = (
+    "transcribe",
+    "apply_transcript_replacements",
+    "correct_speaker_turns",
+    "insert_section_headings",
+    "demote_model_headings",
+    "add_transcript_outline",
+    "attach_transcript_index",
+)
+"""The chain the current run produced: a `--replace` correction sits second."""
+
+UNCORRECTED_LINEAGE = (
+    "transcribe",
+    "correct_speaker_turns",
+    "insert_section_headings",
+    "demote_model_headings",
+    "add_transcript_outline",
+    "attach_transcript_index",
+)
+"""The chain an earlier run of the same source produced, before the correction existed."""
+
+
+def test_setting_a_stage_aside_takes_the_current_lineage_and_leaves_the_older_one(
+    tmp_path: Path,
+) -> None:
+    """
+    One workspace holds every run of a source, and the earlier runs' items are cached model
+    hours that have nothing to do with the stage being fixed.
+
+    The two chains here diverge one stage in, which is what happened on the measured
+    workspace: a run before `--replace` and a run after it both reached the index. Selecting
+    by stage name alone would take both chains' section headings, outlines and indexes and
+    make the next run pay for the abandoned one as well.
+    """
+    from deep_transcribe.transcribe_commands import items_from_stage_onward
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    older = _write_lineage(docs, "older", UNCORRECTED_LINEAGE, created_at="2026-01-01T00:00:00Z")
+    current = _write_lineage(docs, "current", CORRECTED_LINEAGE, created_at="2026-06-01T00:00:00Z")
+
+    picked = items_from_stage_onward(cast("Any", Stub), REPORT_SOURCE_URL, "demote_model_headings")
+
+    assert sorted(Path(str(path)).name for path in picked) == sorted(
+        current[stage].name
+        for stage in ("demote_model_headings", "add_transcript_outline", "attach_transcript_index")
+    )
+    for path in older.values():
+        assert path.exists()
+        assert Path(path).name not in {Path(str(picked_path)).name for picked_path in picked}
+
+
+def test_setting_a_stage_aside_moves_the_items_and_their_assets_and_deletes_nothing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    Moved, not deleted, and said out loud.
+
+    The flag exists to be used when a stage looks wrong, which is exactly when the guess
+    about which stage may itself be wrong; deleting an hour of model output on that guess is
+    not a trade a flag gets to make. The log line is the other half — a set-aside that says
+    nothing is indistinguishable from one that found nothing, and those two runs behave
+    completely differently.
+    """
+    from deep_transcribe.transcribe_commands import set_aside_stage_results
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    docs = Stub.base_dir / "docs"
+    current = _write_lineage(docs, "current", CORRECTED_LINEAGE, created_at="2026-06-01T00:00:00Z")
+    frames = current["add_transcript_outline"]
+    assets = frames.with_suffix("").with_suffix(".doc.assets")
+    assets.mkdir()
+    (assets / "frame_0000.jpg").write_bytes(b"a frame")
+    bodies = {path.name: path.read_bytes() for path in current.values()}
+
+    with caplog.at_level(logging.WARNING, logger=transcribe_commands.__name__):
+        destination, count = set_aside_stage_results(
+            cast("Any", Stub), REPORT_SOURCE_URL, "demote_model_headings"
+        )
+
+    assert count == 3
+    for stage in ("transcribe", "apply_transcript_replacements", "correct_speaker_turns"):
+        assert current[stage].exists(), f"{stage} was set aside from above the named stage"
+    for stage in ("demote_model_headings", "add_transcript_outline", "attach_transcript_index"):
+        name = current[stage].name
+        assert not current[stage].exists()
+        assert (destination / "docs" / name).read_bytes() == bodies[name]
+    assert (destination / "docs" / assets.name / "frame_0000.jpg").read_bytes() == b"a frame"
+    assert not assets.exists()
+
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "Set aside 3 items from `demote_model_headings` onward" in said
+    assert str(destination) in said
+
+
+def test_setting_aside_a_stage_this_run_never_reached_says_so(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    Naming a stage below where the run stopped moves nothing, and the run that follows
+    reuses everything. Silence there reads exactly like a successful set-aside, so the one
+    case where the flag does nothing has to say it did nothing.
+    """
+    from deep_transcribe.transcribe_commands import set_aside_stage_results
+
+    class Stub:
+        base_dir: Path = tmp_path / "ws"
+
+    _write_lineage(
+        Stub.base_dir / "docs",
+        "current",
+        CORRECTED_LINEAGE[:4],
+        created_at="2026-06-01T00:00:00Z",
+    )
+
+    with caplog.at_level(logging.WARNING, logger=transcribe_commands.__name__):
+        _destination, count = set_aside_stage_results(
+            cast("Any", Stub), REPORT_SOURCE_URL, "insert_frame_captures"
+        )
+
+    assert count == 0
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "Nothing cached from `insert_frame_captures` onward" in said
