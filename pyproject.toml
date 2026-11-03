@@ -141,7 +141,10 @@ exclude-newer = "14 days"
 # Security floor: Pillow < 12.3.0 is vulnerable (PYSEC-2026-2254/2256/2257). 12.3.0 is
 # now older than the rolling cool-off, so it no longer needs an exclude-newer exception;
 # this floor stays to block any transitive downgrade.
-constraint-dependencies = ["pillow>=12.3.0"]
+# selectolax 1.0 removed the Modest backend: importing `selectolax.parser` now raises
+# ImportError. flexdoc (via kash's HTML rendering) still imports it, so hold selectolax
+# below 1.0 until flexdoc moves to `selectolax.lexbor`.
+constraint-dependencies = ["pillow>=12.3.0", "selectolax<1"]
 
 [tool.uv.exclude-newer-package]
 # Packages owned and released by jlevy bypass the third-party cool-off.
@@ -152,6 +155,7 @@ constraint-dependencies = ["pillow>=12.3.0"]
 chopdiff = "2099-12-31T00:00:00Z"
 clideps = "2099-12-31T00:00:00Z"
 deep-transcribe = "2099-12-31T00:00:00Z"
+fdu = "2099-12-31T00:00:00Z"
 flexdoc = "2099-12-31T00:00:00Z"
 flowmark-rs = "2099-12-31T00:00:00Z"
 flowmark = "2099-12-31T00:00:00Z"
@@ -176,7 +180,8 @@ tminify = "2099-12-31T00:00:00Z"
 # yt-dlp tracks YouTube's extractor changes and breaks in the field within weeks of a
 # site change, so a 14-day cool-off costs more than it buys here. Kept as short-lived
 # and deliberate: bump to just past the newest stable release, never to a date in the
-# future, and never onto a `.devN` nightly. Reviewed 2026-08-24 for 2026.8.19.
+# future, and never onto a `.devN` nightly. Reviewed 2026-11-03: 2026.10.21 and
+# 2026.10.26 are still inside the 14-day cool-off, so 2026.8.19 stays.
 yt-dlp = "2026-08-20T00:00:00Z"
 
 [tool.ruff]
