@@ -449,9 +449,9 @@ the output under a `url` key before the serving begins.
 
 ### Export a Print PDF
 
-Use Chrome or Chromium to print the same HTML and its print stylesheet.
-The PDF keeps the chapter outline, speaker labels, timestamps, and inline frames.
-It uses a light background and page numbers. Interactive controls stay on the HTML page.
+Chrome or Chromium prints the same HTML and stylesheet used by the browser’s print dialog.
+The PDF keeps the timeline, speaker table, full chapter outline, timestamps, and inline
+frames. It uses a light background and numbered pages. Print styles hide interactive controls.
 
 Add `--pdf PATH` to a transcription command, or print a cached result without running
 transcription or analysis again:
@@ -461,9 +461,14 @@ deep-transcribe --workspace ./output --export-only --pdf ./transcript.pdf --json
 ```
 
 Use the same source spelling and workspace as the original run. The JSON result includes
-the absolute `pdf` path. Deep Transcribe finds Chrome or Chromium on PATH or in the standard
-macOS Applications directory. The browser uses a temporary profile and applies the print
-stylesheet. The destination is replaced only after the browser writes a complete PDF.
+the absolute `pdf` path. Deep Transcribe finds Chrome, Chromium, or `chrome-headless-shell`
+on PATH. It also checks the standard macOS Applications directory. Set `--pdf-browser PATH`
+to use a dedicated executable with no user browser window or profile. The destination is
+replaced only after Chromium writes a complete PDF.
+
+For a manual comparison in Chrome, open the same HTML and choose **Print → Save as PDF**
+with Letter paper, default margins, 100% scale, headers and footers disabled, and background
+graphics enabled. Paper size and browser versions can affect page breaks and font fallback.
 
 Open the PDF and inspect its first page, a page with frame captures, and its last page before
 sharing it. Check that page numbers, speaker labels, and timestamps are readable and that

@@ -73,12 +73,17 @@ diarization boundaries.
 Use exact speaker overrides only after reviewing the result.
 Do not guess unsupported names.
 
-## Export a Print PDF
+## Choose Browser or PDF Output
 
-When asked for a PDF, use `--pdf PATH` with the transcription command. For a cached result,
-reuse its workspace and source with `--export-only --pdf PATH --json`.
-Chrome or Chromium prints the HTML using Deep Transcribe’s print stylesheet.
-If `--help` has no `--pdf` option, follow the browser print steps in `--docs`.
+For an interactive browser view, add `--open`. It serves the HTML locally so the embedded
+player can seek. For a PDF, use `--pdf PATH`. For a cached result, reuse its workspace and
+source with `--export-only --pdf PATH --json`. Use both options when the user wants both
+outputs.
+
+Chromium prints the same HTML and stylesheet as the browser’s print dialog. Use
+`--pdf-browser PATH` when a dedicated headless executable is available. The timeline,
+speaker table, and transcript use the shared stylesheet. If `--help` has no `--pdf`
+option, follow the browser print steps in `--docs`.
 
 Read the returned `pdf` path. Render and inspect the opening page, a page with frames if
 present, and the closing page. Check readable timestamps, visible frames, page numbers, and
@@ -93,10 +98,7 @@ agent needs to choose the next correction. Keep a source's recipe in one directo
 `docs/examples/lex-501/` does, and rebuild the page alone with `--export-only`. View
 settings such as `--grouping on|off|MINUTES` (whether the outline, concepts, claims,
 and graph group by theme; automatic from 45 minutes) take effect on a re-export, so
-change them and re-export rather than rerun. When the
-user is going to click through the page, add `--open`: it serves the export locally and
-opens it in the browser, which the embedded video player needs and a `file://` URL cannot
-give it.
+change them and re-export rather than rerun.
 
 Preserve the exact source and workspace.
 Inspect the current transcript and HTML, update the private metadata or add requested

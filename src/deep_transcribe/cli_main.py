@@ -443,6 +443,12 @@ def _add_transcription_arguments(
         help="Print the HTML to a PDF at PATH using Chrome or Chromium and the print CSS",
     )
     execution.add_argument(
+        "--pdf-browser",
+        type=Path,
+        metavar="PATH",
+        help="Use this Chrome, Chromium, or headless shell executable to print the PDF",
+    )
+    execution.add_argument(
         "--open",
         action="store_true",
         help=(
@@ -923,6 +929,8 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         parser.print_help()
         return
 
+    if args.pdf_browser is not None and args.pdf is None:
+        parser.error("--pdf-browser requires --pdf")
     if args.pdf is not None and args.source is None:
         parser.error("--pdf requires a source")
 
@@ -964,7 +972,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         if args.pdf.suffix.lower() != ".pdf":
             parser.error("--pdf must name a .pdf file")
         try:
-            pdf_browser = find_pdf_browser()
+            pdf_browser = find_pdf_browser(args.pdf_browser)
         except PdfExportError as error:
             parser.error(str(error))
 

@@ -9,7 +9,14 @@ from tempfile import TemporaryDirectory, TemporaryFile
 
 from strif import atomic_output_file
 
-_BROWSER_NAMES = ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome")
+_BROWSER_NAMES = (
+    "chrome-headless-shell",
+    "google-chrome",
+    "google-chrome-stable",
+    "chromium",
+    "chromium-browser",
+    "chrome",
+)
 _MAC_BROWSERS = (
     Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
     Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
@@ -21,16 +28,21 @@ class PdfExportError(Exception):
     """The browser could not produce a complete PDF."""
 
 
-def find_pdf_browser() -> str:
-    """Find an installed Chrome or Chromium executable."""
+def find_pdf_browser(executable: Path | None = None) -> str:
+    """Choose a standalone renderer or an installed Chrome or Chromium executable."""
+    if executable is not None:
+        path = executable.expanduser().absolute()
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+        raise PdfExportError(f"PDF browser is not an executable file: {path}")
     for name in _BROWSER_NAMES:
-        if executable := shutil.which(name):
-            return executable
+        if found := shutil.which(name):
+            return found
     for path in _MAC_BROWSERS:
         if path.is_file() and os.access(path, os.X_OK):
             return str(path)
     raise PdfExportError(
-        "PDF export requires Google Chrome or Chromium on PATH or in Applications."
+        "PDF export requires Chrome or Chromium. Use --pdf-browser to select an executable."
     )
 
 

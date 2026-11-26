@@ -32,9 +32,9 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--rerun-from STAGE] [--report]
-                       [--export-only] [--pdf PATH] [--open] [--json]
-                       [--docs | --skill | --install-skill] [--surfaces LIST]
-                       [--agent-base DIR]
+                       [--export-only] [--pdf PATH] [--pdf-browser PATH]
+                       [--open] [--json] [--docs | --skill | --install-skill]
+                       [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 
 High-quality transcription, formatting, and analysis of videos and podcasts
@@ -166,6 +166,8 @@ Models, Execution, and Output:
                         running any stage, for a template or --elements change
   --pdf PATH            Print the HTML to a PDF at PATH using Chrome or
                         Chromium and the print CSS
+  --pdf-browser PATH    Use this Chrome, Chromium, or headless shell
+                        executable to print the PDF
   --open                Serve the finished export from 127.0.0.1 on a free
                         port and open it in your browser, so the embedded
                         player works — a page opened as a file:// URL cannot
@@ -281,9 +283,9 @@ usage: deep-transcribe [-h] [--version] [--basic] [--formatted] [--annotated]
                        [--transcription-model TRANSCRIPTION_MODEL]
                        [--diarize-model DIARIZE_MODEL] [--rerun]
                        [--rerun-processing] [--rerun-from STAGE] [--report]
-                       [--export-only] [--pdf PATH] [--open] [--json]
-                       [--docs | --skill | --install-skill] [--surfaces LIST]
-                       [--agent-base DIR]
+                       [--export-only] [--pdf PATH] [--pdf-browser PATH]
+                       [--open] [--json] [--docs | --skill | --install-skill]
+                       [--surfaces LIST] [--agent-base DIR]
                        [SOURCE]
 deep-transcribe: error: argument --models: invalid ModelProvider value: 'invalid'
 ? 2
