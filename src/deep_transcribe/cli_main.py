@@ -437,6 +437,12 @@ def _add_transcription_arguments(
         ),
     )
     execution.add_argument(
+        "--pdf",
+        type=Path,
+        metavar="PATH",
+        help="Print the HTML to a PDF at PATH using Chrome or Chromium and the print CSS",
+    )
+    execution.add_argument(
         "--open",
         action="store_true",
         help=(
@@ -555,6 +561,7 @@ def display_results(
     as_json: bool,
     report: "TranscriptReport | None" = None,
     serve_url: str | None = None,
+    pdf_path: Path | None = None,
 ) -> None:
     """
     Display generated artifact paths, and the report when one was built.
@@ -582,6 +589,8 @@ def display_results(
         # JSON is not waiting on a server that only stops at Ctrl-C.
         if serve_url is not None:
             result["url"] = serve_url
+        if pdf_path is not None:
+            result["pdf"] = str(pdf_path.resolve())
         # Folded into the one document rather than printed beside it, so `--json` output
         # stays parseable by a single read.
         if report is not None:
@@ -621,6 +630,8 @@ def display_results(
             workspace, and use `files`, `show`, `help`, and related commands.
             """)
     )
+    if pdf_path is not None:
+        rprint(f"Print PDF is at:\n\n    [yellow]{fmt_path(pdf_path)}[/yellow]")
     if suggested.exists():
         rprint(
             dedent(f"""
@@ -912,6 +923,9 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
         parser.print_help()
         return
 
+    if args.pdf is not None and args.source is None:
+        parser.error("--pdf requires a source")
+
     if _handle_documentation_and_skill_options(parser, args):
         return
 
@@ -942,6 +956,17 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
 
     if args.source is None:
         parser.error("a source is required unless an action such as --models or --docs is used")
+
+    pdf_browser = None
+    if args.pdf is not None:
+        from deep_transcribe.pdf_export import PdfExportError, find_pdf_browser
+
+        if args.pdf.suffix.lower() != ".pdf":
+            parser.error("--pdf must name a .pdf file")
+        try:
+            pdf_browser = find_pdf_browser()
+        except PdfExportError as error:
+            parser.error(str(error))
 
     workspace = configure_kash_workspace(args.workspace)
 
@@ -1050,6 +1075,12 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
                 grouping=grouping,
                 report=args.report,
             )
+        pdf_path = None
+        if args.pdf is not None and pdf_browser is not None:
+            from deep_transcribe.pdf_export import export_pdf
+
+            pdf_path = export_pdf(pdf_browser, outputs.html_path, args.pdf)
+
         # Started before anything is printed, because with --json the URL has to go into
         # the one document; nothing reaches the console until display_results runs, so the
         # report still comes first and the URL still comes last.
@@ -1066,6 +1097,7 @@ def _run_cli(argv: Sequence[str] | None = None) -> None:
             as_json=args.json,
             report=outputs.report,
             serve_url=served.url if served is not None else None,
+            pdf_path=pdf_path,
         )
 
         if served is not None:

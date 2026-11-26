@@ -1286,8 +1286,23 @@ def format_results(
             add_title_h1=True,
             template_filename="deep_transcribe_webpage.html.jinja",
         )
-    assert raw_html_item.body
-    raw_html_item.body = inject_page_config(raw_html_item.body, elements, grouping)
+    body = raw_html_item.body
+    assert body
+    if result_item.title:
+        from html import escape
+
+        # Kash picks a filename-safe title for both visible headings and the browser tab.
+        # The export can keep the publisher's punctuation because the title is escaped.
+        title = escape(result_item.title)
+        for tag in ("title", "h1"):
+            body = re.sub(
+                rf"(<{tag}\b[^>]*>).*?(</{tag}>)",
+                lambda match: f"{match[1]}{title}{match[2]}",
+                body,
+                count=1,
+                flags=re.DOTALL,
+            )
+    raw_html_item.body = inject_page_config(body, elements, grouping)
     current_ws().save(raw_html_item)
 
     if not no_minify:

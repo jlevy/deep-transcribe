@@ -62,6 +62,7 @@ dependencies = [
     # version-coupled (yt-dlp pins an exact ejs), so this keeps the pairing correct
     # across upgrades. The runtime that executes it comes from the `youtube` extra below.
     "yt-dlp[default]>=2026.8.19",
+    "strif>=3.1,<4",
 ]
 
 

@@ -405,6 +405,7 @@
     if (!model.elements.has("timeline")) return;
 
     panel = model.makePanel("Timeline");
+    panel.classList.add("dt-timeline-panel");
     host = document.createElement("div");
     host.className = "dt-overview-rows";
     panel.appendChild(host);

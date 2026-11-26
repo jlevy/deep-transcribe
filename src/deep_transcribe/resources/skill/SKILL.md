@@ -1,6 +1,6 @@
 ---
 name: deep-transcribe
-description: Transcribe and analyze audio, video, podcasts, and YouTube URLs with Deepgram plus Anthropic or OpenAI models. Use for transcripts, speaker labels, timestamps, sections, summaries, research annotations, frame captures, HTML output, or a reviewed result that should be rerun with added context or processing while reusing cached work.
+description: Transcribe and analyze audio, video, podcasts, and YouTube URLs with Deepgram plus Anthropic or OpenAI models. Use for transcripts, speaker labels, timestamps, sections, summaries, research annotations, frame captures, HTML or print PDF output, or a reviewed result that should be rerun with added context or processing while reusing cached work.
 ---
 # Deep Transcribe
 
@@ -69,6 +69,17 @@ role, Deep Transcribe can derive the internal roster needed to correct merged
 diarization boundaries.
 Use exact speaker overrides only after reviewing the result.
 Do not guess unsupported names.
+
+## Export a Print PDF
+
+When asked for a PDF, use `--pdf PATH` with the transcription command. For a cached result,
+reuse its workspace and source with `--export-only --pdf PATH --json`.
+Chrome or Chromium prints the HTML using Deep Transcribe’s print stylesheet.
+If `--help` has no `--pdf` option, follow the browser print steps in `--docs`.
+
+Read the returned `pdf` path. Render and inspect the opening page, a page with frames if
+present, and the closing page. Check readable timestamps, visible frames, page numbers, and
+closing remarks. Report the PDF alongside the transcript and HTML.
 
 ## Iterate on a Reviewed Result
 

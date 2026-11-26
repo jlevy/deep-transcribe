@@ -529,6 +529,7 @@ dependencies = [
     { name = "prettyfmt" },
     { name = "rich" },
     { name = "sidematter-format" },
+    { name = "strif" },
     { name = "yt-dlp", extra = ["default"] },
 ]
 
@@ -563,6 +564,7 @@ requires-dist = [
     { name = "prettyfmt", specifier = ">=0.4.1" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "sidematter-format", specifier = ">=0.1.0,<0.2" },
+    { name = "strif", specifier = ">=3.1,<4" },
     { name = "yt-dlp", extras = ["default"], specifier = ">=2026.8.19" },
 ]
 provides-extras = ["youtube"]
