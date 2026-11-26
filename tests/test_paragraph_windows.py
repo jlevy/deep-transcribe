@@ -38,6 +38,32 @@ def test_paragraph_repair_restores_missing_source_and_rejects_unmatched_model_ed
     assert repaired.count("Repeat.") == 2
 
 
+def test_paragraph_repair_preserves_formatting_around_a_long_transcript_seam() -> None:
+    sentences = [f"The host reads entry {index}." for index in range(4_000)]
+    source = " ".join(sentences)
+    formatted = "\n\n".join(sentences)
+    seam = sentences[2_000]
+    assert len(source) > 30_000
+
+    repaired = repair_paragraph_body(source, formatted.replace(seam, f"{seam} {seam}", 1))
+
+    assert re.sub(r"\s+", "", repaired) == re.sub(r"\s+", "", source)
+    assert repaired.startswith("\n\n".join(sentences[:2_000]))
+    assert repaired.endswith("\n\n".join(sentences[2_002:]))
+    assert repaired.count("\n\n") >= len(sentences) - 2
+
+
+def test_paragraph_repair_limits_a_widely_changed_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    def unexpected_diff(*_args: object) -> FlexDoc:
+        pytest.fail("A long unmatched span should use the source without diffing")
+
+    monkeypatch.setattr(paragraph_windows, "filtered_transform", unexpected_diff)
+    source = "Repeated original wording. " * 2_000
+    candidate = "Different wording. " * 2_000
+
+    assert repair_paragraph_body(source, candidate) == source
+
+
 def test_paragraph_repair_falls_back_to_complete_source_on_invariant_failure(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
