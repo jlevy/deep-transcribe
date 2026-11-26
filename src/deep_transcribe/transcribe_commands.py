@@ -16,7 +16,7 @@ from kash.exec.preconditions import (
     is_url_resource,
     is_video_resource,
 )
-from kash.model import Item, Param
+from kash.model import ActionInput, Item, Param
 from kash.model.params_model import common_params
 
 from deep_transcribe.chapter_headings import attach_publisher_chapters
@@ -296,6 +296,7 @@ def _process_transcript(
         has_timestamp_citations,
         insert_chapter_headings,
     )
+    from deep_transcribe.paragraph_windows import repair_paragraph_windows
     from deep_transcribe.timestamp_citations import normalize_timestamp_citations
     from deep_transcribe.transcript_overview import (
         add_transcript_description,
@@ -323,7 +324,12 @@ def _process_transcript(
 
         result = normalize_transcript_fragments(result)
         result = strip_html(result)
+        paragraph_source = result
         result = break_into_paragraphs(result)
+        if result.body != paragraph_source.body:
+            # Revalidate the stitched result against the complete source, including on a
+            # paid-action cache hit. Per-window filtering cannot protect the final seam.
+            result = repair_paragraph_windows(ActionInput([paragraph_source, result])).items[0]
         if not options.keep_back_channel:
             # Paragraphs exist here but citations do not, so a folded turn simply stops
             # being a paragraph and stops earning a timestamp of its own.

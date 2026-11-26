@@ -221,12 +221,12 @@ including speech-to-text.
 
 `apply_transcript_replacements`, `infer_speaker_roster_from_context`,
 `correct_speaker_turns`, `normalize_transcript_fragments`, `strip_html`,
-`break_into_paragraphs`, `fold_back_channel_turns`, `backfill_timestamps`,
-`normalize_timestamp_citations`, `insert_chapter_headings`,
-`insert_section_headings`, `demote_model_headings`, `research_paras`,
-`_attach_late_inputs`, `add_transcript_outline`, `add_transcript_description`,
-`insert_frame_captures`, `extract_transcript_concepts`,
-`attach_transcript_index`
+`break_into_paragraphs`, `repair_paragraph_windows`, `fold_back_channel_turns`,
+`backfill_timestamps`, `normalize_timestamp_citations`,
+`insert_chapter_headings`, `insert_section_headings`, `demote_model_headings`,
+`research_paras`, `_attach_late_inputs`, `add_transcript_outline`,
+`add_transcript_description`, `insert_frame_captures`,
+`extract_transcript_concepts`, `attach_transcript_index`
 
 Examples:
 

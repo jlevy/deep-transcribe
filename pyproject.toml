@@ -43,6 +43,9 @@ dependencies = [
     # dropping the request.
     "kash-shell>=0.4.11,<0.5",
     "kash-media>=0.4.9,<0.5",
+    # Direct imports for validating stitched transcript paragraphs.
+    "chopdiff>=0.4.1,<0.5",
+    "flexdoc>=0.4.1,<0.5",
     # Direct metadata parsing and sidematter persistence imports:
     "frontmatter-format>=0.4.0,<0.5",
     "sidematter-format>=0.1.0,<0.2",

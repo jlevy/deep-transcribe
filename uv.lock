@@ -521,6 +521,8 @@ wheels = [
 name = "deep-transcribe"
 source = { editable = "." }
 dependencies = [
+    { name = "chopdiff" },
+    { name = "flexdoc" },
     { name = "frontmatter-format" },
     { name = "kash-media" },
     { name = "kash-shell" },
@@ -552,7 +554,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "chopdiff", specifier = ">=0.4.1,<0.5" },
     { name = "deno", marker = "extra == 'youtube'", specifier = ">=2.9,<3" },
+    { name = "flexdoc", specifier = ">=0.4.1,<0.5" },
     { name = "frontmatter-format", specifier = ">=0.4.0,<0.5" },
     { name = "kash-media", specifier = ">=0.4.9,<0.5" },
     { name = "kash-shell", specifier = ">=0.4.11,<0.5" },
