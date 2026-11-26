@@ -48,8 +48,12 @@ dependencies = [
     "flexdoc>=0.4.1,<0.5",
     # flexdoc still imports the Modest parser removed in selectolax 1.0.
     "selectolax<1",
-    # Carry the security floor (PYSEC-2026-2254/2256/2257) into published installs.
-    "pillow>=12.3.0",
+    # Carry patched versions into published installs, including unlocked resolutions.
+    "pillow>=13.0.0", # GHSA-5x8w-8jj5-q52h and related image decoder advisories
+    "brotli>=1.2.1; implementation_name == 'cpython'", # GHSA-9v8h-qqgm-4m35
+    "brotlicffi>=1.2.1.0; implementation_name != 'cpython'", # GHSA-9v8h-qqgm-4m35
+    "certifi>=2026.10.18", # GHSA-6q48-6c7w-9gw2
+    "pyjwt>=2.14.0", # GHSA-ffc3-869f-jxw9
     # Direct metadata parsing and sidematter persistence imports:
     "frontmatter-format>=0.4.0,<0.5",
     "sidematter-format>=0.1.0,<0.2",
