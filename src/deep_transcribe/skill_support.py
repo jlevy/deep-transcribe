@@ -14,7 +14,7 @@ from typing import NamedTuple
 PACKAGE_NAME = "deep-transcribe"
 SKILL_DIRNAME = "deep-transcribe"
 SKILL_FORMAT = "f02"
-DISCOVERY_VERSION = "0.1.14"
+DISCOVERY_VERSION = "0.2.0"
 YTDLP_DISCOVERY_CUTOFF = "2026-10-27T00:00:00Z"
 
 SURFACE_PORTABLE = "portable"

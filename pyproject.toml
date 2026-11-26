@@ -42,10 +42,14 @@ dependencies = [
     # first release whose web search reaches Anthropic models rather than silently
     # dropping the request.
     "kash-shell>=0.4.11,<0.5",
-    "kash-media>=0.4.9,<0.5",
+    "kash-media>=0.4.13,<0.5",
     # Direct imports for validating stitched transcript paragraphs.
     "chopdiff>=0.4.1,<0.5",
     "flexdoc>=0.4.1,<0.5",
+    # flexdoc still imports the Modest parser removed in selectolax 1.0.
+    "selectolax<1",
+    # Carry the security floor (PYSEC-2026-2254/2256/2257) into published installs.
+    "pillow>=12.3.0",
     # Direct metadata parsing and sidematter persistence imports:
     "frontmatter-format>=0.4.0,<0.5",
     "sidematter-format>=0.1.0,<0.2",
@@ -142,13 +146,6 @@ required-version = ">=0.9"
 # Safe project-level default for every uv command. CI and the Makefile repeat it so
 # copied commands and tool execution outside project discovery retain the same policy.
 exclude-newer = "14 days"
-# Security floor: Pillow < 12.3.0 is vulnerable (PYSEC-2026-2254/2256/2257). 12.3.0 is
-# now older than the rolling cool-off, so it no longer needs an exclude-newer exception;
-# this floor stays to block any transitive downgrade.
-# selectolax 1.0 removed the Modest backend: importing `selectolax.parser` now raises
-# ImportError. flexdoc (via kash's HTML rendering) still imports it, so hold selectolax
-# below 1.0 until flexdoc moves to `selectolax.lexbor`.
-constraint-dependencies = ["pillow>=12.3.0", "selectolax<1"]
 
 [tool.uv.exclude-newer-package]
 # Packages owned and released by jlevy bypass the third-party cool-off.

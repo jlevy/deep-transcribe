@@ -34,12 +34,6 @@ kash-shell = "2099-12-31T00:00:00Z"
 strif = "2099-12-31T00:00:00Z"
 funlog = "2099-12-31T00:00:00Z"
 
-[manifest]
-constraints = [
-    { name = "pillow", specifier = ">=12.3.0" },
-    { name = "selectolax", specifier = "<1" },
-]
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
@@ -526,8 +520,10 @@ dependencies = [
     { name = "frontmatter-format" },
     { name = "kash-media" },
     { name = "kash-shell" },
+    { name = "pillow" },
     { name = "prettyfmt" },
     { name = "rich" },
+    { name = "selectolax" },
     { name = "sidematter-format" },
     { name = "strif" },
     { name = "yt-dlp", extra = ["default"] },
@@ -559,10 +555,12 @@ requires-dist = [
     { name = "deno", marker = "extra == 'youtube'", specifier = ">=2.9,<3" },
     { name = "flexdoc", specifier = ">=0.4.1,<0.5" },
     { name = "frontmatter-format", specifier = ">=0.4.0,<0.5" },
-    { name = "kash-media", specifier = ">=0.4.9,<0.5" },
+    { name = "kash-media", specifier = ">=0.4.13,<0.5" },
     { name = "kash-shell", specifier = ">=0.4.11,<0.5" },
+    { name = "pillow", specifier = ">=12.3.0" },
     { name = "prettyfmt", specifier = ">=0.4.1" },
     { name = "rich", specifier = ">=14.0.0" },
+    { name = "selectolax", specifier = "<1" },
     { name = "sidematter-format", specifier = ">=0.1.0,<0.2" },
     { name = "strif", specifier = ">=3.1,<4" },
     { name = "yt-dlp", extras = ["default"], specifier = ">=2026.8.19" },
