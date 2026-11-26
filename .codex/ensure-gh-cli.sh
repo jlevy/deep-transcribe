@@ -113,7 +113,10 @@ version_ge() {
 
 # `gh --version` prints "gh version 2.97.0 (2026-07-31)" on its first line.
 installed_gh_version() {
-    "$1" --version 2>/dev/null | awk 'NR==1 {print $3}'
+    local output
+    output=$("$1" --version 2>/dev/null) || return 0
+    printf '%s\n' "$output" \
+        | awk 'NR==1 && $1 == "gh" && $2 == "version" && $3 ~ /^[0-9]+\.[0-9]+\.[0-9]+(-[[:alnum:].-]+)?$/ {print $3}'
 }
 
 # Decide whether to install. Presence alone is not enough: a distro-packaged gh is
@@ -229,7 +232,11 @@ fi
 # PATH would otherwise shadow the pinned build we just installed.
 GH_RESOLVED="$(command -v gh)"
 GH_RESOLVED_VERSION="$(installed_gh_version "$GH_RESOLVED")"
-if [ -n "$GH_RESOLVED_VERSION" ] && ! version_ge "$GH_RESOLVED_VERSION" "$GH_MIN_VERSION"; then
+if [ -z "$GH_RESOLVED_VERSION" ]; then
+    echo "[gh] ERROR: CLI at ${GH_RESOLVED} does not report a usable version after installation."
+    exit 1
+fi
+if ! version_ge "$GH_RESOLVED_VERSION" "$GH_MIN_VERSION"; then
     echo "[gh] WARNING: PATH resolves gh to ${GH_RESOLVED} (v${GH_RESOLVED_VERSION}),"
     echo "[gh] which is below the required v${GH_MIN_VERSION}. The pinned build is at"
     echo "[gh] $HOME/.local/bin/gh — put ~/.local/bin ahead of ${GH_RESOLVED%/gh} in PATH."
@@ -416,25 +423,17 @@ gh_stack_extension_identity_matches() {
 }
 
 # Make an unverified same-command extension undispatchable before any network request.
-# `gh extension remove` is the normal path. The rename is a recoverable fallback for a
-# damaged or adversarial manifest that gh cannot remove itself.
+# Quarantine the canonical directory so a failed refresh leaves a recoverable copy.
 disable_gh_stack_extension() {
     local executable extension_dir quarantine
     executable=$(gh_stack_extension_executable)
     extension_dir=${executable%/*}
 
-    if gh_stack_command_present; then
-        gh extension remove stack 2>&1 | sed 's/^/[gh]   /' || true
-    fi
-
-    # Also inspect the canonical directory: a damaged manifest can make
-    # `gh extension list` fail even though gh can still discover the command by name.
     if [ -e "$extension_dir" ] || [ -L "$extension_dir" ]; then
-        quarantine=$(mktemp -d "${extension_dir}.unverified.XXXXXX") || return 1
+        quarantine=$(mktemp -d "${extension_dir%/*}/../.tbd-gh-stack-unverified.XXXXXX") || return 1
         rmdir "$quarantine" || return 1
-        if mv "$extension_dir" "$quarantine"; then
-            echo "[gh] Quarantined an unverified gh-stack extension at ${quarantine}"
-        fi
+        mv "$extension_dir" "$quarantine" || return 1
+        echo "[gh] Quarantined an unverified gh-stack extension at ${quarantine}"
     fi
     ! gh_stack_command_present \
         && [ ! -e "$extension_dir" ] \
