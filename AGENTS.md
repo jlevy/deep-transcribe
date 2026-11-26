@@ -87,6 +87,6 @@ Use Deep Transcribe for audio and video transcription and cache-aware refinement
 - If the command is missing or rejects `--docs`, use the exact pinned runner below.
 - Use the same verified runner with `--skill` for the complete agent workflow.
 - Preserve the same source and workspace when refining a reviewed result.
-- Exact pinned runner: `uvx --exclude-newer-package yt-dlp=2026-08-20T00:00:00Z --from "deep-transcribe[youtube]==0.1.14" deep-transcribe`.
+- Exact pinned runner: `uvx --exclude-newer-package yt-dlp=2026-10-27T00:00:00Z --from "deep-transcribe[youtube]==0.1.14" deep-transcribe`.
 
 <!-- END DEEP TRANSCRIBE INTEGRATION -->

@@ -180,9 +180,9 @@ tminify = "2099-12-31T00:00:00Z"
 # yt-dlp tracks YouTube's extractor changes and breaks in the field within weeks of a
 # site change, so a 14-day cool-off costs more than it buys here. Kept as short-lived
 # and deliberate: bump to just past the newest stable release, never to a date in the
-# future, and never onto a `.devN` nightly. Reviewed 2026-11-03: 2026.10.21 and
-# 2026.10.26 are still inside the 14-day cool-off, so 2026.8.19 stays.
-yt-dlp = "2026-08-20T00:00:00Z"
+# future, and never onto a `.devN` nightly. Reviewed 2026-11-25: 2026.10.26
+# meets the 14-day cool-off. 2026.11.23 is still inside it.
+yt-dlp = "2026-10-27T00:00:00Z"
 
 [tool.ruff]
 # Set as desired, typically 88 (black standard) or 100 (wide).

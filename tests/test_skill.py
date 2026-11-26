@@ -273,3 +273,5 @@ def test_checked_in_skill_copies_match_the_canonical_package_source() -> None:
     ):
         for relative_path, expected_content in expected.items():
             assert (base / relative_path).read_text() == expected_content
+
+    assert agents_md_block(DISCOVERY_VERSION) in (repo_root / "AGENTS.md").read_text()
