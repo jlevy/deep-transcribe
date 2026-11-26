@@ -447,40 +447,35 @@ default browser, where the embedded player works.
 It keeps the command in the foreground until Ctrl-C, and with `--json` the URL is added to
 the output under a `url` key before the serving begins.
 
-### Save the HTML as a PDF
+### Export a Print PDF
 
-The HTML export is the presentation source.
-Its print stylesheet switches to a light page, hides interactive controls, keeps
-transcript elements together when practical, and adds the Deep Transcribe footer.
+Chrome or Chromium prints the same HTML and stylesheet used by the browser’s print dialog.
+The PDF keeps the timeline, speaker table, full chapter outline, timestamps, and inline
+frames. It uses a light background and numbered pages. Print styles hide interactive controls.
 
-To create a PDF without adding a renderer dependency:
-
-1. Open the final HTML in a modern browser.
-2. Choose **Print → Save as PDF**.
-3. Use 100% scale, disable the browser’s headers and footers, and enable background
-   graphics.
-4. Inspect the title and outline, a transcript page with frame captures, and the final
-   page before sharing the PDF.
-
-An installed Chrome or Chromium executable can make the same browser print reproducible.
-Replace the placeholder with the absolute path Deep Transcribe reports:
+Add `--pdf PATH` to a transcription command, or print a cached result without running
+transcription or analysis again:
 
 ```shell
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-    --headless=new \
-    --disable-background-networking \
-    --no-pdf-header-footer \
-    --print-to-pdf=transcript.pdf \
-    "file:///absolute/path/to/transcript.html"
+deep-transcribe --workspace ./output --export-only --pdf ./transcript.pdf --json SOURCE
 ```
 
-Use `google-chrome` or `chromium` as the executable on other platforms.
+Use the same source spelling and workspace as the original run. The JSON result includes
+the absolute `pdf` path. Deep Transcribe finds Chrome, Chromium, or `chrome-headless-shell`
+on PATH. It also checks the standard macOS Applications directory. Set `--pdf-browser PATH`
+to use a dedicated executable with no user browser window or profile. The destination is
+replaced only after Chromium writes a complete PDF.
 
-An agent should use the same browser-print workflow through its browser controls or an
-installed Chrome or Chromium executable.
-Keep the HTML and its adjacent asset directory together so local frame captures load.
-Do not substitute a non-browser HTML-to-PDF converter: browser CSS, font metrics, and
-list markers can render differently.
+For a manual comparison in Chrome, open the same HTML and choose **Print → Save as PDF**
+with Letter paper, default margins, 100% scale, headers and footers disabled, and background
+graphics enabled. Paper size and browser versions can affect page breaks and font fallback.
+
+Open the PDF and inspect its first page, a page with frame captures, and its last page before
+sharing it. Check that page numbers, speaker labels, and timestamps are readable and that
+the closing remarks are present. If the installed CLI lacks `--pdf`, open the reported HTML
+in Chrome or Chromium and select **Print → Save as PDF** with 100% scale, headers and
+footers disabled, and background graphics enabled. Keep the HTML beside its asset directory
+so frames load.
 
 Keep private metadata beside the source media or in another private directory.
 Do not copy private paths, participant names, transcript content, or credentials into

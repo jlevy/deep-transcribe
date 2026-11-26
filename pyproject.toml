@@ -42,7 +42,18 @@ dependencies = [
     # first release whose web search reaches Anthropic models rather than silently
     # dropping the request.
     "kash-shell>=0.4.11,<0.5",
-    "kash-media>=0.4.9,<0.5",
+    "kash-media>=0.4.13,<0.5",
+    # Direct imports for validating stitched transcript paragraphs.
+    "chopdiff>=0.4.1,<0.5",
+    "flexdoc>=0.4.1,<0.5",
+    # flexdoc still imports the Modest parser removed in selectolax 1.0.
+    "selectolax<1",
+    # Carry patched versions into published installs, including unlocked resolutions.
+    "pillow>=13.0.0", # GHSA-5x8w-8jj5-q52h and related image decoder advisories
+    "brotli>=1.2.1; implementation_name == 'cpython'", # GHSA-9v8h-qqgm-4m35
+    "brotlicffi>=1.2.1.0; implementation_name != 'cpython'", # GHSA-9v8h-qqgm-4m35
+    "certifi>=2026.10.18", # GHSA-6q48-6c7w-9gw2
+    "pyjwt>=2.14.0", # GHSA-ffc3-869f-jxw9
     # Direct metadata parsing and sidematter persistence imports:
     "frontmatter-format>=0.4.0,<0.5",
     "sidematter-format>=0.1.0,<0.2",
@@ -59,6 +70,7 @@ dependencies = [
     # version-coupled (yt-dlp pins an exact ejs), so this keeps the pairing correct
     # across upgrades. The runtime that executes it comes from the `youtube` extra below.
     "yt-dlp[default]>=2026.8.19",
+    "strif>=3.1,<4",
 ]
 
 
@@ -138,10 +150,6 @@ required-version = ">=0.9"
 # Safe project-level default for every uv command. CI and the Makefile repeat it so
 # copied commands and tool execution outside project discovery retain the same policy.
 exclude-newer = "14 days"
-# Security floor: Pillow < 12.3.0 is vulnerable (PYSEC-2026-2254/2256/2257). 12.3.0 is
-# now older than the rolling cool-off, so it no longer needs an exclude-newer exception;
-# this floor stays to block any transitive downgrade.
-constraint-dependencies = ["pillow>=12.3.0"]
 
 [tool.uv.exclude-newer-package]
 # Packages owned and released by jlevy bypass the third-party cool-off.
@@ -152,6 +160,7 @@ constraint-dependencies = ["pillow>=12.3.0"]
 chopdiff = "2099-12-31T00:00:00Z"
 clideps = "2099-12-31T00:00:00Z"
 deep-transcribe = "2099-12-31T00:00:00Z"
+fdu = "2099-12-31T00:00:00Z"
 flexdoc = "2099-12-31T00:00:00Z"
 flowmark-rs = "2099-12-31T00:00:00Z"
 flowmark = "2099-12-31T00:00:00Z"
@@ -176,8 +185,9 @@ tminify = "2099-12-31T00:00:00Z"
 # yt-dlp tracks YouTube's extractor changes and breaks in the field within weeks of a
 # site change, so a 14-day cool-off costs more than it buys here. Kept as short-lived
 # and deliberate: bump to just past the newest stable release, never to a date in the
-# future, and never onto a `.devN` nightly. Reviewed 2026-08-24 for 2026.8.19.
-yt-dlp = "2026-08-20T00:00:00Z"
+# future, and never onto a `.devN` nightly. Reviewed 2026-11-25: 2026.10.26
+# meets the 14-day cool-off. 2026.11.23 is still inside it.
+yt-dlp = "2026-10-27T00:00:00Z"
 
 [tool.ruff]
 # Set as desired, typically 88 (black standard) or 100 (wide).

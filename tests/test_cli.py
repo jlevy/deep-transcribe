@@ -1709,3 +1709,45 @@ def test_rerun_from_refuses_transcribe_and_points_at_rerun(
         build_parser().parse_args(["--rerun-from", "transcribe", "https://x.test/v"])
     assert caught.value.code == 2
     assert "invalid choice: 'transcribe'" in capsys.readouterr().err
+
+
+def test_cached_pdf_export_prints_the_generated_html_and_reports_the_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deep_transcribe import pdf_export
+
+    ws_root = tmp_path / f"ws-{tmp_path.name}"
+    _store_a_finished_run(ws_root)
+    _stage_trap(monkeypatch)
+    browser_path = tmp_path / "test-chrome"
+    browser_path.touch()
+    browser_path.chmod(0o700)
+    destination = tmp_path / "transcript.pdf"
+    printed: list[Path] = []
+
+    def fake_export(browser: str, html: Path, path: Path) -> Path:
+        assert browser == str(browser_path)
+        assert html.is_file()
+        printed.append(html)
+        return path
+
+    monkeypatch.setattr(pdf_export, "export_pdf", fake_export)
+    output = StringIO()
+    with redirect_stdout(output):
+        main(
+            [
+                "--workspace",
+                str(ws_root),
+                "--export-only",
+                "--pdf",
+                str(destination),
+                "--pdf-browser",
+                str(browser_path),
+                "--json",
+                EXPORTED_SOURCE,
+            ]
+        )
+
+    payload = json.loads(output.getvalue())
+    assert printed == [Path(payload["html"])]
+    assert payload["pdf"] == str(destination.resolve())

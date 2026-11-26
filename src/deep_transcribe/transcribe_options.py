@@ -141,6 +141,7 @@ PIPELINE_STAGE_ORDER = (
     "normalize_transcript_fragments",
     "strip_html",
     "break_into_paragraphs",
+    "repair_paragraph_windows",
     "fold_back_channel_turns",
     "backfill_timestamps",
     "normalize_timestamp_citations",

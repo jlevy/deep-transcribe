@@ -5,7 +5,7 @@
    dt_tokens.css.jinja, which is also where the design rules are written down.
    No literals here beyond structural geometry; tests/test_design_tokens.py
    enforces the contract. Everything injected by the dt_* modules carries
-   .dt-ui, and one print block keeps the printed PDF exactly as it was.
+   .dt-ui. The print rules put static content on paper and hide screen controls.
    ============================================================================ */
 
 /* ---- Prose: speaker labels and reading measure ---- */
@@ -1118,6 +1118,14 @@ body.yt-open #dt-rail {
     display: none !important;
   }
 
+  /* Speaker names need the same ink contrast as the surrounding print text. */
+  strong.dt-speaker-label,
+  .dt-stats .dt-speaker-name,
+  .dt-name-ref,
+  .dt-claim-speaker {
+    color: var(--dt-text) !important;
+  }
+
   /* Frames print inline; gutter placement is screen-only. */
   body.dt-frames-gutter .long-text img.frame-capture {
     position: static !important;
@@ -1163,8 +1171,7 @@ body.yt-open #dt-rail {
   .dt-graph,
   .dt-stats table,
   .dt-concept-entry,
-  .dt-concept-chip,
-  .long-text .original p {
+  .dt-concept-chip {
     break-inside: avoid;
   }
 

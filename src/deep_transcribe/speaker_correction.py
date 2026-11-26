@@ -116,6 +116,13 @@ def _label_key(label: str) -> str:
     return re.sub(r"[\W_]+", "", label.casefold())
 
 
+def _names_one_speaker(value: object) -> bool:
+    """Whether a roster names a single speaker, however often the label repeats."""
+    labels = cast(list[object], value) if isinstance(value, list) else []
+    label_keys = {_label_key(label) if isinstance(label, str) else "" for label in labels}
+    return len(label_keys) == 1 and "" not in label_keys
+
+
 def _parse_inferred_roster(response: str) -> list[str]:
     """Parse a fail-closed complete-roster decision from a structured model response."""
     try:
@@ -128,6 +135,10 @@ def _parse_inferred_roster(response: str) -> list[str]:
     if response_data.get("complete") is not True:
         return []
     raw_roster = response_data.get("speaker_roster")
+    if _names_one_speaker(raw_roster):
+        # A one-person recording has no turn boundaries to recover, so it has no roster.
+        log.message("Inferred speaker roster names one speaker; skipping turn correction")
+        return []
     try:
         return normalize_speaker_roster(raw_roster)
     except ValueError as error:
@@ -790,6 +801,27 @@ def test_infer_speaker_roster_fails_closed_for_partial_context() -> None:
         return_value=SimpleNamespace(
             content=('{"complete":false,"speaker_roster":["Possible Host","Possible Guest"]}')
         ),
+    ):
+        result = unwrap(infer_speaker_roster_from_context)(item)
+
+    assert result is not item
+    assert result.extra == item.extra
+
+
+def test_infer_speaker_roster_skips_a_one_speaker_roster() -> None:
+    from inspect import unwrap
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    item = Item(
+        type=ItemType.doc,
+        body="Transcript body.",
+        additional_context="The channel's host talks alone for the whole video.",
+    )
+
+    with patch(
+        "deep_transcribe.speaker_correction.llm_template_completion",
+        return_value=SimpleNamespace(content='{"complete":true,"speaker_roster":["Host","host"]}'),
     ):
         result = unwrap(infer_speaker_roster_from_context)(item)
 

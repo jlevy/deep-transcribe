@@ -14,8 +14,8 @@ from typing import NamedTuple
 PACKAGE_NAME = "deep-transcribe"
 SKILL_DIRNAME = "deep-transcribe"
 SKILL_FORMAT = "f02"
-DISCOVERY_VERSION = "0.1.14"
-YTDLP_DISCOVERY_CUTOFF = "2026-08-20T00:00:00Z"
+DISCOVERY_VERSION = "0.2.0"
+YTDLP_DISCOVERY_CUTOFF = "2026-10-27T00:00:00Z"
 
 SURFACE_PORTABLE = "portable"
 SURFACE_CLAUDE = "claude"
@@ -317,7 +317,9 @@ def sync_repository_skill(repository_root: str | Path) -> list[InstallResult]:
         (SURFACE_PORTABLE, root / PORTABLE_SKILL_REL),
         (SURFACE_CLAUDE, root / CLAUDE_SKILL_REL),
     )
-    return [_write_bundle(destination, surface, bundle) for surface, destination in destinations]
+    results = [_write_bundle(destination, surface, bundle) for surface, destination in destinations]
+    results.append(update_agents_md(root / "AGENTS.md", DISCOVERY_VERSION))
+    return results
 
 
 def main(argv: Sequence[str] | None = None) -> int:
